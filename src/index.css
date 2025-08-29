@@ -1,0 +1,76 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* BodyMap Design System */
+@layer base {
+  :root {
+    --background: 210 11% 7%;
+    --foreground: 0 0% 100%;
+
+    --card: 210 6% 12%;
+    --card-foreground: 0 0% 100%;
+
+    --popover: 210 6% 12%;
+    --popover-foreground: 0 0% 100%;
+
+    --primary: 142 100% 50%;
+    --primary-foreground: 210 11% 7%;
+
+    --secondary: 262 83% 58%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 210 6% 12%;
+    --muted-foreground: 0 0% 88%;
+
+    --accent: 262 83% 58%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 351 100% 67%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 210 6% 18%;
+    --input: 210 6% 18%;
+    --ring: 142 100% 50%;
+
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-bodymap-dark text-primary-text font-open-sans;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-poppins font-semibold text-primary-text;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-neon-green text-bodymap-dark font-bold uppercase px-6 py-3 rounded-lg transition-all duration-300 hover:bg-bright-coral hover:shadow-lg;
+  }
+
+  .btn-secondary {
+    @apply bg-electric-purple text-primary-text font-bold uppercase px-6 py-3 rounded-lg transition-all duration-300 hover:bg-bright-coral hover:shadow-lg;
+  }
+
+  .btn-coral {
+    @apply bg-bright-coral text-primary-text font-bold uppercase px-6 py-3 rounded-lg transition-all duration-300 hover:bg-neon-green hover:text-bodymap-dark hover:shadow-lg;
+  }
+
+  .card-dark {
+    @apply bg-card-dark border border-gray-800 rounded-lg p-6 shadow-lg;
+  }
+
+  .input-dark {
+    @apply bg-card-dark border border-gray-700 text-primary-text rounded-lg px-4 py-3 focus:border-neon-green focus:ring-2 focus:ring-neon-green/20 transition-all duration-200;
+  }
+}
