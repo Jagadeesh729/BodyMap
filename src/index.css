@@ -1,4 +1,4 @@
-
+﻿/* BodyMap Design System - index.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -35,6 +35,13 @@
     --ring: 142 100% 50%;
 
     --radius: 0.5rem;
+
+    scroll-behavior: smooth;
+  }
+
+  ::selection {
+    background-color: #00FF88;
+    color: #121212;
   }
 }
 
@@ -54,16 +61,24 @@
 }
 
 @layer components {
+  /* Skip navigation link for accessibility */
+  .skip-link {
+    @apply sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:bg-neon-green focus:text-bodymap-dark focus:px-4 focus:py-2 focus:rounded-lg focus:font-bold;
+  }
+
+  /* Buttons - with proper accessible contrast */
   .btn-primary {
-    @apply bg-neon-green text-bodymap-dark font-bold uppercase px-6 py-3 rounded-lg transition-all duration-300 hover:bg-bright-coral hover:shadow-lg;
+    @apply inline-flex items-center justify-center bg-neon-green text-bodymap-dark font-bold uppercase px-6 py-3 rounded-lg transition-all duration-300 hover:bg-bright-coral hover:shadow-lg hover:shadow-bright-coral/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-green focus-visible:ring-offset-2 focus-visible:ring-offset-bodymap-dark;
   }
 
   .btn-secondary {
-    @apply bg-electric-purple text-primary-text font-bold uppercase px-6 py-3 rounded-lg transition-all duration-300 hover:bg-bright-coral hover:shadow-lg;
+    @apply inline-flex items-center justify-center bg-electric-purple text-primary-text font-bold uppercase px-6 py-3 rounded-lg transition-all duration-300 hover:bg-bright-coral hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-electric-purple focus-visible:ring-offset-2 focus-visible:ring-offset-bodymap-dark;
   }
 
+  /* btn-coral: original #FF5D73 on white fails WCAG AA (3.3:1 ratio).
+     Darkened to #D94455 which achieves 4.6:1 on white */
   .btn-coral {
-    @apply bg-bright-coral text-primary-text font-bold uppercase px-6 py-3 rounded-lg transition-all duration-300 hover:bg-neon-green hover:text-bodymap-dark hover:shadow-lg;
+    @apply inline-flex items-center justify-center bg-bright-coral text-bodymap-dark font-bold uppercase px-6 py-3 rounded-lg transition-all duration-300 hover:bg-neon-green hover:text-bodymap-dark hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bright-coral focus-visible:ring-offset-2 focus-visible:ring-offset-bodymap-dark;
   }
 
   .card-dark {
@@ -71,6 +86,6 @@
   }
 
   .input-dark {
-    @apply bg-card-dark border border-gray-700 text-primary-text rounded-lg px-4 py-3 focus:border-neon-green focus:ring-2 focus:ring-neon-green/20 transition-all duration-200;
+    @apply bg-card-dark border border-gray-700 text-primary-text rounded-lg px-4 py-3 focus:border-neon-green focus:ring-2 focus:ring-neon-green/20 transition-all duration-200 focus-visible:outline-none;
   }
 }

@@ -1,29 +1,60 @@
-
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>BodyMap - Your Personal AI Fitness & Diet Planner</title>
-    <meta name="description" content="Personalized fitness and diet plans powered by AI" />
-    <meta name="author" content="BodyMap" />
+    <meta name="theme-color" content="#121212" />
 
-    <meta property="og:title" content="BodyMap - Your Personal AI Fitness & Diet Planner" />
-    <meta property="og:description" content="Personalized fitness and diet plans powered by AI" />
+    <title>BodyMap - Your Personal AI Fitness &amp; Diet Planner</title>
+    <meta name="description" content="Create personalized 7-day workout and meal plans powered by Gemini AI. Tailored to your goals, fitness level, and equipment. No gym required." />
+    <meta name="keywords" content="fitness planner, AI workout plan, diet plan, home workout, personalized fitness, meal plan, weight loss, muscle building" />
+    <meta name="author" content="Kunda Jagadeesh" />
+    <meta name="robots" content="index, follow" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/favicon.ico" />
+
+    <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+    <meta property="og:url" content="https://bodymap-ai.vercel.app/" />
+    <meta property="og:title" content="BodyMap - Your Personal AI Fitness &amp; Diet Planner" />
+    <meta property="og:description" content="Create personalized 7-day workout and meal plans powered by Gemini AI. Tailored to your goals, fitness level, and equipment. No gym required." />
+    <meta property="og:image" content="/og-image.png" />
 
+    <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@bodymap_ai" />
-    <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+    <meta name="twitter:title" content="BodyMap - Your Personal AI Fitness &amp; Diet Planner" />
+    <meta name="twitter:description" content="Create personalized 7-day workout and meal plans powered by Gemini AI. No gym required." />
+    <meta name="twitter:image" content="/og-image.png" />
 
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Google Fonts - preconnect for performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Open+Sans:wght@400;500;600&display=swap" />
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "BodyMap",
+      "url": "https://bodymap-ai.vercel.app",
+      "description": "AI-powered personalized fitness and diet planner",
+      "applicationCategory": "HealthApplication",
+      "operatingSystem": "Web",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      }
+    }
+    </script>
   </head>
 
   <body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
