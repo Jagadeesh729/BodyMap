@@ -23,52 +23,40 @@ export const BodyMapLogo: React.FC<BodyMapLogoProps> = ({
       className="shrink-0 transition-transform duration-300 group-hover:scale-105"
       aria-hidden="true"
     >
-      <rect width="100" height="100" rx="22" fill="#0B1F3A" />
-      {/* Outer Orbit Mapping Rings */}
+      <rect width="100" height="100" rx="28" fill="#0B1F3A" />
+      {/* Dynamic Base Mapping Circle */}
       <circle
         cx="50"
         cy="50"
-        r="34"
-        stroke="#00FF88"
-        strokeWidth="2.5"
-        strokeDasharray="6 3"
-        opacity="0.6"
+        r="32"
+        stroke="#22C55E"
+        strokeWidth="3.5"
+        opacity="0.85"
       />
+      {/* Dynamic Diagonal Orbital Ring */}
       <ellipse
         cx="50"
-        cy="55"
-        rx="38"
-        ry="16"
-        stroke="#22D3EE"
-        strokeWidth="2"
-        opacity="0.8"
+        cy="48"
+        rx="36"
+        ry="18"
+        transform="rotate(-35 50 48)"
+        stroke="url(#orbitGrad)"
+        strokeWidth="4"
+        fill="none"
       />
-      <ellipse
-        cx="50"
-        cy="45"
-        rx="38"
-        ry="16"
-        stroke="#00A7A0"
-        strokeWidth="2"
-        opacity="0.7"
-      />
-      {/* Biometric Data Nodes */}
-      <circle cx="50" cy="16" r="3.5" fill="#00FF88" />
-      <circle cx="88" cy="50" r="3.5" fill="#22D3EE" />
-      <circle cx="12" cy="50" r="3.5" fill="#00FF88" />
-      <circle cx="50" cy="84" r="3.5" fill="#22D3EE" />
-      <circle cx="78" cy="30" r="2.5" fill="#00FF88" />
-      <circle cx="22" cy="30" r="2.5" fill="#22D3EE" />
-      {/* Anatomical Head Node */}
-      <circle cx="50" cy="32" r="7.5" fill="#00FF88" />
-      {/* Torso Silhouette with Gradient */}
+      {/* Ascending Human Silhouette */}
+      <circle cx="50" cy="37" r="4.5" fill="#22C55E" />
       <path
-        d="M38 46 C42 43, 58 43, 62 46 C66 49, 68 56, 67 68 C64 74, 61 77, 56 77 C55 70, 54 62, 50 62 C46 62, 45 70, 44 77 C39 77, 36 74, 33 68 C32 56, 34 49, 38 46 Z"
-        fill="url(#logoTorsoGrad)"
-        opacity="0.95"
+        d="M48 43 C43 45, 36 49, 35 52 C42 50, 47 48, 49 53 C50 56, 48 60, 44 67 C42 70, 37 77, 36 79 C42 74, 46 68, 48 64 C51 60, 56 65, 59 71 C61 68, 64 63, 64 61 C61 58, 56 55, 54 52 C53 49, 56 42, 62 26 C61 31, 58 37, 54 41 C52 42, 50 42, 48 43 Z"
+        fill="url(#bodyGrad)"
       />
       <defs>
-        <linearGradient id="logoTorsoGrad" x1="50" y1="43" x2="50" y2="77" gradientUnits="userSpaceOnUse">
+        <linearGradient id="orbitGrad" x1="14" y1="30" x2="86" y2="66" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#00FF88" />
+          <stop offset="0.5" stopColor="#22D3EE" />
+          <stop offset="1" stopColor="#00A7A0" />
+        </linearGradient>
+        <linearGradient id="bodyGrad" x1="35" y1="26" x2="64" y2="79" gradientUnits="userSpaceOnUse">
           <stop stopColor="#00FF88" />
           <stop offset="1" stopColor="#00A7A0" />
         </linearGradient>
