@@ -114,5 +114,30 @@ describe('Serverless /api/generate-plan Handler Security, Rate Limiting and Robu
     resetRateLimitsForTesting()
     expect(checkRateLimit(testIp).allowed).toBe(true)
   })
+
+  it('sanitizes upstream Gemini API errors and returns appropriate status code', async () => {
+    process.env.GEMINI_API_KEY = 'test_key'
+    const originalFetch = global.fetch
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      text: async () => 'Internal Google Engine Overload with raw trace info',
+    }) as unknown as typeof fetch
+
+    const req = createMockReq('POST', { prompt: 'Valid test prompt' })
+    const res = createMockRes()
+    await handler(req, res)
+    await new Promise(resolve => setTimeout(resolve, 50))
+
+    expect(res.statusCode).toBe(503)
+    const body = JSON.parse(res._data)
+    expect(body.error).toContain('Upstream AI Service Error: HTTP 503')
+    expect(body.error).not.toContain('raw trace info')
+    expect(body.requestId).toBeDefined()
+
+    global.fetch = originalFetch
+  })
 })
+
+
 

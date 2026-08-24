@@ -141,12 +141,12 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
       res.setHeader('Server-Timing', `total;dur=${duration}`)
 
       if (!response.ok) {
-        const errText = await response.text()
         res.statusCode = response.status
         res.setHeader('Content-Type', 'application/json')
-        res.end(JSON.stringify({ error: `Gemini API Error: ${errText}`, requestId }))
+        res.end(JSON.stringify({ error: `Upstream AI Service Error: HTTP ${response.status}`, requestId }))
         return
       }
+
 
       const data = await response.json() as {
         candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
