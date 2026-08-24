@@ -3,7 +3,8 @@
 <div align="center">
 
 ![BodyMap Banner](https://img.shields.io/badge/BodyMap-Fitness%20Planner-00FF88?style=for-the-badge&logo=react&logoColor=black)
-[![Vite](https://img.shields.io/badge/Vite-5.x-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
+[![Vite](https://img.shields.io/badge/Vite-6.x-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
+
 [![React](https://img.shields.io/badge/React-18.x-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-3.x-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
@@ -52,7 +53,8 @@
 BodyMap intentionally pins stable, battle-tested dependency versions that have been verified compatible with its core architecture:
 
 - **Frontend Framework**: [React 18.3.1](https://react.dev/) *(Intentionally pinned stable release)* + [TypeScript (Strict Mode)](https://www.typescriptlang.org/)
-- **Build Tool**: [Vite 5.4.21](https://vitejs.dev/) *(Intentionally pinned stable release with SWC compiler)*
+- **Build Tool**: [Vite 6.4.3](https://vitejs.dev/) *(Updated with SWC compiler & 0 dev vulnerabilities)*
+
 - **Styling**: [Tailwind CSS 3.4.17](https://tailwindcss.com/) *(Intentionally pinned)* & `tailwindcss-animate`
 - **AI Backend Proxy**: `/api/generate-plan` (Serverless Edge Handler / Dev Middleware)
 - **AI Model**: [Google Gemini Flash REST API](https://ai.google.dev/) *(Active GA default: `gemini-3.7-flash`, configurable via `GEMINI_MODEL`)*
@@ -162,7 +164,8 @@ Open [http://localhost:8080](http://localhost:8080) in your browser.
 
 - **Production / Runtime**: **0 vulnerabilities** (`npm audit --omit=dev`).
 - **Client Secret Isolation**: **0 API keys** in browser code or `dist/` bundle; Google Gemini API calls are strictly routed through the `/api/generate-plan` serverless backend proxy with 16 KB payload limits and sliding-window rate limiting.
-- **Development Tooling**: 4 upstream advisories in local Vite 5 / esbuild dev-server tooling (GHSA-67mh-4wv8-2f99) that do not affect production static builds.
+- **Development Tooling**: **0 vulnerabilities** (`npm audit` exits with 0 vulnerabilities after updating to Vite 6 & esbuild 0.25+).
+
 
 
 ---
