@@ -1,4 +1,4 @@
-﻿import { PlanState, initialState } from './PlanContext'
+import { PlanState, initialState } from './PlanContext'
 
 export const STORAGE_KEY = 'bodymap_plan_v2'
 
@@ -19,7 +19,10 @@ export function loadPersistedState(): PlanState {
             ...initialState.formData,
             ...(parsed.formData || {}),
           },
+          weightLog: Array.isArray(parsed.weightLog) ? parsed.weightLog : initialState.weightLog,
+          completedDays: Array.isArray(parsed.completedDays) ? parsed.completedDays : initialState.completedDays,
         }
+
       }
     }
   } catch {

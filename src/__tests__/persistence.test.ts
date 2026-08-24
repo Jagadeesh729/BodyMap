@@ -49,6 +49,16 @@ describe('LocalStorage Persistence & Hydration Logic', () => {
   })
 
 
+  it('gracefully handles non-array corrupted weightLog or completedDays in storage', () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ isGenerated: true, weightLog: 'invalid_string', completedDays: 123 }))
+    const state = loadPersistedState()
+    expect(state.isGenerated).toBe(true)
+    expect(Array.isArray(state.weightLog)).toBe(true)
+    expect(state.weightLog).toEqual([])
+    expect(Array.isArray(state.completedDays)).toBe(true)
+    expect(state.completedDays).toEqual([])
+  })
+
   it('handles localStorage exceptions gracefully in savePersistedState', () => {
     const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new Error('QuotaExceededError')
@@ -58,6 +68,7 @@ describe('LocalStorage Persistence & Hydration Logic', () => {
     spy.mockRestore()
   })
 })
+
 
 
 
