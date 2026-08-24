@@ -1,7 +1,8 @@
 
 import { Link, useLocation } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
-import { Menu, X, Dumbbell } from 'lucide-react'
+import { Menu, X } from 'lucide-react'
+import { BodyMapLogo } from './BodyMapLogo'
 import { usePlan } from '@/context/PlanContext'
 
 // Defined outside component — stable reference, no recreation on render
@@ -56,11 +57,8 @@ const Navbar = () => {
         <div className="flex justify-between items-center h-16">
 
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2" aria-label="BodyMap — Go to home">
-            <Dumbbell className="w-6 h-6 text-neon-green" aria-hidden="true" />
-            <span className="text-2xl font-poppins font-bold text-electric-purple">
-              BodyMap
-            </span>
+          <Link to="/" className="flex items-center" aria-label="BodyMap — Go to home">
+            <BodyMapLogo iconSize={34} />
           </Link>
 
           {/* Desktop Navigation */}

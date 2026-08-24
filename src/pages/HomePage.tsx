@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 
 import { ContactForm } from '@/components/ContactForm'
+import { BodyMapLogo } from '@/components/BodyMapLogo'
 
 const TESTIMONIALS = [
   {
@@ -281,9 +282,8 @@ const HomePage = () => {
       <footer className="border-t border-gray-800 py-12 px-4 sm:px-6 lg:px-8 bg-bodymap-dark">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-6 text-center sm:text-left">
           <div>
-            <Link to="/" className="flex items-center gap-2 justify-center sm:justify-start">
-              <Dumbbell className="w-5 h-5 text-neon-green" />
-              <span className="text-xl font-poppins font-bold text-electric-purple">BodyMap</span>
+            <Link to="/" className="flex items-center justify-center sm:justify-start" aria-label="BodyMap home">
+              <BodyMapLogo iconSize={28} />
             </Link>
             <p className="text-xs text-secondary-text font-open-sans mt-1">
               Personalized AI Fitness &amp; Diet Architecture
