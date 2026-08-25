@@ -1,14 +1,11 @@
 import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react'
+import type { FormData } from '@/types/formData'
+
+// Re-export so existing imports from '@/context/PlanContext' continue to work
+export type { FormData }
 
 // --- Types ---
 
-export interface FormData {
-  age: string; gender: string; height: string; weight: string; fitnessLevel: string
-  mainGoal: string; bodyFocus: string[]; timePerDay: string
-  medicalIssues: string; equipment: string[]; pushupCount: string
-  dietaryPreference: string; allergies: string; specialRequests: string
-  recoveryDays: string; sleepHours: string; stressLevel: string
-}
 
 export interface WeightEntry { date: string; weight: number }
 export interface CompletedDay { date: string; dayIndex: number }
