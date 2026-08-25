@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'http'
 import { generatePlanPrompt } from '../src/lib/gemini'
 import { FullFormDataSchema } from '../src/lib/validation'
 
+
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
 const DEFAULT_GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.7-flash'
 const MAX_PAYLOAD_SIZE = 16 * 1024 // 16 KB max request size
