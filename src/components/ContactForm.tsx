@@ -1,4 +1,4 @@
-﻿import { useState } from 'react'
+import { useState } from 'react'
 import { Send, CheckCircle2, Mail, User, MessageSquare } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -40,27 +40,33 @@ export const ContactForm = ({
     }
 
     setIsSubmitting(true)
+    const subject = encodeURIComponent(formData.subject || 'BodyMap Inquiry')
+    const body = encodeURIComponent(
+      `Name: ${formData.name}\nEmail: ${formData.email}\n\nMessage:\n${formData.message}`
+    )
+    window.open(`mailto:support@bodymap.ai?subject=${subject}&body=${body}`, '_blank')
+
     setTimeout(() => {
       setIsSubmitting(false)
       setIsSubmitted(true)
       toast({
-        title: 'Message Sent!',
-        description: 'Thank you for reaching out. We will get back to you within 24 hours.'
+        title: 'Draft Prepared!',
+        description: 'Your inquiry draft has been opened in your email client for support@bodymap.ai.'
       })
       setFormData({ name: '', email: '', subject: '', message: '' })
-    }, 600)
+    }, 400)
   }
 
   if (isSubmitted) {
     return (
       <div className="card-dark text-center py-12">
         <CheckCircle2 className="w-16 h-16 text-neon-green mx-auto mb-4" />
-        <h3 className="text-2xl font-poppins font-bold text-primary-text mb-2">Message Received!</h3>
+        <h3 className="text-2xl font-poppins font-bold text-primary-text mb-2">Email Draft Prepared!</h3>
         <p className="text-secondary-text font-open-sans max-w-md mx-auto mb-6">
-          Thanks for contacting BodyMap. We have received your message and our support team will respond shortly.
+          Your inquiry has been formatted for support@bodymap.ai in your default email client.
         </p>
         <Button onClick={() => setIsSubmitted(false)} variant="outline" className="border-gray-700 text-secondary-text hover:bg-gray-800">
-          Send Another Message
+          Prepare Another Message
         </Button>
       </div>
     )

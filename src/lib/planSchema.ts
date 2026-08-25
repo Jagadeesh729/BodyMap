@@ -106,11 +106,11 @@ export function parseAndValidatePlan(markdown: string, requireSevenDays = true):
     return { success: false, errors: ['Plan content is too short or empty.'] }
   }
 
-  const dayHeaderRegex = /##\s*Day\s*(\d+)[^\n]*/gi
+  const dayHeaderRegex = /#{2,3}\s*Day\s*(\d+)[^\n]*/gi
   const dayMatches = Array.from(markdown.matchAll(dayHeaderRegex))
 
   if (dayMatches.length === 0) {
-    return { success: false, errors: ['No valid Day headers (## Day N) found in plan.'] }
+    return { success: false, errors: ['No valid Day headers (## Day N or ### Day N) found in plan.'] }
   }
 
   const seenDayNumbers = new Set<number>()
@@ -126,7 +126,7 @@ export function parseAndValidatePlan(markdown: string, requireSevenDays = true):
     }
     seenDayNumbers.add(dayNumber)
 
-    const title = match[0].replace(/^##\s*/, '').trim()
+    const title = match[0].replace(/^#{2,3}\s*/, '').trim()
     const startIndex = match.index! + match[0].length
     const endIndex = i + 1 < dayMatches.length ? dayMatches[i + 1].index! : markdown.length
     const dayContent = markdown.substring(startIndex, endIndex).trim()

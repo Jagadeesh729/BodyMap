@@ -185,6 +185,15 @@ Stay consistent and track your weight weekly.
     expect(res.success).toBe(true)
     expect(res.data?.days.length).toBe(7)
   })
+
+  it('correctly parses plans formatted with H3 day headers (### Day N)', () => {
+    const h3Plan = FULL_SEVEN_DAY_PLAN.replace(/## Day/g, '### Day')
+    const res = parseAndValidatePlan(h3Plan, true)
+    expect(res.success).toBe(true)
+    expect(res.data?.days.length).toBe(7)
+    expect(res.data?.days[0].dayNumber).toBe(1)
+    expect(res.data?.days[6].dayNumber).toBe(7)
+  })
 })
 
 

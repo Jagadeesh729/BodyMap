@@ -457,7 +457,7 @@ const CreatePlanPage = () => {
       </div>
 
       <div>
-        <Label htmlFor="photo" className="text-secondary-text">Optional Physique Photo (for posture/physique baseline)</Label>
+        <Label htmlFor="photo" className="text-secondary-text">Optional Physique Photo (Device-local reference only — photos are never uploaded or transmitted)</Label>
         <div className="border-2 border-dashed border-gray-600 rounded-lg p-6 text-center hover:border-neon-green/50 transition-colors">
           <Upload className="w-8 h-8 text-gray-500 mx-auto mb-2" aria-hidden="true" />
           <input
@@ -472,7 +472,7 @@ const CreatePlanPage = () => {
               Click to select a photo from your device
             </span>
             {photoName && (
-              <p className="text-neon-green mt-2 text-sm font-medium">✓ Uploaded: {photoName}</p>
+              <p className="text-neon-green mt-2 text-sm font-medium">✓ Selected (Device only): {photoName}</p>
             )}
           </label>
         </div>

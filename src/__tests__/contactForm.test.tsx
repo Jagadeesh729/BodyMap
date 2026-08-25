@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, fireEvent, waitFor } from '@testing-library/react'
 import React from 'react'
 import { ContactForm } from '@/components/ContactForm'
@@ -27,7 +27,8 @@ describe('ContactForm Component', () => {
     expect(messageInput.value).toBe('Inquiry about workout duration')
   })
 
-  it('submits successfully with valid data and displays success confirmation', async () => {
+  it('submits successfully with valid data, opens mailto draft, and displays confirmation', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
     const { container, getByRole, getByText } = render(<ContactForm />)
     const nameInput = container.querySelector('#contact-name') as HTMLInputElement
     const emailInput = container.querySelector('#contact-email') as HTMLInputElement
@@ -39,8 +40,15 @@ describe('ContactForm Component', () => {
     fireEvent.change(messageInput, { target: { value: 'This is a great fitness planning application!' } })
     fireEvent.click(submitBtn)
 
+    expect(openSpy).toHaveBeenCalledWith(
+      expect.stringContaining('mailto:support@bodymap.ai'),
+      '_blank'
+    )
+
     await waitFor(() => {
-      expect(getByText(/message received!/i)).toBeDefined()
+      expect(getByText(/email draft prepared!/i)).toBeDefined()
     }, { timeout: 2000 })
+
+    openSpy.mockRestore()
   })
 })
