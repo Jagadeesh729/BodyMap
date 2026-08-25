@@ -12,15 +12,7 @@ const SetupPlanWrapper = ({ children, planText }: { children: React.ReactNode, p
     if (planText) {
       dispatch({
         type: 'SET_GENERATED_PLAN',
-        payload: {
-          plan: planText,
-          provenance: {
-            isAuthenticGemini: true,
-            executionSource: 'live-gemini',
-            resolvedModel: 'gemini-3.7-flash',
-            timestamp: new Date().toISOString()
-          }
-        }
+        payload: planText
       })
     }
   }, [dispatch, planText])
@@ -106,32 +98,34 @@ describe('DownloadPlanPage & 7-Day Printable Document System', () => {
     expect(dayCards.length).toBeGreaterThanOrEqual(7)
   })
 
-  it('correctly renders custom generated plan content and tolerates missing biometrics without crashing', () => {
-    const sampleRealPlan = `
-## Day 1 - Power Chest & Triceps
-Warm-up: 5 mins jumping jacks and arm rotations
-- Barbell Bench Press: 4 sets x 8 reps (90s rest)
-- Incline Dumbbell Flyes: 3 sets x 12 reps (60s rest)
-Cool-down: 5 mins chest and shoulder static stretching
-**Nutrition:**
-Breakfast: 4 scrambled eggs with spinach and whole grain toast
-Lunch: Grilled chicken breast with quinoa and avocado salad
-Dinner: Baked salmon with sweet potato and steamed broccoli
-Snacks: Greek yogurt with mixed berries and almond butter
-Estimated Calories: 2400 kcal
+  it('correctly renders custom generated plan content and tolerates missing biometrics without crashing', async () => {
+    const customPlan = `
+## Day 1 - Chest & Triceps
+**Warm-up:** 5 mins arm circles
+- Push-ups: 3 sets x 12 reps (60s rest)
+- Dips: 3 sets x 10 reps
+**Cool-down:** 5 mins stretching
+**Meals:**
+- Breakfast: Oatmeal with eggs (400 kcal)
+- Lunch: Grilled chicken bowl (550 kcal)
+- Dinner: Salmon with quinoa (600 kcal)
+- Snacks: Greek yogurt (200 kcal)
 
-## Day 2 - Rest & Active Recovery
-Warm-up: 10 mins dynamic mobility
-Cool-down: 10 mins full body foam rolling
-**Nutrition:**
-Breakfast: Oatmeal with protein powder and banana
-Lunch: Turkey wrap with hummus and leafy greens
-Dinner: Lean beef stir-fry with brown rice
-Snacks: Apple with peanut butter
-Estimated Calories: 2100 kcal
+## Day 2 - Back & Biceps
+**Warm-up:** 5 mins shoulder rolls
+- Pull-ups: 3 sets x 8 reps
+- Dumbbell Rows: 3 sets x 12 reps
+**Cool-down:** 5 mins upper body stretch
+**Meals:**
+- Breakfast: Protein smoothie (350 kcal)
+- Lunch: Turkey wrap (500 kcal)
+- Dinner: Steak with asparagus (650 kcal)
 `
-    const { container } = renderDownloadPage(sampleRealPlan)
+    const { container } = renderDownloadPage(customPlan)
     expect(container).toBeDefined()
     expect(screen.getByText('BODYMAP 7-DAY FITNESS & DIET PROTOCOL')).toBeDefined()
+    expect(await screen.findByText('Day 1 - Chest & Triceps')).toBeDefined()
+    expect(await screen.findByText('Day 2 - Back & Biceps')).toBeDefined()
+    expect(screen.getByText(/BMI N\/A/)).toBeDefined()
   })
 })

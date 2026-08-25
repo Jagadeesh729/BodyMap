@@ -56,8 +56,10 @@ const DownloadPlanPage = () => {
       }))
     : DEFAULT_WEEKLY_PLAN
 
-  const bmiData = calculateBMI(Number(formData.height || 170), Number(formData.weight || 70))
-  const bmiDisplay = bmiData ? `${bmiData.bmi} (${bmiData.category.label})` : '22.0 (Normal Weight)'
+  const heightNum = Number(formData.height)
+  const weightNum = Number(formData.weight)
+  const bmiData = (heightNum > 0 && weightNum > 0) ? calculateBMI(heightNum, weightNum) : null
+  const bmiDisplay = bmiData ? `${bmiData.bmi} (${bmiData.category.label})` : 'Not specified'
 
   const planText = generatedPlan || [
     '# BodyMap 7-Day Fitness & Diet Plan',
@@ -328,7 +330,7 @@ const DownloadPlanPage = () => {
               </div>
               <div className="bg-bodymap-dark/60 p-2.5 rounded border border-gray-800">
                 <span className="text-secondary-text block">Biometrics &amp; BMI</span>
-                <strong className="text-primary-text font-semibold">{formData.age || '25'}y • {formData.gender || 'Athlete'} • BMI {bmiData?.bmi ?? '22.0'}</strong>
+                <strong className="text-primary-text font-semibold">{formData.age ? `${formData.age}y` : 'Athlete'} • {formData.gender || 'General'} • {bmiData ? `BMI ${bmiData.bmi}` : 'BMI N/A'}</strong>
               </div>
               <div className="bg-bodymap-dark/60 p-2.5 rounded border border-gray-800">
                 <span className="text-secondary-text block">Daily Time &amp; Gear</span>
