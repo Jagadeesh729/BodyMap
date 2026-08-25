@@ -57,6 +57,7 @@ const DownloadPlanPage = () => {
     : DEFAULT_WEEKLY_PLAN
 
   const bmiData = calculateBMI(Number(formData.height || 170), Number(formData.weight || 70))
+  const bmiDisplay = bmiData ? `${bmiData.bmi} (${bmiData.category.label})` : '22.0 (Normal Weight)'
 
   const planText = generatedPlan || [
     '# BodyMap 7-Day Fitness & Diet Plan',
@@ -64,7 +65,7 @@ const DownloadPlanPage = () => {
     `Goal: ${formData.mainGoal || 'Full Body Fitness'}`,
     `Time per day: ${formData.timePerDay || '45'} minutes`,
     `Equipment: ${formData.equipment.join(', ') || 'Bodyweight'}`,
-    `Target BMI: ${bmiData.bmi} (${bmiData.category})`,
+    `Target BMI: ${bmiDisplay}`,
     '',
     '---',
     'Visit BodyMap at https://bodymap-ai.vercel.app to customize your schedule.'
@@ -327,7 +328,7 @@ const DownloadPlanPage = () => {
               </div>
               <div className="bg-bodymap-dark/60 p-2.5 rounded border border-gray-800">
                 <span className="text-secondary-text block">Biometrics &amp; BMI</span>
-                <strong className="text-primary-text font-semibold">{formData.age || '25'}y • {formData.gender || 'Athlete'} • BMI {bmiData.bmi}</strong>
+                <strong className="text-primary-text font-semibold">{formData.age || '25'}y • {formData.gender || 'Athlete'} • BMI {bmiData?.bmi ?? '22.0'}</strong>
               </div>
               <div className="bg-bodymap-dark/60 p-2.5 rounded border border-gray-800">
                 <span className="text-secondary-text block">Daily Time &amp; Gear</span>
