@@ -30,11 +30,18 @@ export const DayScheduleSchema = z.object({
   rawContent: z.string().min(1),
 })
 
-export const WeeklyPlanSchema = z.object({
-  days: z.array(DayScheduleSchema).length(7, 'Plan must contain exactly 7 days (Day 1 to Day 7)'),
+export const BaseWeeklyPlanSchema = z.object({
+  days: z.array(DayScheduleSchema),
   motivationalQuote: z.string().optional(),
   isValid: z.boolean(),
 })
+
+export const WeeklyPlanSchema = BaseWeeklyPlanSchema.extend({
+  days: z.array(DayScheduleSchema).length(7, 'Plan must contain exactly 7 days (Day 1 to Day 7)'),
+}).refine(
+  data => data.days.every((d, idx) => d.dayNumber === idx + 1),
+  { message: 'Plan days must be numbered sequentially from Day 1 to Day 7' }
+)
 
 export type Exercise = z.infer<typeof ExerciseSchema>
 export type WorkoutSection = z.infer<typeof WorkoutSectionSchema>
@@ -176,7 +183,7 @@ export function parseAndValidatePlan(markdown: string, requireSevenDays = true):
 
   const schemaToUse = requireSevenDays
     ? WeeklyPlanSchema
-    : WeeklyPlanSchema.extend({ days: z.array(DayScheduleSchema).min(1).max(7) })
+    : BaseWeeklyPlanSchema.extend({ days: z.array(DayScheduleSchema).min(1).max(7) })
 
   const validationResult = schemaToUse.safeParse({
     days,

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { Save, RefreshCw, ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -16,6 +16,15 @@ const EditPlanPage = () => {
   const navigate = useNavigate()
   const { state, setFormData, setGeneratedPlan } = usePlan()
   const [isRegenerating, setIsRegenerating] = useState(false)
+  const generationSeqRef = useRef(0)
+
+  useEffect(() => {
+    const seqRef = generationSeqRef
+    return () => {
+      // Invalidate any in-flight regeneration requests on unmount
+      seqRef.current++
+    }
+  }, [])
 
   const [localForm, setLocalForm] = useState({
     mainGoal: state.formData.mainGoal,
@@ -55,6 +64,7 @@ const EditPlanPage = () => {
   }
 
   const handleRegeneratePlan = async () => {
+    const seq = ++generationSeqRef.current
     setIsRegenerating(true)
     try {
       setFormData(localForm)
@@ -62,16 +72,20 @@ const EditPlanPage = () => {
       toast({ title: 'Regenerating Your Plan', description: 'AI is creating your new plan...' })
       const plan = await callGeminiWithFormData(merged)
 
+      if (seq !== generationSeqRef.current) return
       setGeneratedPlan(plan)
       toast({ title: 'Plan Regenerated!', description: 'Your new personalized plan is ready.' })
       navigate('/weekly-plan')
     } catch (err) {
+      if (seq !== generationSeqRef.current) return
       console.warn('Gemini API unavailable:', err)
       setGeneratedPlan(MOCK_PLAN)
       toast({ title: 'Demo Plan Loaded', description: 'API unavailable. Showing a sample plan.', variant: 'destructive' })
       navigate('/weekly-plan')
     } finally {
-      setIsRegenerating(false)
+      if (seq === generationSeqRef.current) {
+        setIsRegenerating(false)
+      }
     }
   }
 

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Upload, AlertTriangle, Loader2, CheckCircle, Activity } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -33,7 +33,16 @@ const CreatePlanPage = () => {
   const [isGenerating, setIsGenerating] = useState(false)
   const [stepErrors, setStepErrors] = useState<Record<string, string>>({})
   const [photoName, setPhotoName] = useState<string>('')
+  const generationSeqRef = useRef(0)
   const formData = state.formData
+
+  useEffect(() => {
+    const seqRef = generationSeqRef
+    return () => {
+      // Invalidate any in-flight generation requests on unmount
+      seqRef.current++
+    }
+  }, [])
 
   const totalSteps = 5
 
@@ -95,6 +104,7 @@ const CreatePlanPage = () => {
       return
     }
 
+    const seq = ++generationSeqRef.current
     setIsGenerating(true)
     setGenerationStage('connecting')
     const stageTimer = setTimeout(() => setGenerationStage('synthesizing'), 1200)
@@ -105,8 +115,10 @@ const CreatePlanPage = () => {
       let generatedPlan: string
       try {
         generatedPlan = await callGeminiWithFormData(formData)
+        if (seq !== generationSeqRef.current) return
         setGenerationStage('validating')
       } catch (apiErr) {
+        if (seq !== generationSeqRef.current) return
         console.warn('Gemini API unavailable, using demo plan:', apiErr)
         generatedPlan = MOCK_PLAN
         toast({
@@ -116,14 +128,18 @@ const CreatePlanPage = () => {
         })
       }
 
+      if (seq !== generationSeqRef.current) return
       setGeneratedPlan(generatedPlan)
       toast({ title: 'Plan Ready!', description: 'Your personalized fitness plan is ready.' })
       navigate('/weekly-plan')
     } catch {
+      if (seq !== generationSeqRef.current) return
       toast({ title: 'Error', description: 'Failed to generate plan. Please try again.', variant: 'destructive' })
     } finally {
       clearTimeout(stageTimer)
-      setIsGenerating(false)
+      if (seq === generationSeqRef.current) {
+        setIsGenerating(false)
+      }
     }
   }
 

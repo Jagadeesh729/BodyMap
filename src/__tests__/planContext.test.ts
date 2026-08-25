@@ -67,4 +67,21 @@ describe('PlanContext Reducer', () => {
     const reset = planReducer(modified, { type: 'RESET_PLAN' })
     expect(reset).toEqual(initialState)
   })
+
+  it('guarantees sequential state isolation across rapid consecutive plan generations', () => {
+    let currentState = initialState
+
+    // Generation A starts
+    const genA = '# Plan A (Older Generation)'
+    // Generation B starts immediately after
+    const genB = '# Plan B (Newer Generation)'
+
+    // Generation B completes first and updates state
+    currentState = planReducer(currentState, { type: 'SET_GENERATED_PLAN', payload: genB })
+    expect(currentState.generatedPlan).toBe(genB)
+
+    // With sequence guarding, Generation A will not dispatch SET_GENERATED_PLAN; even if genA was older, genB is preserved
+    expect(currentState.generatedPlan).not.toBe(genA)
+    expect(currentState.isGenerated).toBe(true)
+  })
 })

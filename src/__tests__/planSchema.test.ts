@@ -149,6 +149,42 @@ describe('Zod AI Plan Schema and Parser', () => {
     expect(res.success).toBe(true)
     expect(res.data?.days[0].isRestDay).toBe(true)
   })
+  it('rejects non-sequential day plans (e.g. Day 1, 2, 4, 5, 6, 7, 8 with missing Day 3)', () => {
+    const nonSeqPlan = `
+## Day 1 - Workout
+**Meals:** Breakfast: Eggs, Lunch: Rice, Dinner: Fish
+## Day 2 - Workout
+**Meals:** Breakfast: Eggs, Lunch: Rice, Dinner: Fish
+## Day 4 - Workout
+**Meals:** Breakfast: Eggs, Lunch: Rice, Dinner: Fish
+## Day 5 - Workout
+**Meals:** Breakfast: Eggs, Lunch: Rice, Dinner: Fish
+## Day 6 - Workout
+**Meals:** Breakfast: Eggs, Lunch: Rice, Dinner: Fish
+## Day 7 - Workout
+**Meals:** Breakfast: Eggs, Lunch: Rice, Dinner: Fish
+## Day 8 - Workout
+**Meals:** Breakfast: Eggs, Lunch: Rice, Dinner: Fish
+`
+    const res = parseAndValidatePlan(nonSeqPlan, true)
+    expect(res.success).toBe(false)
+    expect(res.errors?.some(e => e.includes('sequential') || e.includes('Day 3') || e.includes('Day'))).toBe(true)
+  })
+
+  it('tolerates unexpected markdown headers and prose without crashing the parser', () => {
+    const messyPlan = `
+# Here is your personal fitness schedule
+Note: Make sure to drink plenty of water!
+
+${FULL_SEVEN_DAY_PLAN}
+
+### Additional Coaching Notes
+Stay consistent and track your weight weekly.
+`
+    const res = parseAndValidatePlan(messyPlan, true)
+    expect(res.success).toBe(true)
+    expect(res.data?.days.length).toBe(7)
+  })
 })
 
 
