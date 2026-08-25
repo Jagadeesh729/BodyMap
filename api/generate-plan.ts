@@ -148,15 +148,29 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
       if (!response.ok) {
         res.statusCode = response.status
         res.setHeader('Content-Type', 'application/json')
-        res.end(JSON.stringify({ error: `Upstream AI Service Error: HTTP ${response.status}`, requestId }))
+        res.end(JSON.stringify({
+          error: `Upstream AI Service Error: HTTP ${response.status}`,
+          requestId,
+          executionSource: 'upstream-error',
+        }))
         return
       }
-
 
       const data = await response.json() as {
         candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
       }
       const text = data.candidates?.[0]?.content?.parts?.[0]?.text
+
+      if (!text || text.trim().length === 0) {
+        res.statusCode = 502
+        res.setHeader('Content-Type', 'application/json')
+        res.end(JSON.stringify({
+          error: 'No valid text returned by upstream AI service.',
+          requestId,
+          executionSource: 'upstream-error',
+        }))
+        return
+      }
 
       res.statusCode = 200
       res.setHeader('Content-Type', 'application/json')
@@ -169,7 +183,11 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
     } catch (err: unknown) {
       res.statusCode = 500
       res.setHeader('Content-Type', 'application/json')
-      res.end(JSON.stringify({ error: (err as Error).message || 'Internal Server Error', requestId }))
+      res.end(JSON.stringify({
+        error: (err as Error).message || 'Internal Server Error',
+        requestId,
+        executionSource: 'upstream-error',
+      }))
     }
   })
 }

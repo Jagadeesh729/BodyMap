@@ -134,6 +134,33 @@ describe('Serverless /api/generate-plan Handler Security, Rate Limiting and Robu
     expect(body.error).toContain('Upstream AI Service Error: HTTP 503')
     expect(body.error).not.toContain('raw trace info')
     expect(body.requestId).toBeDefined()
+    expect(body.executionSource).toBe('upstream-error')
+
+    global.fetch = originalFetch
+  })
+
+  it('returns HTTP 200 and explicit live-gemini executionSource telemetry on successful generation', async () => {
+    process.env.GEMINI_API_KEY = 'test_key'
+    const originalFetch = global.fetch
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        candidates: [{ content: { parts: [{ text: '## Day 1\n- Pushups: 3 sets x 10 reps\n**Meals:** Breakfast: Oats' }] } }]
+      }),
+    }) as unknown as typeof fetch
+
+    const req = createMockReq('POST', { prompt: 'Generate 7 day workout plan' })
+    const res = createMockRes()
+    await handler(req, res)
+    await new Promise(resolve => setTimeout(resolve, 50))
+
+    expect(res.statusCode).toBe(200)
+    const body = JSON.parse(res._data)
+    expect(body.plan).toContain('## Day 1')
+    expect(body.executionSource).toBe('live-gemini')
+    expect(body.model).toBeDefined()
+    expect(body.requestId).toBeDefined()
 
     global.fetch = originalFetch
   })
