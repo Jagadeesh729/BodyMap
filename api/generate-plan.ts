@@ -253,40 +253,58 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
       return
     }
 
-    const response = await fetch(`${GEMINI_API_BASE}/${DEFAULT_GEMINI_MODEL}:generateContent?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { maxOutputTokens: 4096 },
-      }),
-      signal: AbortSignal.timeout(25000),
-    })
+    const candidateModels = [
+      DEFAULT_GEMINI_MODEL,
+      'gemini-2.5-flash',
+      'gemini-2.0-flash',
+      'gemini-1.5-flash',
+    ].filter((m, i, arr) => arr.indexOf(m) === i) // unique
+
+    let successfulText = ''
+    let resolvedModel = ''
+    let lastErrorStatus = 500
+
+    for (const modelToTry of candidateModels) {
+      try {
+        const response = await fetch(`${GEMINI_API_BASE}/${modelToTry}:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { maxOutputTokens: 4096 },
+          }),
+          signal: AbortSignal.timeout(25000),
+        })
+
+        if (!response.ok) {
+          lastErrorStatus = response.status
+          continue // try next candidate model on 503, 429, etc.
+        }
+
+        const data = await response.json() as {
+          candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
+        }
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text
+
+        if (text && text.trim().length > 0) {
+          successfulText = text
+          resolvedModel = modelToTry
+          break // success
+        }
+      } catch {
+        // try next candidate on timeout or network glitch
+        continue
+      }
+    }
 
     const duration = Date.now() - startTime
     res.setHeader('Server-Timing', `total;dur=${duration}`)
 
-    if (!response.ok) {
-      res.statusCode = response.status
+    if (!successfulText) {
+      res.statusCode = lastErrorStatus || 502
       res.setHeader('Content-Type', 'application/json')
       res.end(JSON.stringify({
-        error: `Upstream AI Service Error: HTTP ${response.status}`,
-        requestId,
-        executionSource: 'upstream-error',
-      }))
-      return
-    }
-
-    const data = await response.json() as {
-      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
-    }
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text
-
-    if (!text || text.trim().length === 0) {
-      res.statusCode = 502
-      res.setHeader('Content-Type', 'application/json')
-      res.end(JSON.stringify({
-        error: 'No valid text returned by upstream AI service.',
+        error: `Upstream AI Service Error: HTTP ${lastErrorStatus || 502}`,
         requestId,
         executionSource: 'upstream-error',
       }))
@@ -296,9 +314,9 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
     res.statusCode = 200
     res.setHeader('Content-Type', 'application/json')
     res.end(JSON.stringify({
-      plan: text,
+      plan: successfulText,
       requestId,
-      model: DEFAULT_GEMINI_MODEL,
+      model: resolvedModel,
       executionSource: 'live-gemini',
     }))
   } catch (err: unknown) {
