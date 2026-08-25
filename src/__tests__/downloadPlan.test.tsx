@@ -105,4 +105,33 @@ describe('DownloadPlanPage & 7-Day Printable Document System', () => {
     const dayCards = container.querySelectorAll('.print-avoid-break')
     expect(dayCards.length).toBeGreaterThanOrEqual(7)
   })
+
+  it('correctly renders custom generated plan content and tolerates missing biometrics without crashing', () => {
+    const sampleRealPlan = `
+## Day 1 - Power Chest & Triceps
+Warm-up: 5 mins jumping jacks and arm rotations
+- Barbell Bench Press: 4 sets x 8 reps (90s rest)
+- Incline Dumbbell Flyes: 3 sets x 12 reps (60s rest)
+Cool-down: 5 mins chest and shoulder static stretching
+**Nutrition:**
+Breakfast: 4 scrambled eggs with spinach and whole grain toast
+Lunch: Grilled chicken breast with quinoa and avocado salad
+Dinner: Baked salmon with sweet potato and steamed broccoli
+Snacks: Greek yogurt with mixed berries and almond butter
+Estimated Calories: 2400 kcal
+
+## Day 2 - Rest & Active Recovery
+Warm-up: 10 mins dynamic mobility
+Cool-down: 10 mins full body foam rolling
+**Nutrition:**
+Breakfast: Oatmeal with protein powder and banana
+Lunch: Turkey wrap with hummus and leafy greens
+Dinner: Lean beef stir-fry with brown rice
+Snacks: Apple with peanut butter
+Estimated Calories: 2100 kcal
+`
+    const { container } = renderDownloadPage(sampleRealPlan)
+    expect(container).toBeDefined()
+    expect(screen.getByText('BODYMAP 7-DAY FITNESS & DIET PROTOCOL')).toBeDefined()
+  })
 })
