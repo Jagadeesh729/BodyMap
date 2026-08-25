@@ -1,0 +1,108 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, fireEvent } from '@testing-library/react'
+import React from 'react'
+import { BrowserRouter } from 'react-router-dom'
+import DownloadPlanPage from '@/pages/DownloadPlanPage'
+import { PlanProvider, usePlan } from '@/context/PlanContext'
+
+// Helper component to dispatch a real generated plan into context
+const SetupPlanWrapper = ({ children, planText }: { children: React.ReactNode, planText?: string }) => {
+  const { dispatch } = usePlan()
+  React.useEffect(() => {
+    if (planText) {
+      dispatch({
+        type: 'SET_GENERATED_PLAN',
+        payload: {
+          plan: planText,
+          provenance: {
+            isAuthenticGemini: true,
+            executionSource: 'live-gemini',
+            resolvedModel: 'gemini-3.7-flash',
+            timestamp: new Date().toISOString()
+          }
+        }
+      })
+    }
+  }, [dispatch, planText])
+
+  return <>{children}</>
+}
+
+const renderDownloadPage = (planText?: string) => {
+  return render(
+    <PlanProvider>
+      <SetupPlanWrapper planText={planText}>
+        <BrowserRouter>
+          <DownloadPlanPage />
+        </BrowserRouter>
+      </SetupPlanWrapper>
+    </PlanProvider>
+  )
+}
+
+describe('DownloadPlanPage & 7-Day Printable Document System', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    window.print = vi.fn()
+  })
+
+  it('renders export page title and action cards', () => {
+    renderDownloadPage()
+    expect(screen.getByText('Export & Share Your 7-Day Plan')).toBeDefined()
+    expect(screen.getAllByText('Print or Save PDF').length).toBeGreaterThan(0)
+    expect(screen.getByText('Markdown File')).toBeDefined()
+    expect(screen.getAllByText('Share Plan').length).toBeGreaterThan(0)
+    expect(screen.getByText('Copy All Text')).toBeDefined()
+  })
+
+  it('renders the dedicated 7-day printable document header and athlete summary', () => {
+    const { container } = renderDownloadPage()
+    expect(screen.getByText('BODYMAP 7-DAY FITNESS & DIET PROTOCOL')).toBeDefined()
+    expect(screen.getByText('Athlete Goal')).toBeDefined()
+    expect(screen.getByText('Biometrics & BMI')).toBeDefined()
+    expect(screen.getByText('Daily Time & Gear')).toBeDefined()
+    expect(screen.getByText('Dietary Preference')).toBeDefined()
+
+    const doc = container.querySelector('.printable-plan-doc')
+    expect(doc).toBeDefined()
+    expect(doc?.classList.contains('printable-plan-doc')).toBe(true)
+  })
+
+  it('renders all 7 days with workouts and nutrition breakdown', () => {
+    renderDownloadPage()
+    expect(screen.getByText('Day 1 - Monday')).toBeDefined()
+    expect(screen.getByText('Day 2 - Tuesday')).toBeDefined()
+    expect(screen.getByText('Day 3 - Wednesday')).toBeDefined()
+    expect(screen.getByText('Day 4 - Thursday')).toBeDefined()
+    expect(screen.getByText('Day 5 - Friday')).toBeDefined()
+    expect(screen.getByText('Day 6 - Saturday')).toBeDefined()
+    expect(screen.getByText('Day 7 - Sunday')).toBeDefined()
+
+    // Verifies Workout Protocol and Nutrition sections exist
+    const workoutHeaders = screen.getAllByText('Workout Protocol')
+    expect(workoutHeaders.length).toBe(7)
+
+    const nutritionHeaders = screen.getAllByText('Daily Nutrition Plan')
+    expect(nutritionHeaders.length).toBe(7)
+  })
+
+  it('triggers window.print when Print / Save PDF button is clicked', () => {
+    renderDownloadPage()
+    const printButtons = screen.getAllByRole('button', { name: /print/i })
+    expect(printButtons.length).toBeGreaterThan(0)
+    fireEvent.click(printButtons[0])
+    expect(window.print).toHaveBeenCalledTimes(1)
+  })
+
+  it('contains health & safety medical disclaimer and attribution in document footer', () => {
+    renderDownloadPage()
+    expect(screen.getByText('Health & Safety Disclaimer:')).toBeDefined()
+    expect(screen.getByText('https://bodymap-ai.vercel.app')).toBeDefined()
+  })
+
+  it('uses break-inside-avoid protection classes on day cards for clean printing', () => {
+    const { container } = renderDownloadPage()
+    const dayCards = container.querySelectorAll('.print-avoid-break')
+    expect(dayCards.length).toBeGreaterThanOrEqual(7)
+  })
+})
