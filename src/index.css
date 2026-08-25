@@ -1,4 +1,4 @@
-﻿/* BodyMap Design System - index.css */
+/* BodyMap Design System - index.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -89,3 +89,43 @@
     @apply bg-card-dark border border-gray-700 text-primary-text rounded-lg px-4 py-3 focus:border-neon-green focus:ring-2 focus:ring-neon-green/20 transition-all duration-200 focus-visible:outline-none;
   }
 }
+
+/* Dedicated Print Styles for 7-Day Plan PDF & Printing */
+@media print {
+  @page {
+    size: letter portrait;
+    margin: 12mm 10mm;
+  }
+
+  body, html, #root, main, div {
+    background: #ffffff !important;
+    color: #0f172a !important;
+  }
+
+  /* Hide screen navigation, toasts, and action buttons on print */
+  nav,
+  .print\:hidden,
+  .no-print,
+  [role="region"][aria-label="Notifications (F8)"] {
+    display: none !important;
+  }
+
+  /* Printable Document Sheet */
+  .printable-plan-doc {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  .print-avoid-break {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+}
+

@@ -49,7 +49,7 @@ const Navbar = () => {
 
   return (
     <nav
-      className="bg-bodymap-dark border-b border-gray-800 sticky top-0 z-50"
+      className="bg-bodymap-dark border-b border-gray-800 sticky top-0 z-50 print:hidden"
       aria-label="Main navigation"
       ref={menuRef}
     >
