@@ -128,4 +128,27 @@ describe('DownloadPlanPage & 7-Day Printable Document System', () => {
     expect(await screen.findByText('Day 2 - Back & Biceps')).toBeDefined()
     expect(screen.getByText(/BMI N\/A/)).toBeDefined()
   })
+
+  it('gracefully falls back to clipboard copy when navigator.share is unavailable on desktop', () => {
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: vi.fn().mockResolvedValue(undefined)
+      }
+    })
+    // Ensure navigator.share is undefined
+    const originalShare = (navigator as unknown as { share?: unknown }).share
+    delete (navigator as unknown as { share?: unknown }).share
+
+    renderDownloadPage()
+    const shareButtons = screen.getAllByRole('button', { name: /share plan/i })
+    expect(shareButtons.length).toBeGreaterThan(0)
+    fireEvent.click(shareButtons[0])
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining('/weekly-plan'))
+
+    // Restore navigator.share if it previously existed
+    if (originalShare) {
+      (navigator as unknown as { share?: unknown }).share = originalShare
+    }
+  })
 })
