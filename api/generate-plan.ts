@@ -127,6 +127,10 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
         return
       }
 
+      res.setHeader('X-Content-Type-Options', 'nosniff')
+      res.setHeader('X-Frame-Options', 'DENY')
+      res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
+
       const response = await fetch(`${GEMINI_API_BASE}/${DEFAULT_GEMINI_MODEL}:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -134,6 +138,7 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: { maxOutputTokens: 4096 },
         }),
+        signal: AbortSignal.timeout(25000),
       })
 
 

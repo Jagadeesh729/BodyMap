@@ -46,6 +46,7 @@ export async function callGeminiAPI(prompt: string): Promise<string> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ prompt }),
+    signal: AbortSignal.timeout(30000),
   })
 
   if (!response.ok) {
@@ -68,6 +69,7 @@ export async function callGeminiWithFormData(formData: FormData): Promise<string
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ formData }),
+    signal: AbortSignal.timeout(30000),
   })
 
   if (!response.ok) {
