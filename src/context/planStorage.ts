@@ -19,8 +19,16 @@ export function loadPersistedState(): PlanState {
             ...initialState.formData,
             ...(parsed.formData || {}),
           },
-          weightLog: Array.isArray(parsed.weightLog) ? parsed.weightLog : initialState.weightLog,
-          completedDays: Array.isArray(parsed.completedDays) ? parsed.completedDays : initialState.completedDays,
+          weightLog: Array.isArray(parsed.weightLog)
+            ? parsed.weightLog.filter((entry): entry is { date: string; weight: number } =>
+                Boolean(entry && typeof entry === 'object' && typeof (entry as Record<string, unknown>).date === 'string' && typeof (entry as Record<string, unknown>).weight === 'number' && !isNaN((entry as { weight: number }).weight))
+              )
+            : initialState.weightLog,
+          completedDays: Array.isArray(parsed.completedDays)
+            ? parsed.completedDays.filter((entry): entry is { date: string; dayIndex: number } =>
+                Boolean(entry && typeof entry === 'object' && typeof (entry as Record<string, unknown>).date === 'string' && typeof (entry as Record<string, unknown>).dayIndex === 'number')
+              )
+            : initialState.completedDays,
         }
 
       }

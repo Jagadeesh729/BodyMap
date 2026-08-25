@@ -160,7 +160,12 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
 
       res.statusCode = 200
       res.setHeader('Content-Type', 'application/json')
-      res.end(JSON.stringify({ plan: text, requestId }))
+      res.end(JSON.stringify({
+        plan: text,
+        requestId,
+        model: DEFAULT_GEMINI_MODEL,
+        executionSource: 'live-gemini',
+      }))
     } catch (err: unknown) {
       res.statusCode = 500
       res.setHeader('Content-Type', 'application/json')

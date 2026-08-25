@@ -67,6 +67,47 @@ describe('LocalStorage Persistence & Hydration Logic', () => {
     expect(result).toBe(false)
     spy.mockRestore()
   })
+
+  it('safely tolerates unknown future properties during forward-compatible schema evolution', () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      ...initialState,
+      futureAiModel: 'gemini-4.0-ultra',
+      betaFeatureFlag: true,
+      customClientSettings: { theme: 'dark-neon', telemetry: false }
+    }))
+    const state = loadPersistedState()
+    expect(state.formData).toBeDefined()
+    expect(state.isGenerated).toBe(false)
+    expect(Array.isArray(state.completedDays)).toBe(true)
+  })
+
+  it('filters and sanitizes corrupted entries inside weightLog and completedDays arrays', () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      ...initialState,
+      isGenerated: true,
+      weightLog: [
+        { date: 'Aug 24', weight: 75 },
+        null,
+        'invalid_entry',
+        { invalidField: 123 },
+        { date: 'Aug 31', weight: 74 }
+      ],
+      completedDays: [
+        { date: 'Aug 24', dayIndex: 0 },
+        null,
+        123,
+        { date: 'Aug 25', dayIndex: 1 }
+      ]
+    }))
+    const state = loadPersistedState()
+    expect(state.isGenerated).toBe(true)
+    expect(state.weightLog.length).toBe(2)
+    expect(state.weightLog[0].weight).toBe(75)
+    expect(state.weightLog[1].weight).toBe(74)
+    expect(state.completedDays.length).toBe(2)
+    expect(state.completedDays[0].dayIndex).toBe(0)
+    expect(state.completedDays[1].dayIndex).toBe(1)
+  })
 })
 
 
