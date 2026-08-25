@@ -159,8 +159,94 @@ describe('Serverless /api/generate-plan Handler Security, Rate Limiting and Robu
     const body = JSON.parse(res._data)
     expect(body.plan).toContain('## Day 1')
     expect(body.executionSource).toBe('live-gemini')
-    expect(body.model).toBeDefined()
+    expect(body.model).toBe('gemini-3.7-flash')
     expect(body.requestId).toBeDefined()
+
+    global.fetch = originalFetch
+  })
+
+  it('cascades to fallback model when primary model returns 503 capacity overload and reports accurate resolved model', async () => {
+    process.env.GEMINI_API_KEY = 'test_key'
+    const originalFetch = global.fetch
+    
+    // First call (gemini-3.7-flash) returns 503, second call (gemini-2.5-flash) returns 200
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        text: async () => '503 Service Unavailable',
+      } as unknown as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          candidates: [{ content: { parts: [{ text: '## Day 1 - Full Body\n- Squats: 3 sets x 12 reps\n**Meals:** Salad' }] } }]
+        }),
+      } as unknown as Response)
+
+    const req = createMockReq('POST', { prompt: 'Generate plan with fallback' })
+    const res = createMockRes()
+    await handler(req, res)
+    await new Promise(resolve => setTimeout(resolve, 50))
+
+    expect(res.statusCode).toBe(200)
+    const body = JSON.parse(res._data)
+    expect(body.plan).toContain('## Day 1')
+    expect(body.executionSource).toBe('live-gemini')
+    expect(body.model).toBe('gemini-2.5-flash')
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+
+    global.fetch = originalFetch
+  })
+
+  it('stops cascade immediately on non-retryable 401 Unauthorized without wasting quota on secondary models', async () => {
+    process.env.GEMINI_API_KEY = 'invalid_key'
+    const originalFetch = global.fetch
+    
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      text: async () => 'API Key Invalid',
+    } as unknown as Response)
+
+    const req = createMockReq('POST', { prompt: 'Test auth error' })
+    const res = createMockRes()
+    await handler(req, res)
+    await new Promise(resolve => setTimeout(resolve, 50))
+
+    expect(res.statusCode).toBe(401)
+    const body = JSON.parse(res._data)
+    expect(body.executionSource).toBe('upstream-error')
+    expect(global.fetch).toHaveBeenCalledTimes(1) // Only 1 attempt made, no fruitless retry cascade
+
+    global.fetch = originalFetch
+  })
+
+  it('cascades to next model when network timeout or fetch rejection occurs on primary model', async () => {
+    process.env.GEMINI_API_KEY = 'test_key'
+    const originalFetch = global.fetch
+    
+    global.fetch = vi.fn()
+      .mockRejectedValueOnce(new Error('Network timeout'))
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          candidates: [{ content: { parts: [{ text: '## Day 1 Recovered Plan' }] } }]
+        }),
+      } as unknown as Response)
+
+    const req = createMockReq('POST', { prompt: 'Test network timeout fallback' })
+    const res = createMockRes()
+    await handler(req, res)
+    await new Promise(resolve => setTimeout(resolve, 50))
+
+    expect(res.statusCode).toBe(200)
+    const body = JSON.parse(res._data)
+    expect(body.plan).toContain('Recovered Plan')
+    expect(body.executionSource).toBe('live-gemini')
+    expect(body.model).toBe('gemini-2.5-flash')
+    expect(global.fetch).toHaveBeenCalledTimes(2)
 
     global.fetch = originalFetch
   })

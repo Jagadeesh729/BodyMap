@@ -278,7 +278,11 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
 
         if (!response.ok) {
           lastErrorStatus = response.status
-          continue // try next candidate model on 503, 429, etc.
+          // Non-retryable client/auth errors: do not waste quota or add latency retrying
+          if (response.status === 400 || response.status === 401 || response.status === 403) {
+            break
+          }
+          continue // try next candidate model on 404, 429, 500, 502, 503, 504
         }
 
         const data = await response.json() as {
