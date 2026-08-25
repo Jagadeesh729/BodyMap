@@ -1,4 +1,4 @@
-import { FormData } from '@/context/PlanContext'
+import type { FormData } from '@/context/PlanContext'
 
 export function generatePlanPrompt(formData: FormData): string {
 
