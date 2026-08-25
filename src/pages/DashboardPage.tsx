@@ -47,9 +47,18 @@ const DashboardPage = () => {
     ? Math.round(initialWeightNum * 1.08)
     : initialWeightNum
 
-  // Built dynamic chart data from weightLog if present, else standard progression
-  const chartData = weightLog.length > 0
-    ? weightLog.map((entry, _idx) => ({ week: entry.date || `Entry ${_idx + 1}`, weight: entry.weight }))
+  // Built dynamic chart data from chronologically sorted weightLog if present, else standard progression
+  const sortedWeightLog = [...weightLog].sort((a, b) => {
+    const timeA = Date.parse(a.date)
+    const timeB = Date.parse(b.date)
+    if (!isNaN(timeA) && !isNaN(timeB)) {
+      return timeA - timeB
+    }
+    return 0
+  })
+
+  const chartData = sortedWeightLog.length > 0
+    ? sortedWeightLog.map((entry, _idx) => ({ week: entry.date || `Entry ${_idx + 1}`, weight: entry.weight }))
     : [
         { week: 'Start', weight: initialWeightNum },
         { week: 'Wk 1', weight: Number((initialWeightNum - 0.4).toFixed(1)) },

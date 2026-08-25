@@ -26,15 +26,38 @@ const STEP_TITLES = [
 const BODY_FOCUS_OPTIONS = ['Belly', 'Arms', 'Legs', 'Butt', 'Chest', 'Back', 'Shoulders', 'Full Body']
 const EQUIPMENT_OPTIONS = ['Dumbbells', 'Resistance Bands', 'Yoga Mat', 'Pull-up Bar', 'Kettlebell', 'None']
 
+export const WIZARD_STEP_STORAGE_KEY = 'bodymap_wizard_step'
+
+const getInitialWizardStep = (): number => {
+  try {
+    const saved = localStorage.getItem(WIZARD_STEP_STORAGE_KEY)
+    if (saved) {
+      const step = parseInt(saved, 10)
+      if (step >= 1 && step <= 5) return step
+    }
+  } catch {
+    // Ignore storage errors in restricted contexts
+  }
+  return 1
+}
+
 const CreatePlanPage = () => {
   const navigate = useNavigate()
   const { state, setFormData, setGeneratedPlan } = usePlan()
-  const [currentStep, setCurrentStep] = useState(1)
+  const [currentStep, setCurrentStep] = useState<number>(getInitialWizardStep)
   const [isGenerating, setIsGenerating] = useState(false)
   const [stepErrors, setStepErrors] = useState<Record<string, string>>({})
   const [photoName, setPhotoName] = useState<string>('')
   const generationSeqRef = useRef(0)
   const formData = state.formData
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(WIZARD_STEP_STORAGE_KEY, String(currentStep))
+    } catch {
+      // Ignore storage errors
+    }
+  }, [currentStep])
 
   useEffect(() => {
     const seqRef = generationSeqRef
@@ -130,6 +153,11 @@ const CreatePlanPage = () => {
 
       if (seq !== generationSeqRef.current) return
       setGeneratedPlan(generatedPlan)
+      try {
+        localStorage.removeItem(WIZARD_STEP_STORAGE_KEY)
+      } catch {
+        // Ignore storage errors
+      }
       toast({ title: 'Plan Ready!', description: 'Your personalized fitness plan is ready.' })
       navigate('/weekly-plan')
     } catch {
