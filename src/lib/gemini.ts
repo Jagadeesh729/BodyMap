@@ -1,4 +1,4 @@
-import type { FormData } from '@/types/formData'
+import type { FormData } from '../types/formData'
 
 export function generatePlanPrompt(formData: FormData): string {
 

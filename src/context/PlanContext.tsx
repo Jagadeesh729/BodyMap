@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react'
-import type { FormData } from '@/types/formData'
+import type { FormData } from '../types/formData'
 
 // Re-export so existing imports from '@/context/PlanContext' continue to work
 export type { FormData }
