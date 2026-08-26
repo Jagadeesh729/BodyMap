@@ -1,0 +1,45 @@
+﻿import type { WorkoutSession } from '@/types/workoutSession'
+
+export const ACTIVE_SESSION_STORAGE_KEY = 'bodymap_active_session'
+
+export function saveActiveSession(session: WorkoutSession): void {
+  try {
+    const payload = JSON.stringify({
+      ...session,
+      lastUpdatedAt: Date.now()
+    })
+    localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, payload)
+  } catch (err) {
+    console.warn('[SessionStorage] Failed to save active workout session:', err)
+  }
+}
+
+export function loadActiveSession(): WorkoutSession | null {
+  try {
+    const raw = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as WorkoutSession
+
+    if (!parsed || !parsed.sessionId || !Array.isArray(parsed.exercises) || parsed.exercises.length === 0) {
+      return null
+    }
+
+    return parsed
+  } catch (err) {
+    console.warn('[SessionStorage] Corrupted active session recovered:', err)
+    clearActiveSession()
+    return null
+  }
+}
+
+export function clearActiveSession(): void {
+  try {
+    localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY)
+  } catch (err) {
+    console.warn('[SessionStorage] Failed to clear active session:', err)
+  }
+}
+
+export function hasActiveSession(): boolean {
+  return loadActiveSession() !== null
+}

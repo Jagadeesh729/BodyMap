@@ -15,6 +15,7 @@ const EditPlanPage = lazy(() => import('./pages/EditPlanPage'))
 const DownloadPlanPage = lazy(() => import('./pages/DownloadPlanPage'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const AboutContactPage = lazy(() => import('./pages/AboutContactPage'))
+const GymModePage = lazy(() => import('./pages/GymModePage'))
 const NotFound = lazy(() => import('./pages/NotFound'))
 
 
@@ -52,6 +53,8 @@ const App = () => (
                   <Route path="/" element={<HomePage />} />
                   <Route path="/create-plan" element={<CreatePlanPage />} />
                   <Route path="/weekly-plan" element={<WeeklyPlanPage />} />
+                  <Route path="/gym-mode" element={<GymModePage />} />
+                  <Route path="/gym-mode/:dayIndex" element={<GymModePage />} />
                   <Route path="/edit-plan" element={<EditPlanPage />} />
                   <Route path="/download-plan" element={<DownloadPlanPage />} />
                   <Route path="/dashboard" element={<DashboardPage />} />

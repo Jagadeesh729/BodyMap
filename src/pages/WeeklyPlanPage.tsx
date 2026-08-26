@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Download,
@@ -13,16 +13,27 @@ import {
   Calendar,
   Sparkles,
   ArrowRight,
-  Dumbbell
+  Dumbbell,
+  Play
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/hooks/use-toast'
 import { usePlan } from '@/context/PlanContext'
 import { parseAndValidatePlan } from '@/lib/planSchema'
 import { DEFAULT_WEEKLY_PLAN, type DayPlan } from '@/types/plan'
+import { loadActiveSession } from '@/lib/sessionStorage'
+import type { WorkoutSession } from '@/types/workoutSession'
 
 const WeeklyPlanPage = () => {
   const { state, dispatch } = usePlan()
+  const [activeSession, setActiveSession] = useState<WorkoutSession | null>(null)
+
+  useEffect(() => {
+    const saved = loadActiveSession()
+    if (saved && saved.status === 'in-progress') {
+      setActiveSession(saved)
+    }
+  }, [])
   const [expandedDay, setExpandedDay] = useState<number | null>(0)
   const [showRawMarkdown, setShowRawMarkdown] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -106,6 +117,29 @@ const WeeklyPlanPage = () => {
             <Link to="/create-plan" className="btn-primary whitespace-nowrap text-sm py-2 px-4 flex-shrink-0">
               Create My AI Plan
               <ArrowRight className="w-4 h-4 ml-1.5 inline" />
+            </Link>
+          </div>
+        )}
+
+        {activeSession && (
+          <div className="mb-6 p-4 sm:p-5 bg-neon-green/10 border-2 border-neon-green/40 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg shadow-neon-green/5">
+            <div className="flex items-center gap-3">
+              <div className="w-3 h-3 rounded-full bg-neon-green animate-ping shrink-0" />
+              <div>
+                <span className="text-[11px] font-poppins font-bold uppercase tracking-wider text-neon-green">
+                  Active Workout Session in Progress
+                </span>
+                <h3 className="font-poppins font-bold text-primary-text text-sm sm:text-base">
+                  {activeSession.dayTitle} • {activeSession.dayType}
+                </h3>
+              </div>
+            </div>
+            <Link
+              to={`/gym-mode/${activeSession.dayIndex}`}
+              className="btn-primary whitespace-nowrap text-xs sm:text-sm py-2 px-5 flex-shrink-0 flex items-center gap-2"
+            >
+              <Play className="w-4 h-4 fill-current" />
+              Resume Workout
             </Link>
           </div>
         )}
@@ -245,18 +279,31 @@ const WeeklyPlanPage = () => {
                       </div>
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={() => toggleDayComplete(index)}
-                      aria-label={completed ? `Mark ${day.day} as incomplete` : `Mark ${day.day} as completed`}
-                      className="p-2 text-secondary-text hover:text-neon-green transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-green rounded-full"
-                    >
-                      {completed ? (
-                        <CheckCircle2 className="w-6 h-6 text-neon-green" />
-                      ) : (
-                        <Circle className="w-6 h-6 text-gray-500" />
+                    <div className="flex items-center gap-2 shrink-0">
+                      {!day.isRest && (
+                        <Link
+                          to={`/gym-mode/${index}`}
+                          className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5 shrink-0 shadow-sm"
+                          aria-label={`Start Gym Mode workout for ${day.day}`}
+                        >
+                          <Play className="w-3.5 h-3.5 fill-current" />
+                          <span className="hidden sm:inline">Start</span> Workout
+                        </Link>
                       )}
-                    </button>
+
+                      <button
+                        type="button"
+                        onClick={() => toggleDayComplete(index)}
+                        aria-label={completed ? `Mark ${day.day} as incomplete` : `Mark ${day.day} as completed`}
+                        className="p-2 text-secondary-text hover:text-neon-green transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-green rounded-full"
+                      >
+                        {completed ? (
+                          <CheckCircle2 className="w-6 h-6 text-neon-green" />
+                        ) : (
+                          <Circle className="w-6 h-6 text-gray-500" />
+                        )}
+                      </button>
+                    </div>
                   </div>
 
                   {isExpanded && (

@@ -1,0 +1,697 @@
+import React, { useState, useEffect, useMemo } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import {
+  CheckCircle2,
+  ArrowLeft,
+  RefreshCw,
+  Clock,
+  Plus,
+  Minus,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  List
+} from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { toast } from '@/hooks/use-toast'
+import { usePlan } from '@/context/PlanContext'
+import { parseAndValidatePlan } from '@/lib/planSchema'
+import { DEFAULT_WEEKLY_PLAN } from '@/types/plan'
+import type { WorkoutSession } from '@/types/workoutSession'
+import {
+  parseExerciseStringToSessionExercise,
+  type ExerciseAlternative
+} from '@/lib/exerciseSubstitution'
+import {
+  saveActiveSession,
+  loadActiveSession,
+  clearActiveSession
+} from '@/lib/sessionStorage'
+import { playTimerChime, triggerVibration } from '@/lib/audioCues'
+import { RestTimerOverlay } from '@/components/gym/RestTimerOverlay'
+import { ExerciseSubstitutionModal } from '@/components/gym/ExerciseSubstitutionModal'
+import { WorkoutCompletionModal } from '@/components/gym/WorkoutCompletionModal'
+import { ExitWorkoutDialog } from '@/components/gym/ExitWorkoutDialog'
+
+export const GymModePage: React.FC = () => {
+  const { dayIndex: dayIndexParam } = useParams<{ dayIndex?: string }>()
+  const navigate = useNavigate()
+  const { state, dispatch } = usePlan()
+
+  const targetDayIndex = useMemo(() => {
+    const parsed = parseInt(dayIndexParam || '0', 10)
+    return isNaN(parsed) || parsed < 0 || parsed > 6 ? 0 : parsed
+  }, [dayIndexParam])
+
+  // Get current plan data for target day
+  const planData = useMemo(() => {
+    if (state.generatedPlan) {
+      const parsed = parseAndValidatePlan(state.generatedPlan, false)
+      if (parsed.success && parsed.data && parsed.data.days.length > targetDayIndex) {
+        const day = parsed.data.days[targetDayIndex]
+        return {
+          title: day.title || `Day ${targetDayIndex + 1}`,
+          type: day.isRestDay ? 'Active Recovery' : `${state.formData.mainGoal || 'Strength & Conditioning'}`,
+          durationMinutes: parseInt(state.formData.timePerDay || '45', 10) || 45,
+          exercises: day.workout?.exercises && day.workout.exercises.length > 0
+            ? day.workout.exercises.map((e, idx) =>
+                parseExerciseStringToSessionExercise(
+                  `${e.name}${e.sets ? `: ${e.sets} sets` : ''}${e.reps ? ` x ${e.reps} reps` : ''}${e.rest ? ` (${e.rest} rest)` : ''}`,
+                  idx
+                )
+              )
+            : day.rawContent
+            ? day.rawContent.split('\n').filter(l => l.trim().length > 3).map((l, idx) => parseExerciseStringToSessionExercise(l, idx))
+            : [parseExerciseStringToSessionExercise('Bodyweight Circuit: 3 sets x 12 reps (60s rest)', 0)]
+        }
+      }
+    }
+    const defaultDay = DEFAULT_WEEKLY_PLAN[targetDayIndex] || DEFAULT_WEEKLY_PLAN[0]
+    return {
+      title: defaultDay.day,
+      type: defaultDay.type,
+      durationMinutes: 45,
+      exercises: defaultDay.workout.main.map((e, idx) => parseExerciseStringToSessionExercise(e, idx))
+    }
+  }, [state.generatedPlan, state.formData, targetDayIndex])
+
+  // Session state
+  const [session, setSession] = useState<WorkoutSession>(() => {
+    const saved = loadActiveSession()
+    if (saved && saved.dayIndex === targetDayIndex && saved.status === 'in-progress') {
+      return saved
+    }
+    return {
+      sessionId: `sess_${Date.now()}`,
+      dayIndex: targetDayIndex,
+      dayTitle: planData.title,
+      dayType: planData.type,
+      durationMinutes: planData.durationMinutes,
+      startedAt: Date.now(),
+      lastUpdatedAt: Date.now(),
+      elapsedSeconds: 0,
+      currentExerciseIndex: 0,
+      exercises: planData.exercises,
+      restTimer: {
+        isActive: false,
+        targetEndTime: null,
+        durationSeconds: 60,
+        isPaused: false,
+        remainingSeconds: 60
+      },
+      status: 'in-progress',
+      soundEnabled: true,
+      vibrateEnabled: true
+    }
+  })
+
+  // Modal / Dialog states
+  const [isSubModalOpen, setIsSubModalOpen] = useState(false)
+  const [isExitDialogOpen, setIsExitDialogOpen] = useState(false)
+  const [isCompletedModalOpen, setIsCompletedModalOpen] = useState(false)
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+
+  // Persist session changes automatically
+  useEffect(() => {
+    if (session.status === 'in-progress') {
+      saveActiveSession(session)
+    }
+  }, [session])
+
+  // Stopwatch effect using absolute start time
+  useEffect(() => {
+    if (session.status !== 'in-progress') return
+    const interval = setInterval(() => {
+      setSession(prev => ({
+        ...prev,
+        elapsedSeconds: Math.floor((Date.now() - prev.startedAt) / 1000)
+      }))
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [session.status, session.startedAt])
+
+  // Rest Timer engine with absolute timestamp resilience
+  useEffect(() => {
+    if (!session.restTimer.isActive || session.restTimer.isPaused || !session.restTimer.targetEndTime) {
+      return
+    }
+
+    const interval = setInterval(() => {
+      const now = Date.now()
+      const remaining = Math.max(0, Math.ceil((session.restTimer.targetEndTime! - now) / 1000))
+
+      if (remaining <= 0) {
+        if (session.soundEnabled) playTimerChime()
+        if (session.vibrateEnabled) triggerVibration()
+
+        setSession(prev => ({
+          ...prev,
+          restTimer: {
+            ...prev.restTimer,
+            isActive: false,
+            targetEndTime: null,
+            remainingSeconds: 0
+          }
+        }))
+        toast({ title: 'Rest Complete! 🔥', description: 'Get ready for your next set.' })
+      } else {
+        setSession(prev => ({
+          ...prev,
+          restTimer: {
+            ...prev.restTimer,
+            remainingSeconds: remaining
+          }
+        }))
+      }
+    }, 250)
+
+    return () => clearInterval(interval)
+  }, [session.restTimer.isActive, session.restTimer.isPaused, session.restTimer.targetEndTime, session.soundEnabled, session.vibrateEnabled])
+
+  // Current active exercise
+  const currentExercise = session.exercises[session.currentExerciseIndex] || session.exercises[0]
+
+  // Exercise and Session metrics
+  const totalExercises = session.exercises.length
+  const progressPercent = Math.min(100, Math.round(((session.currentExerciseIndex + (currentExercise?.sets.filter(s => s.isCompleted).length || 0) / (currentExercise?.sets.length || 1)) / totalExercises) * 100))
+  const totalSetsCompleted = session.exercises.reduce((sum, e) => sum + e.sets.filter(s => s.isCompleted).length, 0)
+
+  // Toggle Set Complete
+  const handleToggleSetComplete = (setIndex: number) => {
+    const updatedExercises = [...session.exercises]
+    const ex = { ...updatedExercises[session.currentExerciseIndex] }
+    const sets = [...ex.sets]
+    const s = { ...sets[setIndex - 1] }
+
+    const isNowCompleted = !s.isCompleted
+    s.isCompleted = isNowCompleted
+    s.completedAt = isNowCompleted ? new Date().toISOString() : null
+    sets[setIndex - 1] = s
+    ex.sets = sets
+    updatedExercises[session.currentExerciseIndex] = ex
+
+    // If completed set, trigger rest timer
+    let updatedRestTimer = session.restTimer
+    if (isNowCompleted) {
+      const restSecs = ex.restSeconds || 60
+      updatedRestTimer = {
+        isActive: true,
+        targetEndTime: Date.now() + restSecs * 1000,
+        durationSeconds: restSecs,
+        isPaused: false,
+        remainingSeconds: restSecs
+      }
+    }
+
+    setSession(prev => ({
+      ...prev,
+      exercises: updatedExercises,
+      restTimer: updatedRestTimer
+    }))
+  }
+
+  // Update Completed Reps / Weight
+  const handleUpdateSetReps = (setIndex: number, delta: number) => {
+    const updatedExercises = [...session.exercises]
+    const ex = { ...updatedExercises[session.currentExerciseIndex] }
+    const sets = [...ex.sets]
+    const s = { ...sets[setIndex - 1] }
+
+    const nextReps = Math.max(1, s.completedReps + delta)
+    s.completedReps = nextReps
+    sets[setIndex - 1] = s
+    ex.sets = sets
+    updatedExercises[session.currentExerciseIndex] = ex
+
+    setSession(prev => ({ ...prev, exercises: updatedExercises }))
+  }
+
+  const handleUpdateSetWeight = (setIndex: number, weightVal: string) => {
+    const parsedWeight = parseFloat(weightVal)
+    const updatedExercises = [...session.exercises]
+    const ex = { ...updatedExercises[session.currentExerciseIndex] }
+    const sets = [...ex.sets]
+    const s = { ...sets[setIndex - 1] }
+
+    s.weightKg = isNaN(parsedWeight) ? null : parsedWeight
+    sets[setIndex - 1] = s
+    ex.sets = sets
+    updatedExercises[session.currentExerciseIndex] = ex
+
+    setSession(prev => ({ ...prev, exercises: updatedExercises }))
+  }
+
+  // Timer controls
+  const handleToggleTimerPause = () => {
+    setSession(prev => {
+      if (prev.restTimer.isPaused) {
+        return {
+          ...prev,
+          restTimer: {
+            ...prev.restTimer,
+            isPaused: false,
+            targetEndTime: Date.now() + prev.restTimer.remainingSeconds * 1000
+          }
+        }
+      } else {
+        return {
+          ...prev,
+          restTimer: {
+            ...prev.restTimer,
+            isPaused: true,
+            targetEndTime: null
+          }
+        }
+      }
+    })
+  }
+
+  const handleAddTimerSeconds = (sec: number) => {
+    setSession(prev => {
+      const nextRemaining = Math.max(5, prev.restTimer.remainingSeconds + sec)
+      const nextTotal = Math.max(nextRemaining, prev.restTimer.durationSeconds + (sec > 0 ? sec : 0))
+      return {
+        ...prev,
+        restTimer: {
+          ...prev.restTimer,
+          remainingSeconds: nextRemaining,
+          durationSeconds: nextTotal,
+          targetEndTime: prev.restTimer.isPaused ? null : Date.now() + nextRemaining * 1000
+        }
+      }
+    })
+  }
+
+  const handleSkipTimer = () => {
+    setSession(prev => ({
+      ...prev,
+      restTimer: {
+        ...prev.restTimer,
+        isActive: false,
+        targetEndTime: null,
+        remainingSeconds: 0
+      }
+    }))
+  }
+
+  // Exercise Navigation
+  const handleNextExercise = () => {
+    if (session.currentExerciseIndex < totalExercises - 1) {
+      setSession(prev => ({
+        ...prev,
+        currentExerciseIndex: prev.currentExerciseIndex + 1,
+        restTimer: { ...prev.restTimer, isActive: false }
+      }))
+    } else {
+      handleCompleteWorkout()
+    }
+  }
+
+  const handlePrevExercise = () => {
+    if (session.currentExerciseIndex > 0) {
+      setSession(prev => ({
+        ...prev,
+        currentExerciseIndex: prev.currentExerciseIndex - 1,
+        restTimer: { ...prev.restTimer, isActive: false }
+      }))
+    }
+  }
+
+  // Substitution Handler
+  const handleSelectAlternative = (alt: ExerciseAlternative) => {
+    const updatedExercises = [...session.exercises]
+    const ex = { ...updatedExercises[session.currentExerciseIndex] }
+
+    ex.name = alt.name
+    ex.focus = alt.focus
+    ex.equipment = alt.equipment
+    ex.formCue = alt.formCue
+    ex.isSubstituted = true
+    ex.substitutionReason = alt.reason
+
+    updatedExercises[session.currentExerciseIndex] = ex
+    setSession(prev => ({ ...prev, exercises: updatedExercises }))
+    setIsSubModalOpen(false)
+    toast({ title: 'Exercise Substituted', description: `Swapped to ${alt.name}.` })
+  }
+
+  // Complete Workout Flow
+  const handleCompleteWorkout = () => {
+    // Record completion in PlanContext
+    dispatch({
+      type: 'TOGGLE_DAY_COMPLETE',
+      payload: {
+        date: new Date().toISOString().split('T')[0],
+        dayIndex: targetDayIndex
+      }
+    })
+    clearActiveSession()
+    setSession(prev => ({ ...prev, status: 'completed' }))
+    setIsCompletedModalOpen(true)
+  }
+
+  const handleSaveAndExit = () => {
+    saveActiveSession(session)
+    setIsExitDialogOpen(false)
+    toast({ title: 'Workout Saved', description: 'Your active session is preserved.' })
+    navigate('/weekly-plan')
+  }
+
+  const handleDiscardAndExit = () => {
+    clearActiveSession()
+    setIsExitDialogOpen(false)
+    toast({ title: 'Session Discarded', description: 'Workout session cleared.' })
+    navigate('/weekly-plan')
+  }
+
+  // Formatting helpers
+  const minsElapsed = Math.floor(session.elapsedSeconds / 60)
+  const secsElapsed = session.elapsedSeconds % 60
+  const formattedElapsed = `${minsElapsed.toString().padStart(2, '0')}:${secsElapsed.toString().padStart(2, '0')}`
+
+  return (
+    <div className="min-h-screen bg-bodymap-dark text-primary-text flex flex-col justify-between pb-12">
+      {/* Top Session Status Bar */}
+      <header className="sticky top-0 z-40 bg-bodymap-dark/95 backdrop-blur-md border-b border-gray-800 px-4 sm:px-6 py-3.5 flex items-center justify-between">
+        <button
+          onClick={() => setIsExitDialogOpen(true)}
+          className="inline-flex items-center text-xs font-semibold text-secondary-text hover:text-bright-coral transition-colors py-1.5 px-2.5 rounded-lg border border-gray-800 bg-card-dark"
+          aria-label="Pause or exit workout"
+        >
+          <ArrowLeft className="w-4 h-4 mr-1.5" />
+          Exit
+        </button>
+
+        <div className="text-center">
+          <div className="flex items-center justify-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-neon-green animate-ping" />
+            <span className="text-xs font-poppins font-bold uppercase tracking-wider text-neon-green">
+              Gym Mode
+            </span>
+          </div>
+          <h1 className="text-sm font-poppins font-semibold text-primary-text truncate max-w-[200px] sm:max-w-md">
+            {session.dayTitle}
+          </h1>
+        </div>
+
+        {/* Stopwatch & Routine Drawer */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-card-dark border border-gray-800 rounded-lg text-xs font-poppins font-semibold text-electric-purple">
+            <Clock className="w-3.5 h-3.5 text-electric-purple" />
+            <span className="tabular-nums">{formattedElapsed}</span>
+          </div>
+
+          <button
+            onClick={() => setIsDrawerOpen(!isDrawerOpen)}
+            className="p-1.5 bg-card-dark border border-gray-800 rounded-lg text-secondary-text hover:text-neon-green transition-colors"
+            aria-label="Toggle workout overview"
+          >
+            <List className="w-4 h-4" />
+          </button>
+        </div>
+      </header>
+
+      {/* Progress Bar */}
+      <div className="w-full bg-gray-900 h-1.5" role="progressbar" aria-valuenow={progressPercent} aria-valuemin={0} aria-valuemax={100}>
+        <div
+          className="bg-neon-green h-full transition-all duration-300 ease-out"
+          style={{ width: `${progressPercent}%` }}
+        />
+      </div>
+
+      {/* Main Active Workout View */}
+      <main className="max-w-3xl w-full mx-auto px-4 sm:px-6 pt-6 pb-24 flex-1 flex flex-col justify-between">
+        {/* Exercise Header Card */}
+        <section className="card-dark relative overflow-hidden mb-6 border-l-4 border-l-neon-green">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-xs font-poppins font-bold px-2 py-0.5 rounded bg-neon-green/20 text-neon-green border border-neon-green/30">
+                  Exercise {session.currentExerciseIndex + 1} of {totalExercises}
+                </span>
+                <span className="text-xs text-secondary-text">
+                  {currentExercise?.equipment}
+                </span>
+              </div>
+
+              <h2 className="text-xl sm:text-2xl font-poppins font-bold text-primary-text">
+                {currentExercise?.name}
+              </h2>
+              <p className="text-xs sm:text-sm text-secondary-text mt-1">
+                Target Focus: <strong className="text-electric-purple font-semibold">{currentExercise?.focus}</strong>
+              </p>
+            </div>
+
+            <Button
+              onClick={() => setIsSubModalOpen(true)}
+              variant="outline"
+              size="sm"
+              className="border-gray-700 bg-bodymap-dark text-xs text-secondary-text hover:text-neon-green hover:border-neon-green shrink-0 flex items-center gap-1.5"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Swap
+            </Button>
+          </div>
+
+          {/* Form Cue Callout */}
+          {currentExercise?.formCue && (
+            <div className="mt-4 p-3 bg-bodymap-dark/90 rounded-lg border border-gray-800 text-xs text-secondary-text leading-relaxed">
+              <strong className="text-neon-green font-semibold mr-1.5">Coach Cue:</strong>
+              {currentExercise.formCue}
+            </div>
+          )}
+        </section>
+
+        {/* Big Touch-Friendly Set Logger */}
+        <section className="space-y-3.5 mb-8">
+          <div className="flex items-center justify-between px-1">
+            <h3 className="text-xs font-poppins font-bold uppercase tracking-wider text-secondary-text">
+              Workout Sets ({currentExercise?.sets.length || 3})
+            </h3>
+            <span className="text-xs text-secondary-text">
+              Target: <strong className="text-primary-text">{currentExercise?.targetReps}</strong>
+            </span>
+          </div>
+
+          {currentExercise?.sets.map((set) => (
+            <div
+              key={set.setIndex}
+              className={`p-4 rounded-xl border transition-all duration-200 flex items-center justify-between gap-3 ${
+                set.isCompleted
+                  ? 'bg-neon-green/10 border-neon-green/50 text-primary-text'
+                  : 'bg-card-dark border-gray-800'
+              }`}
+            >
+              {/* Set Label */}
+              <div className="flex items-center gap-3 shrink-0">
+                <span className={`w-8 h-8 rounded-full flex items-center justify-center font-poppins font-bold text-xs ${
+                  set.isCompleted ? 'bg-neon-green text-bodymap-dark' : 'bg-gray-800 text-secondary-text'
+                }`}>
+                  {set.setIndex}
+                </span>
+                <span className="font-poppins font-semibold text-sm">
+                  SET {set.setIndex}
+                </span>
+              </div>
+
+              {/* Reps Stepper */}
+              <div className="flex items-center gap-1.5 bg-bodymap-dark p-1 rounded-lg border border-gray-800">
+                <button
+                  onClick={() => handleUpdateSetReps(set.setIndex, -1)}
+                  className="w-7 h-7 rounded bg-gray-800 text-secondary-text hover:text-primary-text flex items-center justify-center active:scale-95"
+                  aria-label={`Decrease reps for set ${set.setIndex}`}
+                >
+                  <Minus className="w-3.5 h-3.5" />
+                </button>
+                <span className="w-10 text-center font-poppins font-bold text-sm tabular-nums">
+                  {set.completedReps}
+                </span>
+                <button
+                  onClick={() => handleUpdateSetReps(set.setIndex, 1)}
+                  className="w-7 h-7 rounded bg-gray-800 text-secondary-text hover:text-primary-text flex items-center justify-center active:scale-95"
+                  aria-label={`Increase reps for set ${set.setIndex}`}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
+                <span className="text-[10px] text-gray-500 uppercase px-1">reps</span>
+              </div>
+
+              {/* Optional Weight Input */}
+              <div className="hidden sm:flex items-center gap-1.5 bg-bodymap-dark px-2 py-1 rounded-lg border border-gray-800 w-24">
+                <Input
+                  type="number"
+                  placeholder="kg"
+                  value={set.weightKg !== null ? set.weightKg : ''}
+                  onChange={(e) => handleUpdateSetWeight(set.setIndex, e.target.value)}
+                  className="bg-transparent border-0 text-xs p-0 text-center text-primary-text focus:ring-0 w-full"
+                  aria-label={`Weight in kg for set ${set.setIndex}`}
+                />
+                <span className="text-[10px] text-gray-500">kg</span>
+              </div>
+
+              {/* Large Checkmark Action Button */}
+              <button
+                onClick={() => handleToggleSetComplete(set.setIndex)}
+                className={`h-12 px-5 rounded-xl font-poppins font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all duration-200 active:scale-95 shrink-0 ${
+                  set.isCompleted
+                    ? 'bg-neon-green text-bodymap-dark shadow-md shadow-neon-green/20'
+                    : 'bg-gray-800 text-secondary-text hover:bg-neon-green hover:text-bodymap-dark'
+                }`}
+                aria-label={set.isCompleted ? `Mark set ${set.setIndex} incomplete` : `Complete set ${set.setIndex}`}
+              >
+                <Check className="w-5 h-5 stroke-[3]" />
+                <span>{set.isCompleted ? 'DONE' : 'LOG'}</span>
+              </button>
+            </div>
+          ))}
+        </section>
+
+        {/* Bottom Navigation Buttons */}
+        <div className="flex items-center justify-between gap-3 pt-4 border-t border-gray-800">
+          <Button
+            onClick={handlePrevExercise}
+            variant="outline"
+            disabled={session.currentExerciseIndex === 0}
+            className="border-gray-700 bg-card-dark text-secondary-text hover:bg-gray-800 py-3.5 px-4 text-xs font-semibold"
+          >
+            <ChevronLeft className="w-4 h-4 mr-1" />
+            Previous
+          </Button>
+
+          {session.currentExerciseIndex < totalExercises - 1 ? (
+            <Button
+              onClick={handleNextExercise}
+              className="btn-primary py-3.5 px-6 text-xs sm:text-sm font-bold flex items-center gap-1.5"
+            >
+              Next Exercise
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          ) : (
+            <Button
+              onClick={handleCompleteWorkout}
+              className="btn-primary py-3.5 px-6 text-xs sm:text-sm font-bold flex items-center gap-1.5 bg-neon-green"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              Finish Workout
+            </Button>
+          )}
+        </div>
+      </main>
+
+      {/* Routine Quick Jump Drawer */}
+      {isDrawerOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-bodymap-dark/80 backdrop-blur-sm flex justify-end"
+          role="dialog"
+          aria-label="Workout routine overview"
+        >
+          <div className="bg-card-dark border-l border-gray-700 w-full max-w-sm h-full p-6 flex flex-col justify-between shadow-2xl animate-slide-left">
+            <div>
+              <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-800">
+                <h3 className="font-poppins font-bold text-base text-primary-text">
+                  Workout Overview
+                </h3>
+                <button
+                  onClick={() => setIsDrawerOpen(false)}
+                  className="text-secondary-text hover:text-primary-text p-1"
+                  aria-label="Close drawer"
+                >
+                  &times;
+                </button>
+              </div>
+
+              <div className="space-y-2.5 overflow-y-auto max-h-[70vh]">
+                {session.exercises.map((ex, idx) => {
+                  const isDone = ex.sets.every(s => s.isCompleted)
+                  const isCurrent = idx === session.currentExerciseIndex
+                  return (
+                    <button
+                      key={ex.id}
+                      onClick={() => {
+                        setSession(prev => ({ ...prev, currentExerciseIndex: idx }))
+                        setIsDrawerOpen(false)
+                      }}
+                      className={`w-full text-left p-3 rounded-lg border transition-colors flex items-center justify-between gap-2 ${
+                        isCurrent
+                          ? 'border-neon-green bg-neon-green/10 text-primary-text'
+                          : isDone
+                          ? 'border-gray-800 bg-bodymap-dark text-gray-400'
+                          : 'border-gray-800 bg-bodymap-dark text-secondary-text hover:border-gray-700'
+                      }`}
+                    >
+                      <div className="truncate">
+                        <p className="text-xs font-semibold truncate">{ex.name}</p>
+                        <p className="text-[11px] text-gray-400">{ex.sets.length} sets • {ex.focus}</p>
+                      </div>
+                      {isDone && <CheckCircle2 className="w-4 h-4 text-neon-green shrink-0" />}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <Button
+              onClick={() => setIsDrawerOpen(false)}
+              variant="outline"
+              className="w-full border-gray-700 text-xs py-2.5 text-secondary-text"
+            >
+              Resume Active Exercise
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Rest Timer Overlay */}
+      {session.restTimer.isActive && (
+        <RestTimerOverlay
+          remainingSeconds={session.restTimer.remainingSeconds}
+          totalDuration={session.restTimer.durationSeconds}
+          isPaused={session.restTimer.isPaused}
+          soundEnabled={session.soundEnabled}
+          onTogglePause={handleToggleTimerPause}
+          onAddSeconds={handleAddTimerSeconds}
+          onSkip={handleSkipTimer}
+          onToggleSound={() => setSession(prev => ({ ...prev, soundEnabled: !prev.soundEnabled }))}
+        />
+      )}
+
+      {/* Exercise Substitution Modal */}
+      <ExerciseSubstitutionModal
+        currentExerciseName={currentExercise?.name || ''}
+        isOpen={isSubModalOpen}
+        onClose={() => setIsSubModalOpen(false)}
+        onSelectAlternative={handleSelectAlternative}
+      />
+
+      {/* Exit Confirmation Dialog */}
+      <ExitWorkoutDialog
+        isOpen={isExitDialogOpen}
+        onClose={() => setIsExitDialogOpen(false)}
+        onSaveAndExit={handleSaveAndExit}
+        onDiscardAndExit={handleDiscardAndExit}
+      />
+
+      {/* Workout Completion Modal */}
+      {isCompletedModalOpen && (
+        <WorkoutCompletionModal
+          dayTitle={session.dayTitle}
+          dayType={session.dayType}
+          totalElapsedSeconds={session.elapsedSeconds}
+          totalExercises={totalExercises}
+          totalSetsCompleted={totalSetsCompleted}
+          onViewPlan={() => {
+            setIsCompletedModalOpen(false)
+            navigate('/weekly-plan')
+          }}
+          onGoToDashboard={() => {
+            setIsCompletedModalOpen(false)
+            navigate('/dashboard')
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+export default GymModePage
