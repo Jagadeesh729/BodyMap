@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react'
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   CheckCircle2,
@@ -11,7 +11,12 @@ import {
   ChevronLeft,
   ChevronRight,
   List,
-  AlertCircle
+  AlertCircle,
+  Volume2,
+  VolumeX,
+  Vibrate,
+  VibrateOff,
+  Trash2
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,7 +24,7 @@ import { toast } from '@/hooks/use-toast'
 import { usePlan } from '@/context/PlanContext'
 import { parseAndValidatePlan } from '@/lib/planSchema'
 import { DEFAULT_WEEKLY_PLAN } from '@/types/plan'
-import type { WorkoutSession } from '@/types/workoutSession'
+import type { WorkoutSession, CompletedWorkoutLog } from '@/types/workoutSession'
 import {
   parseExerciseStringToSessionExercise,
   type ExerciseAlternative
@@ -27,7 +32,8 @@ import {
 import {
   saveActiveSession,
   loadActiveSession,
-  clearActiveSession
+  clearActiveSession,
+  saveCompletedWorkoutLog
 } from '@/lib/sessionStorage'
 import { playTimerChime, triggerVibration } from '@/lib/audioCues'
 import { RestTimerOverlay } from '@/components/gym/RestTimerOverlay'
@@ -193,38 +199,40 @@ export const GymModePage: React.FC = () => {
   const totalSetsCompleted = session.exercises.reduce((sum, e) => sum + e.sets.filter(s => s.isCompleted).length, 0)
 
   // Toggle Set Complete
-  const handleToggleSetComplete = (setIndex: number) => {
-    const updatedExercises = [...session.exercises]
-    const ex = { ...updatedExercises[session.currentExerciseIndex] }
-    const sets = [...ex.sets]
-    const s = { ...sets[setIndex - 1] }
+  const handleToggleSetComplete = useCallback((setIndex: number) => {
+    setSession(prev => {
+      const updatedExercises = [...prev.exercises]
+      const ex = { ...updatedExercises[prev.currentExerciseIndex] }
+      const sets = [...ex.sets]
+      const s = { ...sets[setIndex - 1] }
 
-    const isNowCompleted = !s.isCompleted
-    s.isCompleted = isNowCompleted
-    s.completedAt = isNowCompleted ? new Date().toISOString() : null
-    sets[setIndex - 1] = s
-    ex.sets = sets
-    updatedExercises[session.currentExerciseIndex] = ex
+      const isNowCompleted = !s.isCompleted
+      s.isCompleted = isNowCompleted
+      s.completedAt = isNowCompleted ? new Date().toISOString() : null
+      sets[setIndex - 1] = s
+      ex.sets = sets
+      updatedExercises[prev.currentExerciseIndex] = ex
 
-    // If completed set, trigger rest timer
-    let updatedRestTimer = session.restTimer
-    if (isNowCompleted) {
-      const restSecs = ex.restSeconds || 60
-      updatedRestTimer = {
-        isActive: true,
-        targetEndTime: Date.now() + restSecs * 1000,
-        durationSeconds: restSecs,
-        isPaused: false,
-        remainingSeconds: restSecs
+      // If completed set, trigger rest timer
+      let updatedRestTimer = prev.restTimer
+      if (isNowCompleted) {
+        const restSecs = ex.restSeconds || 60
+        updatedRestTimer = {
+          isActive: true,
+          targetEndTime: Date.now() + restSecs * 1000,
+          durationSeconds: restSecs,
+          isPaused: false,
+          remainingSeconds: restSecs
+        }
       }
-    }
 
-    setSession(prev => ({
-      ...prev,
-      exercises: updatedExercises,
-      restTimer: updatedRestTimer
-    }))
-  }
+      return {
+        ...prev,
+        exercises: updatedExercises,
+        restTimer: updatedRestTimer
+      }
+    })
+  }, [])
 
   // Update Completed Reps / Weight
   const handleUpdateSetReps = (setIndex: number, delta: number) => {
@@ -255,6 +263,40 @@ export const GymModePage: React.FC = () => {
     updatedExercises[session.currentExerciseIndex] = ex
 
     setSession(prev => ({ ...prev, exercises: updatedExercises }))
+  }
+
+  // Dynamic Set Management
+  const handleAddSet = () => {
+    const updatedExercises = [...session.exercises]
+    const ex = { ...updatedExercises[session.currentExerciseIndex] }
+    const sets = [...ex.sets]
+    const nextIndex = sets.length + 1
+    const lastSet = sets[sets.length - 1]
+    sets.push({
+      setIndex: nextIndex,
+      targetReps: lastSet ? lastSet.targetReps : '10-12',
+      completedReps: lastSet ? lastSet.completedReps : 10,
+      weightKg: lastSet ? lastSet.weightKg : null,
+      isCompleted: false,
+      completedAt: null
+    })
+    ex.sets = sets
+    ex.targetSets = sets.length
+    updatedExercises[session.currentExerciseIndex] = ex
+    setSession(prev => ({ ...prev, exercises: updatedExercises }))
+    toast({ title: 'Set Added', description: `Added Set ${nextIndex} to ${ex.name}.` })
+  }
+
+  const handleRemoveSet = () => {
+    const updatedExercises = [...session.exercises]
+    const ex = { ...updatedExercises[session.currentExerciseIndex] }
+    if (ex.sets.length <= 1) return
+    const sets = ex.sets.slice(0, -1)
+    ex.sets = sets
+    ex.targetSets = sets.length
+    updatedExercises[session.currentExerciseIndex] = ex
+    setSession(prev => ({ ...prev, exercises: updatedExercises }))
+    toast({ title: 'Set Removed', description: `Removed last set from ${ex.name}.` })
   }
 
   // Timer controls
@@ -310,8 +352,51 @@ export const GymModePage: React.FC = () => {
     }))
   }
 
+  // Complete Workout Flow with History Logging
+  const handleCompleteWorkout = useCallback(() => {
+    setSession(prev => {
+      const totalSets = prev.exercises.reduce(
+        (sum, e) => sum + e.sets.filter(s => s.isCompleted).length,
+        0
+      )
+
+      const completedLog: CompletedWorkoutLog = {
+        id: `log_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        sessionId: prev.sessionId,
+        dayIndex: targetDayIndex,
+        dayTitle: prev.dayTitle,
+        dayType: prev.dayType,
+        completedAt: new Date().toISOString(),
+        durationSeconds: prev.elapsedSeconds,
+        totalSetsCompleted: totalSets,
+        totalExercises: prev.exercises.length,
+        exercisesSummary: prev.exercises.map(e => ({
+          name: e.name,
+          setsCompleted: e.sets.filter(s => s.isCompleted).length,
+          totalSets: e.sets.length
+        }))
+      }
+
+      // Save to permanent local workout history log
+      saveCompletedWorkoutLog(completedLog)
+
+      // Guarantee completion recorded in PlanContext
+      dispatch({
+        type: 'MARK_DAY_COMPLETE',
+        payload: {
+          date: new Date().toISOString().split('T')[0],
+          dayIndex: targetDayIndex
+        }
+      })
+
+      clearActiveSession()
+      setIsCompletedModalOpen(true)
+      return { ...prev, status: 'completed' }
+    })
+  }, [dispatch, targetDayIndex])
+
   // Exercise Navigation
-  const handleNextExercise = () => {
+  const handleNextExercise = useCallback(() => {
     if (session.currentExerciseIndex < totalExercises - 1) {
       setSession(prev => ({
         ...prev,
@@ -321,9 +406,9 @@ export const GymModePage: React.FC = () => {
     } else {
       handleCompleteWorkout()
     }
-  }
+  }, [session.currentExerciseIndex, totalExercises, handleCompleteWorkout])
 
-  const handlePrevExercise = () => {
+  const handlePrevExercise = useCallback(() => {
     if (session.currentExerciseIndex > 0) {
       setSession(prev => ({
         ...prev,
@@ -331,7 +416,7 @@ export const GymModePage: React.FC = () => {
         restTimer: { ...prev.restTimer, isActive: false }
       }))
     }
-  }
+  }, [session.currentExerciseIndex])
 
   // Substitution Handler
   const handleSelectAlternative = (alt: ExerciseAlternative) => {
@@ -351,21 +436,6 @@ export const GymModePage: React.FC = () => {
     toast({ title: 'Exercise Substituted', description: `Swapped to ${alt.name}.` })
   }
 
-  // Complete Workout Flow
-  const handleCompleteWorkout = () => {
-    // Record completion in PlanContext
-    dispatch({
-      type: 'TOGGLE_DAY_COMPLETE',
-      payload: {
-        date: new Date().toISOString().split('T')[0],
-        dayIndex: targetDayIndex
-      }
-    })
-    clearActiveSession()
-    setSession(prev => ({ ...prev, status: 'completed' }))
-    setIsCompletedModalOpen(true)
-  }
-
   const handleSaveAndExit = () => {
     saveActiveSession(session)
     setIsExitDialogOpen(false)
@@ -379,6 +449,71 @@ export const GymModePage: React.FC = () => {
     toast({ title: 'Session Discarded', description: 'Workout session cleared.' })
     navigate('/weekly-plan')
   }
+
+  // Accessible Keyboard Shortcuts for Gym Companion
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't capture keys if focused inside input / textarea or modal is open
+      const target = e.target as HTMLElement | null
+      if (
+        target &&
+        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+      ) {
+        return
+      }
+      if (isSubModalOpen || isExitDialogOpen || isCompletedModalOpen || isDrawerOpen) {
+        return
+      }
+
+      if (e.key === ' ' || e.code === 'Space') {
+        e.preventDefault()
+        // Toggle the first pending set on current exercise
+        const currentSets = session.exercises[session.currentExerciseIndex]?.sets || []
+        const pendingSet = currentSets.find(s => !s.isCompleted)
+        if (pendingSet) {
+          handleToggleSetComplete(pendingSet.setIndex)
+        } else if (currentSets.length > 0) {
+          handleToggleSetComplete(currentSets[currentSets.length - 1].setIndex)
+        }
+      } else if (e.key === 'r' || e.key === 'R') {
+        e.preventDefault()
+        if (session.restTimer.isActive) {
+          handleSkipTimer()
+        } else {
+          const restSecs = currentExercise?.restSeconds || 60
+          setSession(prev => ({
+            ...prev,
+            restTimer: {
+              isActive: true,
+              targetEndTime: Date.now() + restSecs * 1000,
+              durationSeconds: restSecs,
+              isPaused: false,
+              remainingSeconds: restSecs
+            }
+          }))
+        }
+      } else if (e.key === 'ArrowRight') {
+        handleNextExercise()
+      } else if (e.key === 'ArrowLeft') {
+        handlePrevExercise()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [
+    isSubModalOpen,
+    isExitDialogOpen,
+    isCompletedModalOpen,
+    isDrawerOpen,
+    session.exercises,
+    session.currentExerciseIndex,
+    session.restTimer.isActive,
+    currentExercise?.restSeconds,
+    handleToggleSetComplete,
+    handleNextExercise,
+    handlePrevExercise
+  ])
 
   // Formatting helpers
   const minsElapsed = Math.floor(session.elapsedSeconds / 60)
@@ -410,8 +545,37 @@ export const GymModePage: React.FC = () => {
           </h1>
         </div>
 
-        {/* Stopwatch & Routine Drawer */}
-        <div className="flex items-center gap-2">
+        {/* Audio, Vibration, Stopwatch & Routine Drawer */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Sound Chime Toggle */}
+          <button
+            onClick={() => setSession(prev => ({ ...prev, soundEnabled: !prev.soundEnabled }))}
+            className={`p-1.5 rounded-lg border transition-colors ${
+              session.soundEnabled
+                ? 'bg-card-dark border-gray-800 text-neon-green hover:bg-gray-800'
+                : 'bg-card-dark border-gray-800 text-gray-500 hover:text-secondary-text'
+            }`}
+            title={session.soundEnabled ? 'Timer Chime Enabled' : 'Timer Chime Muted'}
+            aria-label={session.soundEnabled ? 'Mute timer chime' : 'Enable timer chime'}
+          >
+            {session.soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+          </button>
+
+          {/* Haptic Vibration Toggle */}
+          <button
+            onClick={() => setSession(prev => ({ ...prev, vibrateEnabled: !prev.vibrateEnabled }))}
+            className={`p-1.5 rounded-lg border transition-colors ${
+              session.vibrateEnabled
+                ? 'bg-card-dark border-gray-800 text-neon-green hover:bg-gray-800'
+                : 'bg-card-dark border-gray-800 text-gray-500 hover:text-secondary-text'
+            }`}
+            title={session.vibrateEnabled ? 'Haptic Vibration Enabled' : 'Haptic Vibration Off'}
+            aria-label={session.vibrateEnabled ? 'Disable haptic vibration' : 'Enable haptic vibration'}
+          >
+            {session.vibrateEnabled ? <Vibrate className="w-4 h-4" /> : <VibrateOff className="w-4 h-4" />}
+          </button>
+
+          {/* Stopwatch */}
           <div className="flex items-center gap-1.5 px-2.5 py-1 bg-card-dark border border-gray-800 rounded-lg text-xs font-poppins font-semibold text-electric-purple">
             <Clock className="w-3.5 h-3.5 text-electric-purple" />
             <span className="tabular-nums">{formattedElapsed}</span>
@@ -515,9 +679,31 @@ export const GymModePage: React.FC = () => {
         {/* Big Touch-Friendly Set Logger */}
         <section className="space-y-3.5 mb-8">
           <div className="flex items-center justify-between px-1">
-            <h3 className="text-xs font-poppins font-bold uppercase tracking-wider text-secondary-text">
-              Workout Sets ({currentExercise?.sets.length || 3})
-            </h3>
+            <div className="flex items-center gap-2">
+              <h3 className="text-xs font-poppins font-bold uppercase tracking-wider text-secondary-text">
+                Workout Sets ({currentExercise?.sets.length || 3})
+              </h3>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={handleAddSet}
+                  className="px-2 py-0.5 rounded bg-gray-800 hover:bg-gray-700 text-neon-green text-[11px] font-semibold flex items-center gap-1 transition-colors border border-gray-700"
+                  aria-label="Add extra set to exercise"
+                  title="Add Set"
+                >
+                  <Plus className="w-3 h-3" /> Add Set
+                </button>
+                {currentExercise && currentExercise.sets.length > 1 && (
+                  <button
+                    onClick={handleRemoveSet}
+                    className="p-1 rounded bg-gray-800 hover:bg-bright-coral/20 text-gray-400 hover:text-bright-coral text-[11px] transition-colors border border-gray-700"
+                    aria-label="Remove last set"
+                    title="Remove last set"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            </div>
             <span className="text-xs text-secondary-text">
               Target: <strong className="text-primary-text">{currentExercise?.targetReps}</strong>
             </span>
@@ -594,10 +780,17 @@ export const GymModePage: React.FC = () => {
               </button>
             </div>
           ))}
+
+          {/* Keyboard & Companion Shortcuts Tip */}
+          <div className="hidden sm:flex items-center justify-center gap-4 text-[11px] text-gray-500 pt-2 font-open-sans">
+            <span><kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-300 font-mono text-[10px] border border-gray-700">Space</kbd> Log Set</span>
+            <span><kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-300 font-mono text-[10px] border border-gray-700">R</kbd> Rest Timer</span>
+            <span><kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-300 font-mono text-[10px] border border-gray-700">← / →</kbd> Switch Exercise</span>
+          </div>
         </section>
 
-        {/* Bottom Navigation Buttons */}
-        <div className="flex items-center justify-between gap-3 pt-4 border-t border-gray-800">
+        {/* Bottom Navigation Buttons (Desktop) */}
+        <div className="hidden md:flex items-center justify-between gap-3 pt-4 border-t border-gray-800">
           <Button
             onClick={handlePrevExercise}
             variant="outline"
@@ -627,6 +820,67 @@ export const GymModePage: React.FC = () => {
           )}
         </div>
       </main>
+
+      {/* Mobile Sticky One-Handed Action Bar */}
+      <aside aria-label="Quick mobile controls" className="md:hidden fixed bottom-0 left-0 right-0 z-30 p-3 bg-bodymap-dark/95 backdrop-blur-md border-t border-gray-800 flex items-center justify-between gap-2 shadow-2xl">
+        <Button
+          onClick={handlePrevExercise}
+          variant="outline"
+          size="sm"
+          disabled={session.currentExerciseIndex === 0}
+          className="border-gray-800 bg-card-dark text-secondary-text p-2.5 h-11"
+          aria-label="Previous Exercise"
+        >
+          <ChevronLeft className="w-5 h-5" />
+        </Button>
+
+        {/* Primary Action Button */}
+        {(() => {
+          const pendingSet = currentExercise?.sets.find(s => !s.isCompleted)
+          if (pendingSet) {
+            return (
+              <Button
+                onClick={() => handleToggleSetComplete(pendingSet.setIndex)}
+                className="btn-primary flex-1 h-11 text-xs font-bold flex items-center justify-center gap-1.5 shadow-lg shadow-neon-green/10"
+              >
+                <Check className="w-4 h-4 stroke-[3]" />
+                Log Set {pendingSet.setIndex} (DONE)
+              </Button>
+            )
+          } else if (session.currentExerciseIndex < totalExercises - 1) {
+            return (
+              <Button
+                onClick={handleNextExercise}
+                className="btn-primary flex-1 h-11 text-xs font-bold flex items-center justify-center gap-1.5 bg-electric-purple text-white shadow-lg shadow-electric-purple/10"
+              >
+                Next Exercise
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            )
+          } else {
+            return (
+              <Button
+                onClick={handleCompleteWorkout}
+                className="btn-primary flex-1 h-11 text-xs font-bold flex items-center justify-center gap-1.5 bg-neon-green shadow-lg shadow-neon-green/20"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                Finish Workout
+              </Button>
+            )
+          }
+        })()}
+
+        <Button
+          onClick={handleNextExercise}
+          variant="outline"
+          size="sm"
+          disabled={session.currentExerciseIndex >= totalExercises - 1 && currentExercise?.sets.every(s => s.isCompleted)}
+          className="border-gray-800 bg-card-dark text-secondary-text p-2.5 h-11"
+          aria-label="Next Exercise"
+        >
+          <ChevronRight className="w-5 h-5" />
+        </Button>
+      </aside>
 
       {/* Routine Quick Jump Drawer */}
       {isDrawerOpen && (

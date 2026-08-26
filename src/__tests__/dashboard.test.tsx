@@ -55,7 +55,7 @@ describe('DashboardPage & Chronological Weight Sorting System', () => {
     renderDashboard()
     expect(screen.getByText(/Hello/i)).toBeDefined()
     expect(screen.getByText(/Current Weight/i)).toBeDefined()
-    expect(screen.getByText(/Target Goal/i)).toBeDefined()
+    expect(screen.getByText(/Goal:/i)).toBeDefined()
   })
 
   it('correctly handles out-of-order and backdated weight entries chronologically', () => {
@@ -92,5 +92,12 @@ describe('DashboardPage & Chronological Weight Sorting System', () => {
     })
 
     expect(sorted.length).toBe(2)
+  })
+
+  it('renders recent workout sessions and motivational empty states', () => {
+    renderDashboard()
+    expect(screen.getByText(/Recent Workout Sessions/i)).toBeDefined()
+    expect(screen.getByText(/No Gym Mode workouts completed yet/i)).toBeDefined()
+    expect(screen.getByText(/Active Streak/i)).toBeDefined()
   })
 })

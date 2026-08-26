@@ -1,4 +1,4 @@
-﻿export interface WorkoutSet {
+export interface WorkoutSet {
   setIndex: number
   targetReps: string
   completedReps: number
@@ -46,3 +46,21 @@ export interface WorkoutSession {
   soundEnabled: boolean
   vibrateEnabled: boolean
 }
+
+export interface CompletedWorkoutLog {
+  id: string
+  sessionId: string
+  dayIndex: number
+  dayTitle: string
+  dayType: string
+  completedAt: string // ISO string
+  durationSeconds: number
+  totalSetsCompleted: number
+  totalExercises: number
+  exercisesSummary: Array<{
+    name: string
+    setsCompleted: number
+    totalSets: number
+  }>
+}
+

@@ -30,7 +30,7 @@ describe('Gym Mode Execution System & Micro-Interactions', () => {
     expect(screen.getByText(/Gym Mode/i)).toBeDefined()
     expect(screen.getByText(/Coach Cue:/i)).toBeDefined()
     expect(screen.getByText(/Workout Sets/i)).toBeDefined()
-    expect(screen.getByText(/SET 1/i)).toBeDefined()
+    expect(screen.getAllByText(/SET 1/i).length).toBeGreaterThan(0)
   })
 
   it('allows incrementing and decrementing reps with 1-tap steppers', () => {
@@ -40,7 +40,15 @@ describe('Gym Mode Execution System & Micro-Interactions', () => {
 
     fireEvent.click(incBtn)
     fireEvent.click(decBtn)
-    expect(screen.getByText(/SET 1/i)).toBeDefined()
+    expect(screen.getAllByText(/SET 1/i).length).toBeGreaterThan(0)
+  })
+
+  it('allows adding and removing sets dynamically during workout', () => {
+    renderGymMode(0)
+    const addSetBtn = screen.getByRole('button', { name: /Add extra set to exercise/i })
+    fireEvent.click(addSetBtn)
+
+    expect(screen.getAllByText(/SET 4/i).length).toBeGreaterThan(0)
   })
 
   it('completing a set activates the Rest Timer overlay', () => {

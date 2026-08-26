@@ -1,10 +1,13 @@
-﻿import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import {
   saveActiveSession,
   loadActiveSession,
   clearActiveSession,
   hasActiveSession,
-  ACTIVE_SESSION_STORAGE_KEY
+  ACTIVE_SESSION_STORAGE_KEY,
+  saveCompletedWorkoutLog,
+  loadWorkoutHistory,
+  clearWorkoutHistory
 } from '@/lib/sessionStorage'
 import type { WorkoutSession } from '@/types/workoutSession'
 
@@ -80,5 +83,31 @@ describe('Workout Session Storage & Recovery Layer', () => {
 
     localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, '{"sessionId": "bad", "exercises": []}')
     expect(loadActiveSession()).toBeNull()
+  })
+
+  it('saves and loads completed workout history correctly', () => {
+    expect(loadWorkoutHistory()).toEqual([])
+
+    saveCompletedWorkoutLog({
+      id: 'log_1',
+      sessionId: 'sess_1',
+      dayIndex: 0,
+      dayTitle: 'Day 1 - Push Focus',
+      dayType: 'Hypertrophy',
+      completedAt: '2026-08-26T10:00:00Z',
+      durationSeconds: 2400,
+      totalSetsCompleted: 12,
+      totalExercises: 4,
+      exercisesSummary: [{ name: 'Push-ups', setsCompleted: 3, totalSets: 3 }]
+    })
+
+    const history = loadWorkoutHistory()
+    expect(history.length).toBe(1)
+    expect(history[0].id).toBe('log_1')
+    expect(history[0].dayTitle).toBe('Day 1 - Push Focus')
+    expect(history[0].totalSetsCompleted).toBe(12)
+
+    clearWorkoutHistory()
+    expect(loadWorkoutHistory()).toEqual([])
   })
 })

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   TrendingUp,
@@ -6,17 +6,22 @@ import {
   Download,
   Edit,
   User,
-  Target,
   Plus,
   Dumbbell,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  Flame,
+  CheckCircle2,
+  Clock,
+  Award
 } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from '@/hooks/use-toast'
 import { usePlan } from '@/context/PlanContext'
+import { loadWorkoutHistory } from '@/lib/sessionStorage'
+import type { CompletedWorkoutLog } from '@/types/workoutSession'
 
 interface Measurement {
   part: string
@@ -39,6 +44,11 @@ const DashboardPage = () => {
   const [userName, setUserName] = useState(() => localStorage.getItem('bodymap_user_name') || 'Athlete')
   const [isEditingName, setIsEditingName] = useState(false)
   const [measurements] = useState<Measurement[]>(DEFAULT_MEASUREMENTS)
+  const [workoutHistory, setWorkoutHistory] = useState<CompletedWorkoutLog[]>([])
+
+  useEffect(() => {
+    setWorkoutHistory(loadWorkoutHistory())
+  }, [])
 
   const initialWeightNum = Number(formData.weight) || 72
   const targetWeightNum = formData.mainGoal === 'slim'
@@ -69,7 +79,42 @@ const DashboardPage = () => {
 
   const currentWeightNum = chartData[chartData.length - 1].weight
   const weightChange = Number((currentWeightNum - initialWeightNum).toFixed(1))
-  const completedWorkoutsCount = completedDays.length
+  const completedWorkoutsCount = Math.max(completedDays.length, workoutHistory.length)
+
+  // Calculate actual daily streak
+  const calculateStreak = () => {
+    const allDates = new Set<string>()
+    workoutHistory.forEach(h => {
+      if (h.completedAt) allDates.add(h.completedAt.split('T')[0])
+    })
+    completedDays.forEach(c => {
+      if (c.date) allDates.add(c.date)
+    })
+    if (allDates.size === 0) return 0
+
+    const sortedDates = Array.from(allDates).sort().reverse()
+    const today = new Date().toISOString().split('T')[0]
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
+
+    if (sortedDates[0] !== today && sortedDates[0] !== yesterday) {
+      return 0
+    }
+
+    let streak = 1
+    let curTime = new Date(sortedDates[0]).getTime()
+    for (let i = 1; i < sortedDates.length; i++) {
+      const prevDateStr = new Date(curTime - 86400000).toISOString().split('T')[0]
+      if (sortedDates[i] === prevDateStr) {
+        streak++
+        curTime -= 86400000
+      } else {
+        break
+      }
+    }
+    return streak
+  }
+
+  const currentStreak = calculateStreak()
 
   const handleAddWeight = (e: React.FormEvent) => {
     e.preventDefault()
@@ -92,7 +137,6 @@ const DashboardPage = () => {
     localStorage.setItem('bodymap_user_name', userName)
     toast({ title: 'Profile Updated', description: `Display name updated to ${userName}.` })
   }
-
 
   return (
     <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8">
@@ -154,8 +198,8 @@ const DashboardPage = () => {
             </p>
           </div>
 
-          <Link to="/weekly-plan" className="btn-primary text-sm py-2.5 px-5 self-start sm:self-auto">
-            <Dumbbell className="w-4 h-4 mr-2" />
+          <Link to="/weekly-plan" className="btn-primary text-sm py-2.5 px-5 self-start sm:self-auto flex items-center gap-2">
+            <Dumbbell className="w-4 h-4" />
             Today's Workout
           </Link>
         </div>
@@ -169,7 +213,17 @@ const DashboardPage = () => {
             <p className="text-2xl sm:text-3xl font-poppins font-bold text-primary-text">
               {completedWorkoutsCount}
             </p>
-            <p className="text-xs sm:text-sm text-secondary-text font-open-sans mt-1">Days Completed</p>
+            <p className="text-xs sm:text-sm text-secondary-text font-open-sans mt-1">Workouts Logged</p>
+          </div>
+
+          <div className="card-dark text-center">
+            <div className="w-12 h-12 bg-bright-coral/20 rounded-full flex items-center justify-center mx-auto mb-3">
+              <Flame className="w-6 h-6 text-bright-coral" aria-hidden="true" />
+            </div>
+            <p className="text-2xl sm:text-3xl font-poppins font-bold text-primary-text">
+              {currentStreak} {currentStreak === 1 ? 'Day' : 'Days'}
+            </p>
+            <p className="text-xs sm:text-sm text-secondary-text font-open-sans mt-1">Active Streak</p>
           </div>
 
           <div className="card-dark text-center">
@@ -180,17 +234,6 @@ const DashboardPage = () => {
               {formData.timePerDay ? `${formData.timePerDay}m` : '45m'}
             </p>
             <p className="text-xs sm:text-sm text-secondary-text font-open-sans mt-1">Daily Target</p>
-          </div>
-
-          <div className="card-dark text-center">
-            <div className="w-12 h-12 bg-bright-coral/20 rounded-full flex items-center justify-center mx-auto mb-3">
-              <Target className="w-6 h-6 text-bright-coral" aria-hidden="true" />
-            </div>
-            <p className="text-2xl sm:text-3xl font-poppins font-bold text-primary-text">
-              {weightChange > 0 ? `+${weightChange}` : weightChange} kg
-            </p>
-
-            <p className="text-xs sm:text-sm text-secondary-text font-open-sans mt-1">Weight Delta</p>
           </div>
 
           <div className="card-dark text-center">
@@ -212,9 +255,11 @@ const DashboardPage = () => {
                 <h2 className="text-lg sm:text-xl font-poppins font-semibold text-primary-text">
                   Weight Progression
                 </h2>
-                <span className="text-xs text-secondary-text">
-                  Target: <strong className="text-neon-green">{targetWeightNum} kg</strong>
-                </span>
+                <div className="flex items-center gap-2 text-xs text-secondary-text">
+                  <span>Delta: <strong className={weightChange <= 0 ? 'text-neon-green' : 'text-bright-coral'}>{weightChange > 0 ? `+${weightChange}` : weightChange} kg</strong></span>
+                  <span>•</span>
+                  <span>Target: <strong className="text-neon-green">{targetWeightNum} kg</strong></span>
+                </div>
               </div>
 
               <div className="h-60 sm:h-64 w-full" role="region" aria-label="Weight progress line chart">
@@ -292,6 +337,103 @@ const DashboardPage = () => {
               </Link>
             </div>
           </div>
+        </div>
+
+        {/* Recent Workout History Stream */}
+        <div className="card-dark mb-12">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-neon-green/20 flex items-center justify-center">
+                <Dumbbell className="w-5 h-5 text-neon-green" />
+              </div>
+              <div>
+                <h2 className="text-lg sm:text-xl font-poppins font-semibold text-primary-text">
+                  Recent Workout Sessions
+                </h2>
+                <p className="text-xs text-secondary-text font-open-sans">
+                  Your verified training logs recorded in Gym Mode
+                </p>
+              </div>
+            </div>
+
+            <Link
+              to="/weekly-plan"
+              className="text-xs font-semibold text-neon-green hover:underline flex items-center gap-1"
+            >
+              All Days <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          {workoutHistory.length > 0 ? (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {workoutHistory.slice(0, 6).map((log) => {
+                const logMins = Math.max(1, Math.round(log.durationSeconds / 60))
+                const dateFormatted = new Date(log.completedAt).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })
+                return (
+                  <div
+                    key={log.id}
+                    className="p-4 bg-bodymap-dark rounded-xl border border-gray-800 hover:border-gray-700 transition-colors flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="text-[11px] font-poppins font-bold px-2 py-0.5 rounded bg-neon-green/15 text-neon-green">
+                          Day {log.dayIndex + 1}
+                        </span>
+                        <span className="text-[11px] text-gray-500">{dateFormatted}</span>
+                      </div>
+
+                      <h3 className="font-poppins font-bold text-sm text-primary-text truncate">
+                        {log.dayTitle}
+                      </h3>
+                      <p className="text-xs text-secondary-text truncate mb-3">
+                        {log.dayType}
+                      </p>
+
+                      <div className="flex items-center gap-3 text-xs text-secondary-text mb-3">
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5 text-electric-purple" /> {logMins}m
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Award className="w-3.5 h-3.5 text-bright-coral" /> {log.totalSetsCompleted} sets
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-neon-green" /> {log.totalExercises} exercises
+                        </span>
+                      </div>
+                    </div>
+
+                    <Link
+                      to={`/gym-mode/${log.dayIndex}`}
+                      className="text-[11px] font-semibold text-electric-purple hover:text-neon-green transition-colors inline-flex items-center gap-1 pt-2 border-t border-gray-800"
+                    >
+                      Repeat Session &rarr;
+                    </Link>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="p-8 text-center bg-bodymap-dark/60 rounded-xl border border-gray-800/80">
+              <p className="text-sm font-poppins font-medium text-primary-text mb-1">
+                No Gym Mode workouts completed yet
+              </p>
+              <p className="text-xs text-secondary-text mb-4 max-w-md mx-auto">
+                Launch interactive Gym Mode on any day to log sets, run automatic rest timers, and build your verified activity log.
+              </p>
+              <Link
+                to="/gym-mode/0"
+                className="btn-primary text-xs py-2 px-5 inline-flex items-center gap-2"
+              >
+                <Dumbbell className="w-3.5 h-3.5" />
+                Start Day 1 Workout
+              </Link>
+            </div>
+          )}
         </div>
 
         {/* Quick Action Navigation Grid */}

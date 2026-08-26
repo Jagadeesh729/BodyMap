@@ -42,9 +42,9 @@ export type PlanAction =
   | { type: 'RESET_PLAN' }
   | { type: 'LOG_WEIGHT'; payload: WeightEntry }
   | { type: 'TOGGLE_DAY_COMPLETE'; payload: CompletedDay }
+  | { type: 'MARK_DAY_COMPLETE'; payload: CompletedDay }
 
 export function planReducer(state: PlanState, action: PlanAction): PlanState {
-
   switch (action.type) {
     case 'SET_FORM_DATA':
       return { ...state, formData: { ...state.formData, ...action.payload } }
@@ -63,6 +63,16 @@ export function planReducer(state: PlanState, action: PlanAction): PlanState {
         completedDays: exists
           ? state.completedDays.filter(d => !(d.date === action.payload.date && d.dayIndex === action.payload.dayIndex))
           : [...state.completedDays, action.payload],
+      }
+    }
+    case 'MARK_DAY_COMPLETE': {
+      const exists = state.completedDays.some(
+        d => d.date === action.payload.date && d.dayIndex === action.payload.dayIndex
+      )
+      if (exists) return state
+      return {
+        ...state,
+        completedDays: [...state.completedDays, action.payload],
       }
     }
     default:

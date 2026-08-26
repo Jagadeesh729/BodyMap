@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import {
   Download,
   FileText,
@@ -11,7 +11,9 @@ import {
   Dumbbell,
   Sparkles,
   Utensils,
-  ShieldCheck
+  ShieldCheck,
+  Database,
+  Upload
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -22,6 +24,7 @@ import { parseAndValidatePlan } from '@/lib/planSchema'
 import { calculateBMI } from '@/lib/bmi'
 import { DEFAULT_WEEKLY_PLAN, type DayPlan } from '@/types/plan'
 import { BodyMapLogo } from '@/components/BodyMapLogo'
+import { exportBackupToFile, validateAndParseBackup, restoreBackupData } from '@/lib/backupStorage'
 
 const DownloadPlanPage = () => {
   const { state } = usePlan()
@@ -147,6 +150,56 @@ const DownloadPlanPage = () => {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleExportBackup = () => {
+    exportBackupToFile()
+    toast({
+      title: 'Backup Exported! 💾',
+      description: 'Your complete plan, workout history, and metrics were saved to JSON.'
+    })
+  }
+
+  const handleImportFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const content = event.target?.result as string
+      const parseResult = validateAndParseBackup(content)
+
+      if (!parseResult.success) {
+        toast({
+          title: 'Import Failed',
+          description: parseResult.error,
+          variant: 'destructive'
+        })
+        return
+      }
+
+      const restoreResult = restoreBackupData(parseResult.data)
+      if (restoreResult.success) {
+        toast({
+          title: 'Data Restored Successfully! 🎉',
+          description: 'Your plans, weight logs, and workout history have been reloaded.'
+        })
+        setTimeout(() => {
+          window.location.reload()
+        }, 800)
+      } else {
+        toast({
+          title: 'Restore Failed',
+          description: restoreResult.error || 'Failed to restore backup.',
+          variant: 'destructive'
+        })
+      }
+    }
+    reader.readAsText(file)
+    // Reset file input so user can re-import same file if needed
+    e.target.value = ''
+  }
+
   return (
     <div className="min-h-screen py-10 px-4 sm:px-6 lg:px-8">
       <div className="max-w-5xl mx-auto">
@@ -245,12 +298,56 @@ const DownloadPlanPage = () => {
                   Copy full raw text to clipboard for Apple Notes, Notion, or WhatsApp.
                 </p>
               </div>
-              <Button onClick={handleCopyPlan} variant="outline" className="border-gray-700 text-secondary-text hover:bg-gray-800 w-full text-xs py-2.5">
-                {copied ? <Check className="w-4 h-4 mr-1.5 text-neon-green" /> : <Copy className="w-4 h-4 mr-1.5" />}
-                {copied ? 'Copied!' : 'Copy to Clipboard'}
+              <Button onClick={handleCopyPlan} variant="outline" className="border-gray-700 text-secondary-text hover:text-primary-text w-full text-xs font-bold py-2.5">
+                {copied ? <Check className="w-4 h-4 mr-1.5" /> : <Copy className="w-4 h-4 mr-1.5" />}
+                {copied ? 'Text Copied!' : 'Copy to Clipboard'}
               </Button>
             </div>
+          </div>
 
+          {/* Local-First Full JSON Backup & Restore Card */}
+          <div className="p-5 sm:p-6 bg-card-dark border border-gray-800 rounded-2xl mb-12 flex flex-col sm:flex-row items-center justify-between gap-6">
+            <div className="flex items-center gap-4 text-left">
+              <div className="w-12 h-12 rounded-xl bg-neon-green/15 border border-neon-green/30 flex items-center justify-center shrink-0">
+                <Database className="w-6 h-6 text-neon-green" />
+              </div>
+              <div>
+                <h3 className="font-poppins font-bold text-base text-primary-text">
+                  Local-First Data Sovereignty &amp; Backups
+                </h3>
+                <p className="text-xs sm:text-sm text-secondary-text font-open-sans mt-0.5">
+                  Export or restore all your generated plans, workout logs, and weight metrics in a portable JSON file. 100% device-local with zero cloud lock-in.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 shrink-0 w-full sm:w-auto">
+              <Button
+                onClick={handleExportBackup}
+                variant="outline"
+                className="border-gray-700 bg-bodymap-dark text-secondary-text hover:text-neon-green hover:border-neon-green text-xs font-bold py-2.5 px-4 flex-1 sm:flex-initial flex items-center justify-center gap-2"
+              >
+                <Download className="w-4 h-4" />
+                Export Backup (JSON)
+              </Button>
+
+              <Button
+                onClick={() => fileInputRef.current?.click()}
+                variant="outline"
+                className="border-gray-700 bg-bodymap-dark text-secondary-text hover:text-electric-purple hover:border-electric-purple text-xs font-bold py-2.5 px-4 flex-1 sm:flex-initial flex items-center justify-center gap-2"
+              >
+                <Upload className="w-4 h-4" />
+                Import Backup
+              </Button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleImportFileSelected}
+                accept=".json,application/json"
+                className="hidden"
+                aria-label="Upload BodyMap JSON Backup"
+              />
+            </div>
           </div>
 
           {/* Quick Email Box */}

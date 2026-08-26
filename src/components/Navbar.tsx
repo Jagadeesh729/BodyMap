@@ -1,9 +1,11 @@
 
 import { Link, useLocation } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
-import { Menu, X } from 'lucide-react'
+import { Menu, X, Play } from 'lucide-react'
 import { BodyMapLogo } from './BodyMapLogo'
 import { usePlan } from '@/context/PlanContext'
+import { loadActiveSession } from '@/lib/sessionStorage'
+import type { WorkoutSession } from '@/types/workoutSession'
 
 // Defined outside component — stable reference, no recreation on render
 const baseNavItems = [
@@ -15,8 +17,24 @@ const baseNavItems = [
 const Navbar = () => {
   const location = useLocation()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [activeSession, setActiveSession] = useState<WorkoutSession | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const { state } = usePlan()
+
+  // Periodically check if an active workout exists
+  useEffect(() => {
+    const checkActiveSession = () => {
+      const saved = loadActiveSession()
+      if (saved && saved.status === 'in-progress') {
+        setActiveSession(saved)
+      } else {
+        setActiveSession(null)
+      }
+    }
+    checkActiveSession()
+    const interval = setInterval(checkActiveSession, 2000)
+    return () => clearInterval(interval)
+  }, [location.pathname])
 
   // Show Dashboard link only when a plan has been generated
   const navItems = state.isGenerated
@@ -47,6 +65,8 @@ const Navbar = () => {
     return () => document.removeEventListener('mousedown', handleOutsideClick)
   }, [isMobileMenuOpen])
 
+  const showActiveSessionBadge = activeSession && !location.pathname.startsWith('/gym-mode')
+
   return (
     <nav
       className="bg-bodymap-dark border-b border-gray-800 sticky top-0 z-50 print:hidden"
@@ -62,13 +82,13 @@ const Navbar = () => {
           </Link>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-8">
+          <div className="hidden md:flex items-center space-x-6">
             {navItems.map((item) => (
               <Link
                 key={item.name}
                 to={item.path}
                 aria-current={isActive(item.path) ? 'page' : undefined}
-                className={`font-open-sans font-medium transition-colors duration-200 ${
+                className={`font-open-sans font-medium text-sm transition-colors duration-200 ${
                   isActive(item.path)
                     ? 'text-neon-green'
                     : 'text-secondary-text hover:text-electric-purple'
@@ -77,6 +97,18 @@ const Navbar = () => {
                 {item.name}
               </Link>
             ))}
+
+            {showActiveSessionBadge && (
+              <Link
+                to={`/gym-mode/${activeSession.dayIndex}`}
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-neon-green/15 border border-neon-green/40 text-neon-green font-poppins font-bold text-xs hover:bg-neon-green/25 transition-all shadow-sm shadow-neon-green/10"
+              >
+                <span className="w-2 h-2 rounded-full bg-neon-green animate-ping" />
+                <span>Live Workout</span>
+                <Play className="w-3 h-3 fill-current ml-0.5" />
+              </Link>
+            )}
+
             <Link
               to="/create-plan"
               className="btn-primary text-sm py-2 px-4"
@@ -107,6 +139,20 @@ const Navbar = () => {
         {isMobileMenuOpen && (
           <div id="mobile-menu" className="md:hidden">
             <div className="px-2 pt-2 pb-3 space-y-1 bg-card-dark rounded-lg mt-2 mb-2">
+              {showActiveSessionBadge && (
+                <Link
+                  to={`/gym-mode/${activeSession.dayIndex}`}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="flex items-center justify-between px-3 py-2.5 rounded-md bg-neon-green/15 border border-neon-green/40 text-neon-green font-poppins font-bold text-xs mb-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-neon-green animate-ping" />
+                    <span>Resume Active Workout ({activeSession.dayTitle})</span>
+                  </div>
+                  <Play className="w-3.5 h-3.5 fill-current" />
+                </Link>
+              )}
+
               {navItems.map((item) => (
                 <Link
                   key={item.name}
