@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   CheckCircle2,
@@ -10,7 +10,8 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  List
+  List,
+  AlertCircle
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -106,6 +107,19 @@ export const GymModePage: React.FC = () => {
     }
   })
 
+  // Detect if an active session for a different day exists
+  const [conflictingSession, setConflictingSession] = useState<WorkoutSession | null>(() => {
+    const saved = loadActiveSession()
+    if (saved && saved.dayIndex !== targetDayIndex && saved.status === 'in-progress') {
+      return saved
+    }
+    return null
+  })
+
+  // Track active stopwatch time accumulated across pauses/reloads
+  const mountTimeRef = useRef<number>(Date.now())
+  const initialElapsedRef = useRef<number>(session.elapsedSeconds)
+
   // Modal / Dialog states
   const [isSubModalOpen, setIsSubModalOpen] = useState(false)
   const [isExitDialogOpen, setIsExitDialogOpen] = useState(false)
@@ -119,17 +133,18 @@ export const GymModePage: React.FC = () => {
     }
   }, [session])
 
-  // Stopwatch effect using absolute start time
+  // Active workout stopwatch effect
   useEffect(() => {
     if (session.status !== 'in-progress') return
     const interval = setInterval(() => {
+      const activeDelta = Math.floor((Date.now() - mountTimeRef.current) / 1000)
       setSession(prev => ({
         ...prev,
-        elapsedSeconds: Math.floor((Date.now() - prev.startedAt) / 1000)
+        elapsedSeconds: initialElapsedRef.current + activeDelta
       }))
     }, 1000)
     return () => clearInterval(interval)
-  }, [session.status, session.startedAt])
+  }, [session.status])
 
   // Rest Timer engine with absolute timestamp resilience
   useEffect(() => {
@@ -422,6 +437,40 @@ export const GymModePage: React.FC = () => {
 
       {/* Main Active Workout View */}
       <main className="max-w-3xl w-full mx-auto px-4 sm:px-6 pt-6 pb-24 flex-1 flex flex-col justify-between">
+        {/* Conflicting Session Warning Banner */}
+        {conflictingSession && (
+          <div className="mb-6 p-4 bg-bright-coral/10 border border-bright-coral/40 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2.5">
+              <AlertCircle className="w-5 h-5 text-bright-coral shrink-0" />
+              <div>
+                <span className="font-poppins font-bold text-primary-text">
+                  In-Progress Session Detected:
+                </span>{' '}
+                <span className="text-secondary-text">
+                  You have an unfinished workout for <strong>{conflictingSession.dayTitle}</strong>.
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                onClick={() => navigate(`/gym-mode/${conflictingSession.dayIndex}`)}
+                size="sm"
+                className="btn-coral text-xs py-1 px-3"
+              >
+                Switch to {conflictingSession.dayTitle}
+              </Button>
+              <Button
+                onClick={() => setConflictingSession(null)}
+                variant="ghost"
+                size="sm"
+                className="text-xs text-gray-400 hover:text-primary-text"
+              >
+                Ignore
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Exercise Header Card */}
         <section className="card-dark relative overflow-hidden mb-6 border-l-4 border-l-neon-green">
           <div className="flex items-start justify-between gap-4">

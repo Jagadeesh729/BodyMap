@@ -1,4 +1,4 @@
-﻿import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import {
   getExerciseAlternatives,
   parseExerciseStringToSessionExercise
@@ -26,10 +26,15 @@ describe('Exercise Substitution & Biomechanical Mapping System', () => {
     expect(alts.some(a => a.name.includes('Row') || a.name.includes('Cobra'))).toBe(true)
   })
 
-  it('provides safe generic alternatives for unclassified exercises without crashing', () => {
-    const alts = getExerciseAlternatives('Unusual Custom Exercise XYZ')
+  it('returns valid biomechanical alternatives for calf and lower extremity movements', () => {
+    const alts = getExerciseAlternatives('Standing Barbell Calf Raises')
     expect(alts.length).toBeGreaterThan(0)
-    expect(alts[0].name).toBeDefined()
+    expect(alts.some(a => a.name.includes('Calf Raises'))).toBe(true)
+  })
+
+  it('returns empty array fallback for unclassified exercises to avoid dangerous arbitrary substitutions', () => {
+    const alts = getExerciseAlternatives('Unusual Custom Movement XYZ 99')
+    expect(alts).toEqual([])
   })
 
   it('parses structured workout strings into SessionExercise objects with sets and rest', () => {

@@ -125,4 +125,63 @@ describe('Gym Mode Execution System & Micro-Interactions', () => {
     fireEvent.click(screen.getByRole('button', { name: /View Weekly Plan/i }))
     expect(onViewPlan).toHaveBeenCalled()
   })
+
+  it('renders safe informative fallback when no confident biomechanical substitute exists', () => {
+    const onSelect = vi.fn()
+    const onClose = vi.fn()
+
+    render(
+      <ExerciseSubstitutionModal
+        currentExerciseName="Unusual Custom Movement 99"
+        isOpen={true}
+        onClose={onClose}
+        onSelectAlternative={onSelect}
+      />
+    )
+
+    expect(screen.getByText(/No confident biomechanical substitute found/i)).toBeDefined()
+  })
+
+  it('detects and displays conflicting active session banner when navigating to another day', () => {
+    // Save an active session for Day 0
+    localStorage.setItem(
+      'bodymap_active_session',
+      JSON.stringify({
+        sessionId: 'sess_day0',
+        dayIndex: 0,
+        dayTitle: 'Day 1 - Chest & Triceps',
+        dayType: 'Strength',
+        durationMinutes: 45,
+        startedAt: Date.now(),
+        lastUpdatedAt: Date.now(),
+        elapsedSeconds: 300,
+        currentExerciseIndex: 0,
+        exercises: [
+          {
+            id: 'ex_1',
+            name: 'Push-ups',
+            originalName: 'Push-ups',
+            targetSets: 3,
+            targetReps: '12 reps',
+            restSeconds: 60,
+            focus: 'Chest',
+            equipment: 'Bodyweight',
+            formCue: 'Keep back flat.',
+            sets: [{ setIndex: 1, targetReps: '12 reps', completedReps: 12, weightKg: null, isCompleted: true, completedAt: null }],
+            isSubstituted: false,
+            substitutionReason: null
+          }
+        ],
+        restTimer: { isActive: false, targetEndTime: null, durationSeconds: 60, isPaused: false, remainingSeconds: 60 },
+        status: 'in-progress',
+        soundEnabled: true,
+        vibrateEnabled: true
+      })
+    )
+
+    // Render Day 2
+    renderGymMode(2)
+    expect(screen.getByText(/In-Progress Session Detected/i)).toBeDefined()
+    expect(screen.getAllByText(/Day 1 - Chest & Triceps/i).length).toBeGreaterThan(0)
+  })
 })

@@ -1,4 +1,4 @@
-﻿import React from 'react'
+import React from 'react'
 import { X, RefreshCw, CheckCircle2, Dumbbell, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getExerciseAlternatives, type ExerciseAlternative } from '@/lib/exerciseSubstitution'
@@ -54,15 +54,26 @@ export const ExerciseSubstitutionModal: React.FC<ExerciseSubstitutionModalProps>
 
         {/* List of alternatives */}
         <div className="p-5 overflow-y-auto space-y-3.5 flex-1">
-          <p className="text-xs text-secondary-text mb-2">
-            Select a biomechanically matched alternative matching your available gear and joint comfort:
-          </p>
+          {alternatives.length === 0 ? (
+            <div className="p-6 text-center bg-bodymap-dark/60 rounded-xl border border-gray-800 space-y-2 my-auto">
+              <p className="text-sm font-poppins font-semibold text-secondary-text">
+                No confident biomechanical substitute found
+              </p>
+              <p className="text-xs text-gray-400 font-open-sans leading-relaxed max-w-sm mx-auto">
+                To preserve target training intent and joint safety, please keep this exercise or customize your 7-day schedule from the Weekly Plan.
+              </p>
+            </div>
+          ) : (
+            <>
+              <p className="text-xs text-secondary-text mb-2">
+                Select a biomechanically matched alternative matching your available gear and joint comfort:
+              </p>
 
-          {alternatives.map((alt, idx) => (
-            <div
-              key={idx}
-              className="bg-bodymap-dark/80 border border-gray-800 hover:border-neon-green/60 rounded-lg p-4 transition-all duration-200 flex flex-col justify-between gap-3 group"
-            >
+              {alternatives.map((alt, idx) => (
+                <div
+                  key={idx}
+                  className="bg-bodymap-dark/80 border border-gray-800 hover:border-neon-green/60 rounded-lg p-4 transition-all duration-200 flex flex-col justify-between gap-3 group"
+                >
               <div>
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="font-poppins font-semibold text-primary-text text-sm sm:text-base group-hover:text-neon-green transition-colors">
@@ -100,7 +111,9 @@ export const ExerciseSubstitutionModal: React.FC<ExerciseSubstitutionModalProps>
               </div>
             </div>
           ))}
-        </div>
+        </>
+      )}
+    </div>
 
         {/* Footer */}
         <div className="p-4 border-t border-gray-800 bg-bodymap-dark/40 flex justify-end">

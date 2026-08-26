@@ -230,6 +230,46 @@ const BIOMECHANICAL_FAMILIES: BiomechanicalFamily[] = [
         reason: 'Bodyweight tricep overload.'
       }
     ]
+  },
+  {
+    pattern: 'Calves & Lower Extremity',
+    keywords: ['calf', 'calves', 'tibialis', 'heel raise', 'toe raise'],
+    alternatives: [
+      {
+        name: 'Standing Dumbbell Calf Raises',
+        focus: 'Gastrocnemius, Soleus',
+        equipment: 'Dumbbells or Step',
+        formCue: 'Hold contraction at peak for 2 seconds, full stretch at bottom.',
+        reason: 'Direct lower-leg hypertrophy with minimal joint stress.'
+      },
+      {
+        name: 'Single-Leg Bodyweight Calf Raises',
+        focus: 'Gastrocnemius, Ankle Stability',
+        equipment: 'Bodyweight (Wall support)',
+        formCue: 'Perform slow, controlled unilateral reps to failure.',
+        reason: 'Zero-equipment unilateral calf overload.'
+      }
+    ]
+  },
+  {
+    pattern: 'Cardio & Active Recovery',
+    keywords: ['jump', 'high knee', 'burpee', 'cardio', 'walk', 'jog', 'cycle', 'stretch', 'yoga', 'mobility', 'cooldown'],
+    alternatives: [
+      {
+        name: 'Jumping Jacks / Step Jacks',
+        focus: 'Cardiovascular Endurance, Full Body',
+        equipment: 'Bodyweight',
+        formCue: 'Land softly on balls of feet; maintain steady breathing rhythm.',
+        reason: 'Low barrier aerobic conditioning.'
+      },
+      {
+        name: 'Dynamic Thoracic & Hip Mobility Flow',
+        focus: 'Spine, Hips, Active Recovery',
+        equipment: 'Floor Mat',
+        formCue: 'Breathe deeply into end-ranges; never force pain.',
+        reason: 'Gentle restorative movement for active recovery.'
+      }
+    ]
   }
 ]
 
@@ -242,30 +282,8 @@ export function getExerciseAlternatives(exerciseName: string): ExerciseAlternati
     }
   }
 
-  // Generic fallback if not matched
-  return [
-    {
-      name: 'Standard Bodyweight Push-ups',
-      focus: 'Upper Body & Core',
-      equipment: 'Bodyweight',
-      formCue: 'Keep full body in rigid plank; smooth controlled cadence.',
-      reason: 'General upper-body strength alternative.'
-    },
-    {
-      name: 'Bodyweight Air Squats',
-      focus: 'Lower Body & Core',
-      equipment: 'Bodyweight',
-      formCue: 'Sit back into hips, keep chest tall and knees out.',
-      reason: 'General lower-body strength alternative.'
-    },
-    {
-      name: 'Forearm Plank Hold',
-      focus: 'Core & Trunk Stability',
-      equipment: 'Bodyweight',
-      formCue: 'Maintain continuous core tension; avoid hip sag.',
-      reason: 'Universal core stability alternative.'
-    }
-  ]
+  // Return empty array when no confident biomechanical family is matched
+  return []
 }
 
 export function parseExerciseStringToSessionExercise(
