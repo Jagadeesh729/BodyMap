@@ -22,6 +22,7 @@ import { toast } from '@/hooks/use-toast'
 import { usePlan } from '@/context/PlanContext'
 import { loadWorkoutHistory } from '@/lib/sessionStorage'
 import type { CompletedWorkoutLog } from '@/types/workoutSession'
+import { calculateWorkoutStreak } from '@/lib/streakCalculation'
 
 interface Measurement {
   part: string
@@ -80,41 +81,7 @@ const DashboardPage = () => {
   const currentWeightNum = chartData[chartData.length - 1].weight
   const weightChange = Number((currentWeightNum - initialWeightNum).toFixed(1))
   const completedWorkoutsCount = Math.max(completedDays.length, workoutHistory.length)
-
-  // Calculate actual daily streak
-  const calculateStreak = () => {
-    const allDates = new Set<string>()
-    workoutHistory.forEach(h => {
-      if (h.completedAt) allDates.add(h.completedAt.split('T')[0])
-    })
-    completedDays.forEach(c => {
-      if (c.date) allDates.add(c.date)
-    })
-    if (allDates.size === 0) return 0
-
-    const sortedDates = Array.from(allDates).sort().reverse()
-    const today = new Date().toISOString().split('T')[0]
-    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
-
-    if (sortedDates[0] !== today && sortedDates[0] !== yesterday) {
-      return 0
-    }
-
-    let streak = 1
-    let curTime = new Date(sortedDates[0]).getTime()
-    for (let i = 1; i < sortedDates.length; i++) {
-      const prevDateStr = new Date(curTime - 86400000).toISOString().split('T')[0]
-      if (sortedDates[i] === prevDateStr) {
-        streak++
-        curTime -= 86400000
-      } else {
-        break
-      }
-    }
-    return streak
-  }
-
-  const currentStreak = calculateStreak()
+  const currentStreak = calculateWorkoutStreak(workoutHistory, completedDays)
 
   const handleAddWeight = (e: React.FormEvent) => {
     e.preventDefault()
