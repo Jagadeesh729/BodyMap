@@ -31,6 +31,7 @@ import {
   findMealAlternatives,
   aggregateGroceryList,
   scaleGroceryList,
+  filterPantryStaples,
   type FoodAlternative,
   type GroceryCategoryGroup
 } from '@/lib/nutritionAlternatives'
@@ -53,6 +54,7 @@ const WeeklyPlanPage: React.FC = () => {
   // Nutrition & Grocery Modal States
   const [isGroceryModalOpen, setIsGroceryModalOpen] = useState(false)
   const [servingMultiplier, setServingMultiplier] = useState<number>(1)
+  const [hidePantryStaples, setHidePantryStaples] = useState<boolean>(false)
   const [selectedMealForSwap, setSelectedMealForSwap] = useState<{ title: string; text: string } | null>(null)
   const [checkedGroceryItems, setCheckedGroceryItems] = useState<Record<string, boolean>>(() => {
     try {
@@ -137,9 +139,10 @@ const WeeklyPlanPage: React.FC = () => {
     return aggregateGroceryList(allMealTexts)
   }, [allMealTexts])
 
-  const scaledGroceryCategories: GroceryCategoryGroup[] = useMemo(() => {
-    return scaleGroceryList(groceryCategories, servingMultiplier)
-  }, [groceryCategories, servingMultiplier])
+  const displayGroceryCategories: GroceryCategoryGroup[] = useMemo(() => {
+    const scaled = scaleGroceryList(groceryCategories, servingMultiplier)
+    return filterPantryStaples(scaled, hidePantryStaples)
+  }, [groceryCategories, servingMultiplier, hidePantryStaples])
 
   const handleToggleGroceryItem = (itemId: string) => {
     const updated = {
@@ -155,9 +158,9 @@ const WeeklyPlanPage: React.FC = () => {
   }
 
   const handleCopyGroceryList = () => {
-    let output = `🛒 BODYMAP 7-DAY GROCERY CHECKLIST (${servingMultiplier}x Servings)\n`
+    let output = `🛒 BODYMAP 7-DAY GROCERY CHECKLIST (${servingMultiplier}x Servings${hidePantryStaples ? ' • Pantry Excluded' : ''})\n`
     output += `Generated for: ${state.formData.mainGoal || 'Fitness'} Plan\n\n`
-    for (const group of scaledGroceryCategories) {
+    for (const group of displayGroceryCategories) {
       output += `[ ${group.category.toUpperCase()} ]\n`
       for (const item of group.items) {
         const isChecked = checkedGroceryItems[item.id] ? '[x]' : '[ ]'
@@ -248,6 +251,32 @@ const WeeklyPlanPage: React.FC = () => {
               style={{ width: `${progressPercent}%` }}
             />
           </div>
+
+          {/* Schedule Recovery Assistant */}
+          {completedCount > 0 && completedCount < 7 && (() => {
+            const nextIdx = displayDays.findIndex((_, idx) => !isDayCompleted(idx))
+            if (nextIdx === -1) return null
+            const nextDay = displayDays[nextIdx]
+            return (
+              <div className="mt-3.5 pt-3.5 border-t border-gray-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                <div>
+                  <span className="text-[11px] font-poppins font-bold uppercase tracking-wider text-electric-purple block">
+                    Schedule Assistant
+                  </span>
+                  <span className="text-secondary-text">
+                    Next recommended session: <strong className="text-primary-text">{nextDay.day} &bull; {nextDay.title}</strong>
+                  </span>
+                </div>
+                <Link
+                  to={`/gym-mode/${nextIdx}`}
+                  className="px-3 py-1.5 rounded-lg bg-electric-purple/20 hover:bg-electric-purple/30 text-electric-purple text-xs font-semibold flex items-center gap-1.5 transition-colors border border-electric-purple/30 shrink-0"
+                >
+                  <Play className="w-3.5 h-3.5" />
+                  Resume Day {nextIdx + 1}
+                </Link>
+              </div>
+            )
+          })()}
         </div>
 
         {/* Action Buttons Toolbar */}
@@ -534,29 +563,41 @@ const WeeklyPlanPage: React.FC = () => {
                 </button>
               </div>
 
-              {/* Serving Scaler Selector Bar */}
-              <div className="flex items-center justify-between py-2 px-3 bg-bodymap-dark rounded-lg border border-gray-800 mt-3">
-                <span className="text-xs font-semibold text-secondary-text">Batch Serving Multiplier:</span>
-                <div className="flex items-center bg-card-dark p-0.5 rounded-lg border border-gray-700 text-xs">
-                  {[1, 2, 3, 4].map((mult) => (
-                    <button
-                      key={mult}
-                      onClick={() => setServingMultiplier(mult)}
-                      className={`px-2.5 py-1 rounded font-semibold transition-colors ${
-                        servingMultiplier === mult
-                          ? 'bg-neon-green text-bodymap-dark font-bold'
-                          : 'text-gray-400 hover:text-primary-text'
-                      }`}
-                    >
-                      {mult}x
-                    </button>
-                  ))}
+              {/* Serving Scaler & Pantry Filter Selector Bar */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 py-2.5 px-3 bg-bodymap-dark rounded-lg border border-gray-800 mt-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-secondary-text">Servings:</span>
+                  <div className="flex items-center bg-card-dark p-0.5 rounded-lg border border-gray-700 text-xs">
+                    {[1, 2, 3, 4].map((mult) => (
+                      <button
+                        key={mult}
+                        onClick={() => setServingMultiplier(mult)}
+                        className={`px-2.5 py-1 rounded font-semibold transition-colors ${
+                          servingMultiplier === mult
+                            ? 'bg-neon-green text-bodymap-dark font-bold'
+                            : 'text-gray-400 hover:text-primary-text'
+                        }`}
+                      >
+                        {mult}x
+                      </button>
+                    ))}
+                  </div>
                 </div>
+
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-secondary-text hover:text-primary-text">
+                  <input
+                    type="checkbox"
+                    checked={hidePantryStaples}
+                    onChange={(e) => setHidePantryStaples(e.target.checked)}
+                    className="w-3.5 h-3.5 rounded border-gray-700 text-neon-green focus:ring-neon-green bg-gray-900"
+                  />
+                  <span>Hide In-Pantry Staples</span>
+                </label>
               </div>
 
               {/* Categorized Grocery Checklist */}
               <div className="overflow-y-auto max-h-[50vh] pr-2 mt-3 space-y-5">
-                {scaledGroceryCategories.map((group) => (
+                {displayGroceryCategories.map((group) => (
                   <div key={group.category} className="space-y-2">
                     <h4 className="text-xs font-poppins font-bold uppercase tracking-wider text-neon-green flex items-center gap-1.5">
                       <span className="w-1.5 h-1.5 rounded-full bg-neon-green" />

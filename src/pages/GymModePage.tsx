@@ -37,6 +37,11 @@ import {
   saveCompletedWorkoutLog
 } from '@/lib/sessionStorage'
 import { findPreviousPerformance, type ExerciseHistoryRecord } from '@/lib/progressionEngine'
+import {
+  calculateSessionVolume,
+  compareWorkoutWithPrevious,
+  generateRecoveryAdvice
+} from '@/lib/smartCoach'
 import { playTimerChime, triggerVibration } from '@/lib/audioCues'
 import { RestTimerOverlay } from '@/components/gym/RestTimerOverlay'
 import { ExerciseSubstitutionModal } from '@/components/gym/ExerciseSubstitutionModal'
@@ -1057,23 +1062,33 @@ export const GymModePage: React.FC = () => {
       />
 
       {/* Workout Completion Modal */}
-      {isCompletedModalOpen && (
-        <WorkoutCompletionModal
-          dayTitle={session.dayTitle}
-          dayType={session.dayType}
-          totalElapsedSeconds={session.elapsedSeconds}
-          totalExercises={totalExercises}
-          totalSetsCompleted={totalSetsCompleted}
-          onViewPlan={() => {
-            setIsCompletedModalOpen(false)
-            navigate('/weekly-plan')
-          }}
-          onGoToDashboard={() => {
-            setIsCompletedModalOpen(false)
-            navigate('/dashboard')
-          }}
-        />
-      )}
+      {isCompletedModalOpen && (() => {
+        const volumeMetrics = calculateSessionVolume(session.exercises)
+        const history = loadWorkoutHistory()
+        const comparison = compareWorkoutWithPrevious(session.dayIndex, volumeMetrics.totalVolumeKg, history)
+        const recoveryAdvice = generateRecoveryAdvice(session.elapsedSeconds, totalSetsCompleted, volumeMetrics)
+
+        return (
+          <WorkoutCompletionModal
+            dayTitle={session.dayTitle}
+            dayType={session.dayType}
+            totalElapsedSeconds={session.elapsedSeconds}
+            totalExercises={totalExercises}
+            totalSetsCompleted={totalSetsCompleted}
+            totalVolumeKg={volumeMetrics.totalVolumeKg}
+            comparisonSummary={comparison.summaryText}
+            recoveryAdvice={recoveryAdvice}
+            onViewPlan={() => {
+              setIsCompletedModalOpen(false)
+              navigate('/weekly-plan')
+            }}
+            onGoToDashboard={() => {
+              setIsCompletedModalOpen(false)
+              navigate('/dashboard')
+            }}
+          />
+        )
+      })()}
     </div>
   )
 }

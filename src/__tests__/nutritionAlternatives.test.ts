@@ -3,6 +3,7 @@ import {
   findMealAlternatives,
   aggregateGroceryList,
   scaleGroceryList,
+  filterPantryStaples,
   type GroceryCategoryGroup
 } from '@/lib/nutritionAlternatives'
 
@@ -92,5 +93,30 @@ describe('Nutrition Alternatives & Grocery Aggregator Suite', () => {
 
     // Original source data is completely unmutated
     expect(sampleGroups[0].items[0].name).toBe('200g Chicken Breast')
+  })
+
+  it('filters out in-pantry staples when enabled without mutating source array', () => {
+    const pantryGroups: GroceryCategoryGroup[] = [
+      {
+        category: 'Healthy Fats & Pantry',
+        items: [
+          { id: '1', name: 'Extra Virgin Olive Oil', category: 'Healthy Fats & Pantry', checked: false },
+          { id: '2', name: 'Black Pepper', category: 'Healthy Fats & Pantry', checked: false },
+          { id: '3', name: 'Raw Almonds', category: 'Healthy Fats & Pantry', checked: false }
+        ]
+      }
+    ]
+
+    // Without filter: all 3 items returned
+    const unfiltered = filterPantryStaples(pantryGroups, false)
+    expect(unfiltered[0].items.length).toBe(3)
+
+    // With filter: olive oil and black pepper excluded, raw almonds kept
+    const filtered = filterPantryStaples(pantryGroups, true)
+    expect(filtered[0].items.length).toBe(1)
+    expect(filtered[0].items[0].name).toBe('Raw Almonds')
+
+    // Source array is unmutated
+    expect(pantryGroups[0].items.length).toBe(3)
   })
 })

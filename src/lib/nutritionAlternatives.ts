@@ -299,3 +299,39 @@ export function scaleGroceryList(
     })
   }))
 }
+
+/**
+ * Explicit dictionary of common pantry staples that athletes often already own.
+ */
+export const PANTRY_STAPLE_PATTERNS = [
+  /olive oil/i,
+  /cooking spray/i,
+  /salt|sea salt/i,
+  /black pepper|pepper/i,
+  /garlic powder/i,
+  /cinnamon/i,
+  /baking powder/i,
+  /chia seeds/i,
+  /flaxseeds/i
+]
+
+/**
+ * Filters out in-pantry staple items when athlete toggles pantry exclusion.
+ * Does NOT mutate baseline grocery list.
+ */
+export function filterPantryStaples(
+  groups: GroceryCategoryGroup[],
+  hidePantry: boolean
+): GroceryCategoryGroup[] {
+  if (!hidePantry || !Array.isArray(groups)) return groups
+
+  return groups
+    .map(group => ({
+      category: group.category,
+      items: group.items.filter(item => {
+        return !PANTRY_STAPLE_PATTERNS.some(p => p.test(item.name))
+      })
+    }))
+    .filter(group => group.items.length > 0)
+}
+

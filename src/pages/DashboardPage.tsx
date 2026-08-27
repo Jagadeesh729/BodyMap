@@ -21,6 +21,7 @@ import {
   AlertTriangle,
   RotateCcw,
   GitCompare,
+  Trophy,
   X
 } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
@@ -45,6 +46,7 @@ import {
   calculateBodyMetricDeltas
 } from '@/lib/bodyMetricsStorage'
 import { calculateMilestones, type Milestone } from '@/lib/milestoneTracker'
+import { extractPersonalRecords, type PersonalRecord } from '@/lib/personalRecords'
 
 const DashboardPage: React.FC = () => {
   const { state, dispatch } = usePlan()
@@ -140,6 +142,9 @@ const DashboardPage: React.FC = () => {
   const verifiedMilestones: Milestone[] = useMemo(() => {
     return calculateMilestones(workoutHistory, completedDays, currentStreak, savedPlans)
   }, [workoutHistory, completedDays, currentStreak, savedPlans])
+  const personalRecords: PersonalRecord[] = useMemo(() => {
+    return extractPersonalRecords(workoutHistory)
+  }, [workoutHistory])
 
   const handleAddWeight = (e: React.FormEvent) => {
     e.preventDefault()
@@ -427,6 +432,47 @@ const DashboardPage: React.FC = () => {
               </div>
             ))}
           </div>
+        </div>
+
+        {/* Personal Records Vault Section */}
+        <div className="card-dark">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2.5">
+              <Trophy className="w-5 h-5 text-bright-coral" />
+              <h2 className="text-base sm:text-lg font-poppins font-semibold text-primary-text">
+                Personal Records (PR) Vault
+              </h2>
+            </div>
+            <span className="text-xs text-secondary-text">
+              {personalRecords.length} All-Time Peak Lift Records
+            </span>
+          </div>
+
+          {personalRecords.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {personalRecords.slice(0, 8).map((pr) => (
+                <div
+                  key={pr.id}
+                  className="p-3.5 bg-bodymap-dark rounded-xl border border-gray-800 hover:border-gray-700 transition-colors"
+                >
+                  <span className="text-[11px] font-poppins font-bold text-bright-coral block truncate">
+                    {pr.exerciseName}
+                  </span>
+                  <div className="flex items-baseline gap-1 mt-1">
+                    <span className="text-xl font-poppins font-bold text-primary-text">{pr.value}</span>
+                    <span className="text-xs text-secondary-text font-semibold">{pr.unit}</span>
+                  </div>
+                  <span className="text-[10px] text-gray-500 block mt-1">
+                    Set on {new Date(pr.achievedAt).toLocaleDateString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-secondary-text text-center bg-bodymap-dark/50 p-4 rounded-xl border border-dashed border-gray-800">
+              No personal records logged yet. Complete weighted sets in Gym Mode to build your all-time PR vault.
+            </p>
+          )}
         </div>
 
         {/* Charts & Body Composition Grid */}
