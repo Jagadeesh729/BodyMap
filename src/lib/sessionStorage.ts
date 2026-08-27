@@ -79,3 +79,44 @@ export function clearWorkoutHistory(): void {
   }
 }
 
+/**
+ * Attaches a post-workout subjective reflection to an existing CompletedWorkoutLog by sessionId.
+ *
+ * CONTRACT:
+ * - Locates the matching log by sessionId (not log.id) to survive duplicate-dedup.
+ * - Overwrites only the sessionReflection field.
+ * - Never mutates: timestamp, sets, reps, weights, duration, dayTitle, dayType, exercisesSummary.
+ * - Silently no-ops if no matching session is found (session may have been pruned at 50-log cap).
+ * - Wrapped in try/catch — storage failure is logged and does not throw.
+ *
+ * Returns true if a matching session was found and updated, false otherwise.
+ */
+export function saveReflectionForSession(
+  sessionId: string,
+  reflection: CompletedWorkoutLog['sessionReflection']
+): boolean {
+  try {
+    if (!sessionId || typeof sessionId !== 'string') return false
+    if (!reflection || typeof reflection !== 'object') return false
+
+    const history = loadWorkoutHistory()
+    const idx = history.findIndex(log => log.sessionId === sessionId)
+
+    if (idx === -1) {
+      // Session not found — may have been pruned by the 50-log cap
+      return false
+    }
+
+    // Attach reflection only — all objective workout fields remain unchanged
+    history[idx] = {
+      ...history[idx],
+      sessionReflection: reflection
+    }
+
+    localStorage.setItem(WORKOUT_HISTORY_STORAGE_KEY, JSON.stringify(history))
+    return true
+  } catch (err) {
+    console.warn('[SessionStorage] Failed to save session reflection:', err)
+    return false
+  }
+}

@@ -34,7 +34,8 @@ import {
   loadActiveSession,
   clearActiveSession,
   loadWorkoutHistory,
-  saveCompletedWorkoutLog
+  saveCompletedWorkoutLog,
+  saveReflectionForSession
 } from '@/lib/sessionStorage'
 import { findPreviousPerformance, type ExerciseHistoryRecord } from '@/lib/progressionEngine'
 import {
@@ -489,9 +490,41 @@ export const GymModePage: React.FC = () => {
     }))
   }
 
-  // Complete Workout Flow with History Logging
+  /**
+   * F-07 fix: Start or sync the rest timer to the recommended rest duration.
+   * Previously referenced in JSX but never defined — caused a ReferenceError crash.
+   *
+   * Validates: rejects NaN, Infinity, negative, zero, and non-finite values.
+   * Uses the same absolute targetEndTime pattern as the existing timer architecture.
+   * Does not mutate workout history, exercises, or any session state other than restTimer.
+   */
+  const handleSetRestDuration = (seconds: number) => {
+    if (
+      typeof seconds !== 'number' ||
+      !Number.isFinite(seconds) ||
+      seconds <= 0 ||
+      !Number.isInteger(seconds)
+    ) return
+    const clampedSeconds = Math.min(Math.max(1, seconds), 900) // cap at 15 min
+    setSession(prev => ({
+      ...prev,
+      restTimer: {
+        isActive: true,
+        isPaused: false,
+        durationSeconds: clampedSeconds,
+        remainingSeconds: clampedSeconds,
+        targetEndTime: Date.now() + clampedSeconds * 1000
+      }
+    }))
+  }
+
   const handleCompleteWorkout = useCallback(() => {
     setSession(prev => {
+      // F-03: Guard against double-completion race. If already completed, return
+      // state unchanged. The history deduplication in saveCompletedWorkoutLog also
+      // protects data integrity, but this guard prevents redundant side effects.
+      if (prev.status === 'completed') return prev
+
       const totalSets = prev.exercises.reduce(
         (sum, e) => sum + e.sets.filter(s => s.isCompleted).length,
         0
@@ -531,6 +564,7 @@ export const GymModePage: React.FC = () => {
       return { ...prev, status: 'completed' }
     })
   }, [dispatch, targetDayIndex])
+
 
   // Exercise Navigation
   const handleNextExercise = useCallback(() => {
@@ -1336,12 +1370,13 @@ export const GymModePage: React.FC = () => {
               setNumber: idx + 1,
               targetReps: s.targetReps || '10',
               weight: s.weightKg,
-              reps: s.actualReps || 0,
-              completed: s.completed
+              reps: s.completedReps,
+              completed: s.isCompleted
             }))
           }))
         }
         const debrief = calculateSessionDebrief(convertedSession)
+
         const recoveryHydration = calculateRecoveryHydration(
           Math.max(1, Math.round(session.elapsedSeconds / 60)),
           volumeMetrics.totalVolumeKg
@@ -1359,6 +1394,11 @@ export const GymModePage: React.FC = () => {
             recoveryHydrationLabel={recoveryHydration.fluidRecommendationLabel}
             comparisonSummary={comparison.summaryText}
             recoveryAdvice={recoveryAdvice}
+            onSaveReflection={(reflection) => {
+              // Attach reflection to the matching completed log by session ID.
+              // Only sessionReflection is written — all objective workout fields are unchanged.
+              saveReflectionForSession(session.sessionId, reflection)
+            }}
             onViewPlan={() => {
               setIsCompletedModalOpen(false)
               navigate('/weekly-plan')

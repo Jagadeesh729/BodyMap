@@ -188,7 +188,7 @@ export const WorkoutCompletionModal: React.FC<WorkoutCompletionModalProps> = ({
           <div className="space-y-1">
             <span className="text-[10px] text-gray-400 font-medium">Session Highlights:</span>
             <div className="flex flex-wrap gap-1.5">
-              {STANDARD_REFLECTION_TAGS.slice(0, 6).map(tag => (
+              {STANDARD_REFLECTION_TAGS.map(tag => (
                 <button
                   key={tag}
                   type="button"

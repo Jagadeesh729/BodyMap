@@ -136,9 +136,56 @@ export function validateAndParseBackup(
 }
 
 /**
- * Restores a validated backup into browser storage safely and atomically.
+ * Restores a validated backup into browser storage.
+ *
+ * SAFETY: Snapshots all affected localStorage keys before writing. If any step
+ * throws (e.g. storage quota exceeded mid-restore), it attempts to roll back
+ * to the pre-restore snapshot and returns { success: false }.
+ * This prevents partial-restore from silently corrupting existing user data.
+ *
+ * DOCUMENTED LIMITATION: Rollback itself writes to localStorage. If the browser
+ * is at absolute quota, rollback writes may also fail, leaving partial state.
+ * Users should always back up before restoring a backup file.
  */
 export function restoreBackupData(backup: BodyMapBackupV2): { success: boolean; error?: string } {
+  // --- Snapshot current storage state BEFORE touching anything ---
+  const SNAPSHOT_KEYS = [
+    'bodymap_plan_state',
+    'bodymap_user_name',
+    'bodymap_saved_plans',
+    'bodymap_body_metrics',
+    'bodymap_workout_history',
+    'bodymap_active_session'
+  ]
+
+  const snapshot: Record<string, string | null> = {}
+  try {
+    for (const key of SNAPSHOT_KEYS) {
+      snapshot[key] = localStorage.getItem(key)
+    }
+  } catch (snapshotErr) {
+    return {
+      success: false,
+      error: `Could not read current storage before restore: ${(snapshotErr as Error).message}`
+    }
+  }
+
+  const rollback = () => {
+    try {
+      for (const key of SNAPSHOT_KEYS) {
+        const value = snapshot[key]
+        if (value === null) {
+          localStorage.removeItem(key)
+        } else {
+          localStorage.setItem(key, value)
+        }
+      }
+    } catch {
+      // Rollback itself failed (extreme quota condition). Log and move on.
+      console.warn('[BackupStorage] Rollback write failed — storage may be in partial state.')
+    }
+  }
+
   try {
     // 1. Restore PlanState
     savePersistedState(backup.planState)
@@ -179,9 +226,15 @@ export function restoreBackupData(backup: BodyMapBackupV2): { success: boolean; 
 
     return { success: true }
   } catch (err) {
-    return { success: false, error: `Failed to restore local storage: ${(err as Error).message}` }
+    // Restore failed mid-way — attempt rollback to pre-restore snapshot
+    rollback()
+    return {
+      success: false,
+      error: `Restore failed and was rolled back: ${(err as Error).message}`
+    }
   }
 }
+
 
 /**
  * Triggers a native browser file download for the JSON backup snapshot.

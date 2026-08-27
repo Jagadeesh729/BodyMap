@@ -1149,7 +1149,18 @@ const DashboardPage: React.FC = () => {
                 </h2>
                 <p className="text-xs text-secondary-text font-open-sans">
                   Your verified training logs recorded in Gym Mode
+                  {workoutHistory.length > 0 && (
+                    <span className="ml-2 font-mono text-[11px] text-gray-500">
+                      ({workoutHistory.length} / 50 stored)
+                    </span>
+                  )}
                 </p>
+                {/* F-02: Backup nudge when approaching the 50-session cap */}
+                {workoutHistory.length >= 40 && (
+                  <p className="text-[11px] text-bright-coral font-semibold mt-0.5">
+                    ⚠️ Approaching storage cap — export a backup to preserve older sessions.
+                  </p>
+                )}
               </div>
             </div>
 

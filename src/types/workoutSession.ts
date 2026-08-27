@@ -62,5 +62,14 @@ export interface CompletedWorkoutLog {
     setsCompleted: number
     totalSets: number
   }>
+  /**
+   * Optional post-workout subjective reflection logged by the user at session completion.
+   * Strictly user-reported data. Never derived from objective workout facts.
+   * Absent on historical records created before V3.5 — treated as undefined, not an error.
+   */
+  sessionReflection?: {
+    energyRating?: 1 | 2 | 3 | 4 | 5
+    perceivedReadiness?: 'high' | 'moderate' | 'low'
+    reflectionTags?: string[]
+  }
 }
-
