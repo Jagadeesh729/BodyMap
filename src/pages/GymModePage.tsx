@@ -53,6 +53,8 @@ import { extractPersonalRecords, normalizeExerciseName } from '@/lib/personalRec
 import { calculateBarbellPlates } from '@/lib/plateLoadingCalculator'
 import { extractPreviousSetPerformance } from '@/lib/exerciseSetProgress'
 import { getRecommendedRepTempo } from '@/lib/setTempoGuidance'
+import { calculateRIRFromRPE } from '@/lib/rpePacingEngine'
+import { getStandardWorkoutTags, toggleTagInNote } from '@/lib/workoutTagTaxonomy'
 import { playTimerChime, triggerVibration } from '@/lib/audioCues'
 import { RestTimerOverlay } from '@/components/gym/RestTimerOverlay'
 import { ExerciseSubstitutionModal } from '@/components/gym/ExerciseSubstitutionModal'
@@ -296,6 +298,10 @@ export const GymModePage: React.FC = () => {
   const tempoGuidance = useMemo(() => {
     return getRecommendedRepTempo(state.formData.mainGoal, currentExercise?.focus)
   }, [state.formData.mainGoal, currentExercise])
+
+  const rpeGuidance = useMemo(() => {
+    return calculateRIRFromRPE(8.0)
+  }, [])
 
   const handleStartEditNote = () => {
     setNoteDraft(currentExerciseNote || '')
@@ -805,10 +811,16 @@ export const GymModePage: React.FC = () => {
               )}
 
               {/* Repetition Tempo Reference */}
-              <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-gray-400">
-                <span>🎯 Suggested Tempo:</span>
-                <span className="font-mono text-electric-purple font-semibold">{tempoGuidance.tempoString}</span>
-                <span className="text-gray-500">({tempoGuidance.summaryLabel})</span>
+              <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-gray-400">
+                <span className="flex items-center gap-1">
+                  <span>🎯 Tempo:</span>
+                  <span className="font-mono text-electric-purple font-semibold">{tempoGuidance.tempoString}</span>
+                </span>
+                <span className="text-gray-600">•</span>
+                <span className="flex items-center gap-1">
+                  <span>💡 Target Effort:</span>
+                  <span className="font-mono text-neon-green font-semibold">{rpeGuidance.summaryLabel}</span>
+                </span>
               </div>
             </div>
 
@@ -881,6 +893,19 @@ export const GymModePage: React.FC = () => {
                   maxLength={500}
                   autoFocus
                 />
+                {/* Standard Quick-Tag Taxonomy Chips */}
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                  {getStandardWorkoutTags().map(tag => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => setNoteDraft(prev => toggleTagInNote(prev, tag))}
+                      className="px-2 py-0.5 rounded-full bg-gray-850 hover:bg-gray-800 text-[10px] font-mono text-bright-coral border border-gray-700 transition-colors"
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
                 <div className="flex items-center justify-end gap-2">
                   {currentExerciseNote && (
                     <button

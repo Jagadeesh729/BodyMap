@@ -45,6 +45,7 @@ import {
 import { estimateGroceryPackaging } from '@/lib/groceryCostEstimator'
 import { calculateMicronutrientGuide } from '@/lib/micronutrientGuide'
 import { forecastEnergyBalancePace } from '@/lib/energyBalanceForecaster'
+import { calculateHydrationClimateAdjustment } from '@/lib/hydrationClimateAdjustment'
 
 const WeeklyPlanPage: React.FC = () => {
   const { state, dispatch } = usePlan()
@@ -215,6 +216,10 @@ const WeeklyPlanPage: React.FC = () => {
     return forecastEnergyBalancePace(dailyMacros.totalKcal, estimatedMaintenance)
   }, [dailyMacros.totalKcal, state.formData.weight])
 
+  const hydrationClimate = useMemo(() => {
+    return calculateHydrationClimateAdjustment(hydrationTarget, 'warm')
+  }, [hydrationTarget])
+
   return (
     <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8 bg-bodymap-dark text-primary-text">
       <div className="max-w-6xl mx-auto">
@@ -359,9 +364,11 @@ const WeeklyPlanPage: React.FC = () => {
               <span className="font-poppins font-semibold text-primary-text">
                 Hydration: {hydrationLogged.toLocaleString()} ml {hydrationTarget ? `/ ~${hydrationTarget.toLocaleString()} ml` : ''}
               </span>
-              <span className="text-[10px] text-gray-500 hidden sm:inline">
-                (Baseline 35ml/kg heuristic)
-              </span>
+              {hydrationClimate.climateAdjustmentMl > 0 && (
+                <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 text-[10px] font-mono font-semibold hidden md:inline">
+                  +{hydrationClimate.climateAdjustmentMl}ml ({hydrationClimate.climate})
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-1.5 font-mono text-[11px]">
               <button

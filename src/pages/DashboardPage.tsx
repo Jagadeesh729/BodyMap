@@ -53,6 +53,8 @@ import { generate28DayAdherenceCalendar, type AdherenceDayCell } from '@/lib/adh
 import { calculateWorkloadDensity, type WorkloadDensityMetrics } from '@/lib/workloadIntensity'
 import { calculateTimeSinceLastWorkout } from '@/lib/recoveryReadiness'
 import { calculate7DayTrainingStrain, type TrainingStrainResult } from '@/lib/trainingStrain'
+import { calculateWeeklyMuscleFrequency } from '@/lib/muscleFrequencyMatrix'
+import { DEFAULT_WEEKLY_PLAN } from '@/types/plan'
 
 const DashboardPage: React.FC = () => {
   const { state, dispatch } = usePlan()
@@ -166,6 +168,9 @@ const DashboardPage: React.FC = () => {
   const trainingStrain: TrainingStrainResult = useMemo(() => {
     return calculate7DayTrainingStrain(workoutHistory)
   }, [workoutHistory])
+  const muscleFrequency = useMemo(() => {
+    return calculateWeeklyMuscleFrequency(DEFAULT_WEEKLY_PLAN)
+  }, [])
 
   const handleAddWeight = (e: React.FormEvent) => {
     e.preventDefault()
@@ -636,6 +641,34 @@ const DashboardPage: React.FC = () => {
                 <span className="px-2.5 py-1 rounded bg-gray-800 text-gray-300 border border-gray-700 font-semibold">
                   Strain: {trainingStrain.trainingStrainScore?.toLocaleString()}
                 </span>
+              </div>
+            </div>
+          )}
+
+          {/* Weekly Muscle Frequency Matrix */}
+          {muscleFrequency.hasData && (
+            <div className="mt-3.5 pt-3.5 border-t border-gray-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+              <div>
+                <span className="text-[11px] font-poppins font-bold uppercase tracking-wider text-neon-green block">
+                  Weekly Muscle Frequency
+                </span>
+                <span className="text-secondary-text">
+                  Direct scheduled target days per primary muscle group.
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5 font-mono text-[10px]">
+                {muscleFrequency.frequencies.map(f => (
+                  <span
+                    key={f.muscle}
+                    className={`px-2 py-0.5 rounded border font-semibold ${
+                      f.weeklyFrequency > 0
+                        ? 'bg-neon-green/15 text-neon-green border-neon-green/30'
+                        : 'bg-gray-800/60 text-gray-400 border-gray-700'
+                    }`}
+                  >
+                    {f.muscle}: {f.frequencyLabel}
+                  </span>
+                ))}
               </div>
             </div>
           )}
