@@ -28,6 +28,7 @@ import {
   Search
 } from 'lucide-react'
 import { filterWorkoutHistory } from '@/lib/workoutHistoryFilter'
+import { filterLogsByTimeWindow, type AnalyticsTimeWindow } from '@/lib/analyticsTimeWindow'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -109,6 +110,7 @@ const DashboardPage: React.FC = () => {
   const [historySearchQuery, setHistorySearchQuery] = useState('')
   const [selectedDayFilter, setSelectedDayFilter] = useState<number | 'all'>('all')
   const [historySortBy, setHistorySortBy] = useState<'newest' | 'oldest' | 'duration' | 'sets'>('newest')
+  const [analyticsTimeWindow, setAnalyticsTimeWindow] = useState<AnalyticsTimeWindow>('all')
 
   const filteredHistoryResult = useMemo(() => {
     return filterWorkoutHistory(workoutHistory, {
@@ -117,6 +119,10 @@ const DashboardPage: React.FC = () => {
       sortBy: historySortBy
     })
   }, [workoutHistory, historySearchQuery, selectedDayFilter, historySortBy])
+
+  const windowFilteredLogsSummary = useMemo(() => {
+    return filterLogsByTimeWindow(workoutHistory, analyticsTimeWindow)
+  }, [workoutHistory, analyticsTimeWindow])
 
   const refreshData = () => {
     setWorkoutHistory(loadWorkoutHistory())
@@ -178,8 +184,8 @@ const DashboardPage: React.FC = () => {
     return extractPersonalRecords(workoutHistory)
   }, [workoutHistory])
   const volumeAnalytics: VolumeAnalyticsResult = useMemo(() => {
-    return calculateVolumeAnalytics(workoutHistory)
-  }, [workoutHistory])
+    return calculateVolumeAnalytics(windowFilteredLogsSummary.filteredLogs)
+  }, [windowFilteredLogsSummary.filteredLogs])
   const adherenceCalendar: AdherenceDayCell[] = useMemo(() => {
     return generate28DayAdherenceCalendar(workoutHistory)
   }, [workoutHistory])
@@ -602,16 +608,41 @@ const DashboardPage: React.FC = () => {
 
         {/* Weekly Muscle Focus & Volume Analytics Section */}
         <div className="card-dark">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <div className="flex items-center gap-2.5">
               <Layers className="w-5 h-5 text-electric-purple" />
-              <h2 className="text-base sm:text-lg font-poppins font-semibold text-primary-text">
-                Muscle Focus &amp; Weighted Volume
-              </h2>
+              <div>
+                <h2 className="text-base sm:text-lg font-poppins font-semibold text-primary-text">
+                  Muscle Focus &amp; Weighted Volume
+                </h2>
+                <p className="text-xs text-secondary-text">
+                  {windowFilteredLogsSummary.factualSummaryLabel}
+                </p>
+              </div>
             </div>
-            <span className="text-xs text-secondary-text">
-              {volumeAnalytics.totalWeightedVolumeKg.toLocaleString()} kg Total Weighted Load
-            </span>
+
+            <div className="flex items-center gap-2">
+              {/* Time Window Selector Pills */}
+              <div className="flex items-center bg-bodymap-dark p-0.5 rounded-lg border border-gray-800 text-[11px]">
+                {(['all', 30, 14, 7] as const).map((win) => (
+                  <button
+                    key={win}
+                    onClick={() => setAnalyticsTimeWindow(win)}
+                    className={`px-2 py-1 rounded font-semibold transition-colors ${
+                      analyticsTimeWindow === win
+                        ? 'bg-electric-purple text-white font-bold'
+                        : 'text-gray-400 hover:text-primary-text'
+                    }`}
+                  >
+                    {win === 'all' ? 'All Time' : `${win}D`}
+                  </button>
+                ))}
+              </div>
+
+              <span className="text-xs text-secondary-text font-mono">
+                {volumeAnalytics.totalWeightedVolumeKg.toLocaleString()} kg
+              </span>
+            </div>
           </div>
 
           {volumeAnalytics.hasData ? (
