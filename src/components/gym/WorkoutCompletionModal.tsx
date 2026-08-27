@@ -1,6 +1,7 @@
-import React from 'react'
-import { CheckCircle2, Trophy, Clock, Dumbbell, ArrowRight, Award, Flame, Sparkles } from 'lucide-react'
+import React, { useState } from 'react'
+import { CheckCircle2, Trophy, Clock, Dumbbell, ArrowRight, Award, Flame, Sparkles, Smile } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { STANDARD_REFLECTION_TAGS, type EnergyRating, type PerceivedReadiness, type SessionReflection } from '@/lib/sessionReflectionTaxonomy'
 
 interface WorkoutCompletionModalProps {
   dayTitle: string
@@ -16,6 +17,7 @@ interface WorkoutCompletionModalProps {
   recoveryHydrationLabel?: string
   onViewPlan: () => void
   onGoToDashboard: () => void
+  onSaveReflection?: (reflection: SessionReflection) => void
 }
 
 export const WorkoutCompletionModal: React.FC<WorkoutCompletionModalProps> = ({
@@ -31,9 +33,32 @@ export const WorkoutCompletionModal: React.FC<WorkoutCompletionModalProps> = ({
   recoveryAdvice,
   recoveryHydrationLabel,
   onViewPlan,
-  onGoToDashboard
+  onGoToDashboard,
+  onSaveReflection
 }) => {
   const mins = Math.max(1, Math.round(totalElapsedSeconds / 60))
+
+  const [energyRating, setEnergyRating] = useState<EnergyRating | undefined>(undefined)
+  const [readiness, setReadiness] = useState<PerceivedReadiness | undefined>(undefined)
+  const [selectedTags, setSelectedTags] = useState<string[]>([])
+
+  const toggleTag = (tag: string) => {
+    setSelectedTags(prev =>
+      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+    )
+  }
+
+  const handleFinish = (action: 'plan' | 'dashboard') => {
+    if (onSaveReflection && (energyRating || readiness || selectedTags.length > 0)) {
+      onSaveReflection({
+        energyRating,
+        perceivedReadiness: readiness,
+        reflectionTags: selectedTags
+      })
+    }
+    if (action === 'plan') onViewPlan()
+    else onGoToDashboard()
+  }
 
   return (
     <div
@@ -42,7 +67,7 @@ export const WorkoutCompletionModal: React.FC<WorkoutCompletionModalProps> = ({
       aria-label="Workout completed summary"
       aria-modal="true"
     >
-      <div className="bg-card-dark border border-gray-700 rounded-2xl max-w-lg w-full p-6 sm:p-8 text-center shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
+      <div className="bg-card-dark border border-gray-700 rounded-2xl max-w-lg w-full p-6 sm:p-8 text-center shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
         {/* Celebration Trophy Badge */}
         <div className="w-16 h-16 sm:w-20 sm:h-20 bg-neon-green/20 rounded-full flex items-center justify-center mx-auto border-2 border-neon-green/40">
           <Trophy className="w-8 h-8 sm:w-10 sm:h-10 text-neon-green" aria-hidden="true" />
@@ -114,6 +139,73 @@ export const WorkoutCompletionModal: React.FC<WorkoutCompletionModalProps> = ({
           </div>
         )}
 
+        {/* Post-Workout Subjective Session Reflection */}
+        <div className="p-3.5 bg-bodymap-dark/90 rounded-xl border border-gray-800 text-left space-y-2.5 text-xs">
+          <div className="flex items-center gap-1.5 text-bright-coral font-poppins font-bold text-[11px] uppercase tracking-wider">
+            <Smile className="w-3.5 h-3.5" /> Subjective Session Reflection
+          </div>
+
+          <div className="space-y-1">
+            <span className="text-[10px] text-gray-400 font-medium">Session Energy (1 to 5):</span>
+            <div className="flex items-center gap-1.5">
+              {([1, 2, 3, 4, 5] as EnergyRating[]).map(lvl => (
+                <button
+                  key={lvl}
+                  type="button"
+                  onClick={() => setEnergyRating(lvl === energyRating ? undefined : lvl)}
+                  className={`w-7 h-7 rounded-lg text-xs font-bold transition-all border ${
+                    energyRating === lvl
+                      ? 'bg-neon-green text-black border-neon-green shadow-sm'
+                      : 'bg-card-dark text-gray-400 border-gray-700 hover:border-gray-500'
+                  }`}
+                >
+                  {lvl}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <span className="text-[10px] text-gray-400 font-medium">Perceived Readiness for Next Session:</span>
+            <div className="flex items-center gap-2">
+              {(['high', 'moderate', 'low'] as PerceivedReadiness[]).map(r => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setReadiness(r === readiness ? undefined : r)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold capitalize border transition-all ${
+                    readiness === r
+                      ? 'bg-electric-purple text-white border-electric-purple shadow-sm'
+                      : 'bg-card-dark text-gray-400 border-gray-700 hover:border-gray-500'
+                  }`}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <span className="text-[10px] text-gray-400 font-medium">Session Highlights:</span>
+            <div className="flex flex-wrap gap-1.5">
+              {STANDARD_REFLECTION_TAGS.slice(0, 6).map(tag => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => toggleTag(tag)}
+                  className={`px-2 py-0.5 rounded text-[10px] border transition-all ${
+                    selectedTags.includes(tag)
+                      ? 'bg-neon-green/20 text-neon-green border-neon-green/50 font-semibold'
+                      : 'bg-card-dark text-gray-400 border-gray-700 hover:border-gray-600'
+                  }`}
+                >
+                  #{tag.replace(/\s+/g, '')}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
         {/* Smart Coach Debrief Breakdown */}
         {(comparisonSummary || recoveryAdvice) && (
           <div className="p-4 bg-bodymap-dark/90 rounded-xl border border-gray-800 text-left space-y-2 text-xs">
@@ -144,7 +236,7 @@ export const WorkoutCompletionModal: React.FC<WorkoutCompletionModalProps> = ({
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-3 pt-2">
           <Button
-            onClick={onViewPlan}
+            onClick={() => handleFinish('plan')}
             variant="outline"
             className="border-gray-700 bg-card-dark text-secondary-text hover:bg-gray-800 flex-1 py-2.5 text-xs sm:text-sm"
           >
@@ -152,7 +244,7 @@ export const WorkoutCompletionModal: React.FC<WorkoutCompletionModalProps> = ({
           </Button>
 
           <Button
-            onClick={onGoToDashboard}
+            onClick={() => handleFinish('dashboard')}
             className="btn-primary flex-1 py-2.5 text-xs sm:text-sm font-bold flex items-center justify-center gap-2"
           >
             Go to Dashboard

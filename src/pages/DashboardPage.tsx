@@ -59,6 +59,9 @@ import { calculateDeloadAdvisory } from '@/lib/deloadRecommender'
 import { calculateAdherenceTier } from '@/lib/adherenceTiers'
 import { calculateSplitBalance } from '@/lib/splitBalanceMatrix'
 import { calculateTargetHeartRateZones } from '@/lib/targetHeartRateZones'
+import { calculateTrainingDensityProgression } from '@/lib/trainingDensityProgression'
+import { calculateMuscleRecoveryTimeline } from '@/lib/muscleRecoveryTimeline'
+import { calculateSessionCaloricExpenditure } from '@/lib/sessionCaloricExpenditure'
 import { DEFAULT_WEEKLY_PLAN } from '@/types/plan'
 
 const DashboardPage: React.FC = () => {
@@ -188,6 +191,12 @@ const DashboardPage: React.FC = () => {
   const heartRateZones = useMemo(() => {
     return calculateTargetHeartRateZones(formData.age || 30)
   }, [formData.age])
+  const densityProgression = useMemo(() => {
+    return calculateTrainingDensityProgression(workoutHistory)
+  }, [workoutHistory])
+  const muscleTimeline = useMemo(() => {
+    return calculateMuscleRecoveryTimeline(workoutHistory)
+  }, [workoutHistory])
 
   const handleAddWeight = (e: React.FormEvent) => {
     e.preventDefault()
@@ -734,6 +743,29 @@ const DashboardPage: React.FC = () => {
               </span>
             </div>
           )}
+
+          {/* Training Density Progression Trend */}
+          {densityProgression.hasSufficientData && (
+            <div className="mt-3.5 pt-3.5 border-t border-gray-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+              <div>
+                <span className="text-[11px] font-poppins font-bold uppercase tracking-wider text-cyan-400 block">
+                  Training Density Progression (28-Day Trend)
+                </span>
+                <span className="text-secondary-text">
+                  {densityProgression.trendSummary}
+                </span>
+              </div>
+              <span className={`px-2.5 py-1 rounded font-mono text-[11px] font-semibold shrink-0 border ${
+                densityProgression.densityTrend === 'increasing_density'
+                  ? 'bg-neon-green/20 text-neon-green border-neon-green/40'
+                  : densityProgression.densityTrend === 'decreasing_density'
+                  ? 'bg-bright-coral/20 text-bright-coral border-bright-coral/40'
+                  : 'bg-gray-800 text-gray-300 border-gray-700'
+              }`}>
+                {densityProgression.trendLabel}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Charts & Body Composition Grid */}
@@ -933,6 +965,51 @@ const DashboardPage: React.FC = () => {
           </p>
         </div>
 
+        {/* Muscle Group Recovery Readiness Timeline Section */}
+        <div className="card-dark">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+            <div className="flex items-center gap-2.5">
+              <Clock className="w-5 h-5 text-neon-green" />
+              <div>
+                <h2 className="text-base sm:text-lg font-poppins font-semibold text-primary-text">
+                  Muscle Group Recovery Timeline
+                </h2>
+                <p className="text-xs text-secondary-text">
+                  {muscleTimeline.summary}
+                </p>
+              </div>
+            </div>
+            <span className="text-[10px] text-gray-400 bg-gray-800/80 px-2.5 py-1 rounded border border-gray-700 font-mono">
+              6 Anatomical Muscle Clusters
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 pt-1">
+            {muscleTimeline.muscles.map((m) => (
+              <div
+                key={m.muscle}
+                className={`p-3 rounded-xl border flex flex-col justify-between ${m.statusColor}`}
+              >
+                <div>
+                  <span className="text-[11px] font-poppins font-bold uppercase tracking-wider block">
+                    {m.muscle}
+                  </span>
+                  <div className="mt-1 font-mono text-sm font-bold text-primary-text">
+                    {m.hoursElapsed !== null ? `${m.hoursElapsed}h` : '—'}
+                  </div>
+                </div>
+                <span className="text-[10px] font-medium opacity-90 mt-2 block truncate">
+                  {m.windowLabel}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-[10px] text-gray-500 italic mt-3 text-center sm:text-left">
+            * {muscleTimeline.disclaimer}
+          </p>
+        </div>
+
         {/* Multi-Plan Library Section */}
         <div className="card-dark">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
@@ -1125,6 +1202,16 @@ const DashboardPage: React.FC = () => {
                           <CheckCircle2 className="w-3.5 h-3.5 text-neon-green" /> {log.totalExercises} exercises
                         </span>
                       </div>
+
+                      {/* Session Caloric Burn Estimate */}
+                      {(() => {
+                        const calRes = calculateSessionCaloricExpenditure(logMins, currentWeightNum || 70, 'moderate')
+                        return calRes.hasValidInput ? (
+                          <div className="text-[10px] font-mono text-gray-400 bg-gray-900/60 px-2 py-0.5 rounded border border-gray-800 mb-2 inline-block">
+                            🔥 {calRes.calorieEstimateLabel}
+                          </div>
+                        ) : null
+                      })()}
                     </div>
 
                     <Link
