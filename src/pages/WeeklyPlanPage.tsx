@@ -47,6 +47,7 @@ import { estimateGroceryPackaging } from '@/lib/groceryCostEstimator'
 import { calculateMicronutrientGuide } from '@/lib/micronutrientGuide'
 import { forecastEnergyBalancePace } from '@/lib/energyBalanceForecaster'
 import { calculateHydrationClimateAdjustment } from '@/lib/hydrationClimateAdjustment'
+import { validateScheduleConsistency } from '@/lib/scheduleConsistencyValidator'
 
 const WeeklyPlanPage: React.FC = () => {
   const { state, dispatch } = usePlan()
@@ -445,6 +446,25 @@ const WeeklyPlanPage: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-4">
+            {/* 7-Day Schedule Consistency & Recovery Balance Strip */}
+            {(() => {
+              const consistency = validateScheduleConsistency(displayDays)
+              return (
+                <div className="p-3 bg-bodymap-dark/80 rounded-xl border border-gray-800 flex flex-wrap items-center justify-between gap-2 text-xs font-open-sans">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-3.5 h-3.5 text-neon-green" />
+                    <span className="font-semibold text-gray-300">Schedule Split:</span>
+                    <span className="text-secondary-text">{consistency.summaryLabel}</span>
+                  </div>
+                  {consistency.issues.length > 0 && (
+                    <div className="flex items-center gap-1.5 text-bright-coral font-medium text-[11px]">
+                      <span>⚠️ {consistency.issues[0].description}</span>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+
             {displayDays.map((day, index) => {
               const completed = isDayCompleted(index)
               const isExpanded = expandedDay === index

@@ -13,7 +13,8 @@ import {
   Utensils,
   ShieldCheck,
   Database,
-  Upload
+  Upload,
+  Activity
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -24,8 +25,9 @@ import { parseAndValidatePlan } from '@/lib/planSchema'
 import { calculateBMI } from '@/lib/bmi'
 import { DEFAULT_WEEKLY_PLAN, type DayPlan } from '@/types/plan'
 import { BodyMapLogo } from '@/components/BodyMapLogo'
-import { exportBackupToFile, validateAndParseBackup, restoreBackupData } from '@/lib/backupStorage'
+import { exportBackupToFile, validateAndParseBackup, restoreBackupData, generateBackupPayload } from '@/lib/backupStorage'
 import { validateBackupPayload } from '@/lib/backupIntegrity'
+import { analyzeBackupDiagnostics } from '@/lib/backupDiagnostics'
 
 const DownloadPlanPage = () => {
   const { state } = usePlan()
@@ -317,48 +319,78 @@ const DownloadPlanPage = () => {
           </div>
 
           {/* Local-First Full JSON Backup & Restore Card */}
-          <div className="p-5 sm:p-6 bg-card-dark border border-gray-800 rounded-2xl mb-12 flex flex-col sm:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-4 text-left">
-              <div className="w-12 h-12 rounded-xl bg-neon-green/15 border border-neon-green/30 flex items-center justify-center shrink-0">
-                <Database className="w-6 h-6 text-neon-green" />
+          <div className="p-5 sm:p-6 bg-card-dark border border-gray-800 rounded-2xl mb-12 flex flex-col gap-5">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
+              <div className="flex items-center gap-4 text-left">
+                <div className="w-12 h-12 rounded-xl bg-neon-green/15 border border-neon-green/30 flex items-center justify-center shrink-0">
+                  <Database className="w-6 h-6 text-neon-green" />
+                </div>
+                <div>
+                  <h3 className="font-poppins font-bold text-base text-primary-text">
+                    Local-First Data Sovereignty &amp; Backups
+                  </h3>
+                  <p className="text-xs sm:text-sm text-secondary-text font-open-sans mt-0.5">
+                    Export or restore all your generated plans, workout logs, and weight metrics in a portable JSON file. 100% device-local with zero cloud lock-in.
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-poppins font-bold text-base text-primary-text">
-                  Local-First Data Sovereignty &amp; Backups
-                </h3>
-                <p className="text-xs sm:text-sm text-secondary-text font-open-sans mt-0.5">
-                  Export or restore all your generated plans, workout logs, and weight metrics in a portable JSON file. 100% device-local with zero cloud lock-in.
-                </p>
+
+              <div className="flex items-center gap-3 shrink-0 w-full sm:w-auto">
+                <Button
+                  onClick={handleExportBackup}
+                  variant="outline"
+                  className="border-gray-700 bg-bodymap-dark text-secondary-text hover:text-neon-green hover:border-neon-green text-xs font-bold py-2.5 px-4 flex-1 sm:flex-initial flex items-center justify-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  Export Backup (JSON)
+                </Button>
+
+                <Button
+                  onClick={() => fileInputRef.current?.click()}
+                  variant="outline"
+                  className="border-gray-700 bg-bodymap-dark text-secondary-text hover:text-electric-purple hover:border-electric-purple text-xs font-bold py-2.5 px-4 flex-1 sm:flex-initial flex items-center justify-center gap-2"
+                >
+                  <Upload className="w-4 h-4" />
+                  Import Backup
+                </Button>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleImportFileSelected}
+                  accept=".json,application/json"
+                  className="hidden"
+                  aria-label="Upload BodyMap JSON Backup"
+                />
               </div>
             </div>
 
-            <div className="flex items-center gap-3 shrink-0 w-full sm:w-auto">
-              <Button
-                onClick={handleExportBackup}
-                variant="outline"
-                className="border-gray-700 bg-bodymap-dark text-secondary-text hover:text-neon-green hover:border-neon-green text-xs font-bold py-2.5 px-4 flex-1 sm:flex-initial flex items-center justify-center gap-2"
-              >
-                <Download className="w-4 h-4" />
-                Export Backup (JSON)
-              </Button>
-
-              <Button
-                onClick={() => fileInputRef.current?.click()}
-                variant="outline"
-                className="border-gray-700 bg-bodymap-dark text-secondary-text hover:text-electric-purple hover:border-electric-purple text-xs font-bold py-2.5 px-4 flex-1 sm:flex-initial flex items-center justify-center gap-2"
-              >
-                <Upload className="w-4 h-4" />
-                Import Backup
-              </Button>
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleImportFileSelected}
-                accept=".json,application/json"
-                className="hidden"
-                aria-label="Upload BodyMap JSON Backup"
-              />
-            </div>
+            {/* Live Data Vault Diagnostics Strip */}
+            {(() => {
+              try {
+                const currentPayload = generateBackupPayload()
+                const diag = analyzeBackupDiagnostics(currentPayload)
+                return (
+                  <div className="pt-3 border-t border-gray-800/80 flex flex-wrap items-center justify-between gap-2 text-xs text-secondary-text">
+                    <div className="flex items-center gap-2">
+                      <Activity className="w-3.5 h-3.5 text-neon-green" />
+                      <span className="font-semibold text-gray-300">Vault Status:</span>
+                      <span className="text-neon-green font-mono text-[11px]">
+                        {diag.totalRecords} records stored (~{Math.max(1, Math.round(diag.totalEstimatedBytes / 1024))} KB)
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 text-[11px] font-mono text-gray-400">
+                      {diag.categories.map(c => (
+                        <span key={c.name} className="px-2 py-0.5 rounded bg-gray-900 border border-gray-800">
+                          {c.name}: <strong className="text-gray-200">{c.count}</strong>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )
+              } catch {
+                return null
+              }
+            })()}
           </div>
 
           {/* Quick Email Box */}
