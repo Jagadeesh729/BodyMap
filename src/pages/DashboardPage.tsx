@@ -24,8 +24,10 @@ import {
   Trophy,
   Activity,
   X,
-  Smile
+  Smile,
+  Search
 } from 'lucide-react'
+import { filterWorkoutHistory } from '@/lib/workoutHistoryFilter'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -102,6 +104,19 @@ const DashboardPage: React.FC = () => {
     hips: '',
     notes: ''
   })
+
+  // Workout History Filter & Search State
+  const [historySearchQuery, setHistorySearchQuery] = useState('')
+  const [selectedDayFilter, setSelectedDayFilter] = useState<number | 'all'>('all')
+  const [historySortBy, setHistorySortBy] = useState<'newest' | 'oldest' | 'duration' | 'sets'>('newest')
+
+  const filteredHistoryResult = useMemo(() => {
+    return filterWorkoutHistory(workoutHistory, {
+      searchQuery: historySearchQuery,
+      dayIndex: selectedDayFilter === 'all' ? undefined : selectedDayFilter,
+      sortBy: historySortBy
+    })
+  }, [workoutHistory, historySearchQuery, selectedDayFilter, historySortBy])
 
   const refreshData = () => {
     setWorkoutHistory(loadWorkoutHistory())
@@ -1173,98 +1188,190 @@ const DashboardPage: React.FC = () => {
             </Link>
           </div>
 
-          {workoutHistory.length > 0 ? (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {workoutHistory.slice(0, 6).map((log) => {
-                const logMins = Math.max(1, Math.round(log.durationSeconds / 60))
-                const dateFormatted = new Date(log.completedAt).toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })
-                return (
-                  <div
-                    key={log.id}
-                    className="p-4 bg-bodymap-dark rounded-xl border border-gray-800 hover:border-gray-700 transition-colors flex flex-col justify-between"
+          {/* History Search & Split Filter Toolbar */}
+          {workoutHistory.length > 0 && (
+            <div className="mb-6 p-3.5 bg-bodymap-dark/80 rounded-xl border border-gray-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+              {/* Search Bar */}
+              <div className="relative w-full sm:w-72">
+                <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Input
+                  type="text"
+                  placeholder="Search exercises, splits, tags..."
+                  value={historySearchQuery}
+                  onChange={(e) => setHistorySearchQuery(e.target.value)}
+                  className="input-dark pl-9 py-1.5 h-8 text-xs w-full"
+                />
+                {historySearchQuery && (
+                  <button
+                    onClick={() => setHistorySearchQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 text-xs"
+                    aria-label="Clear search query"
                   >
-                    <div>
-                      <div className="flex items-center justify-between gap-2 mb-2">
-                        <span className="text-[11px] font-poppins font-bold px-2 py-0.5 rounded bg-neon-green/15 text-neon-green">
-                          Day {log.dayIndex + 1}
-                        </span>
-                        <span className="text-[11px] text-gray-500">{dateFormatted}</span>
-                      </div>
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
 
-                      <h3 className="font-poppins font-bold text-sm text-primary-text truncate">
-                        {log.dayTitle}
-                      </h3>
-                      <p className="text-xs text-secondary-text truncate mb-3">
-                        {log.dayType}
-                      </p>
-
-                      <div className="flex items-center gap-3 text-xs text-secondary-text mb-3">
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5 text-electric-purple" /> {logMins}m
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Award className="w-3.5 h-3.5 text-bright-coral" /> {log.totalSetsCompleted} sets
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-neon-green" /> {log.totalExercises} exercises
-                        </span>
-                      </div>
-
-                      {/* Session Caloric Burn Estimate */}
-                      {(() => {
-                        const calRes = calculateSessionCaloricExpenditure(logMins, currentWeightNum || 70, 'moderate')
-                        return calRes.hasValidInput ? (
-                          <div className="text-[10px] font-mono text-gray-400 bg-gray-900/60 px-2 py-0.5 rounded border border-gray-800 mb-2 inline-block">
-                            🔥 {calRes.calorieEstimateLabel}
-                          </div>
-                        ) : null
-                      })()}
-
-                      {/* Post-Workout Subjective Reflection Display */}
-                      {log.sessionReflection && (log.sessionReflection.energyRating || log.sessionReflection.perceivedReadiness || (log.sessionReflection.reflectionTags && log.sessionReflection.reflectionTags.length > 0)) && (
-                        <div className="mt-2 pt-2 border-t border-gray-850 text-[10px] space-y-1">
-                          <div className="flex items-center gap-1.5 text-gray-400">
-                            <Smile className="w-3 h-3 text-bright-coral" />
-                            <span className="font-semibold text-gray-300">Reflection:</span>
-                            {log.sessionReflection.energyRating && (
-                              <span className="text-neon-green font-mono">
-                                ⚡ Energy {log.sessionReflection.energyRating}/5
-                              </span>
-                            )}
-                            {log.sessionReflection.perceivedReadiness && (
-                              <span className="text-electric-purple font-medium capitalize">
-                                • {log.sessionReflection.perceivedReadiness} Readiness
-                              </span>
-                            )}
-                          </div>
-                          {log.sessionReflection.reflectionTags && log.sessionReflection.reflectionTags.length > 0 && (
-                            <div className="flex flex-wrap gap-1 pt-0.5">
-                              {log.sessionReflection.reflectionTags.map(tag => (
-                                <span key={tag} className="px-1.5 py-0.2 rounded bg-gray-850 text-gray-400 font-mono text-[9px]">
-                                  #{tag.replace(/\s+/g, '')}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    <Link
-                      to={`/gym-mode/${log.dayIndex}`}
-                      className="text-[11px] font-semibold text-electric-purple hover:text-neon-green transition-colors inline-flex items-center gap-1 pt-2 border-t border-gray-800"
+              {/* Split Filters & Sort Controls */}
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+                {/* Day Filter Pills */}
+                <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
+                  <button
+                    onClick={() => setSelectedDayFilter('all')}
+                    className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors ${
+                      selectedDayFilter === 'all'
+                        ? 'bg-neon-green text-black font-bold'
+                        : 'bg-gray-850 text-gray-400 hover:text-gray-200'
+                    }`}
+                  >
+                    All ({workoutHistory.length})
+                  </button>
+                  {filteredHistoryResult.uniqueDays.map((d) => (
+                    <button
+                      key={d.dayIndex}
+                      onClick={() => setSelectedDayFilter(d.dayIndex)}
+                      className={`px-2.5 py-1 rounded text-xs font-semibold whitespace-nowrap transition-colors ${
+                        selectedDayFilter === d.dayIndex
+                          ? 'bg-electric-purple text-white font-bold'
+                          : 'bg-gray-850 text-gray-400 hover:text-gray-200'
+                      }`}
                     >
-                      Repeat Session &rarr;
-                    </Link>
-                  </div>
-                )
-              })}
+                      Day {d.dayIndex + 1} ({d.count})
+                    </button>
+                  ))}
+                </div>
+
+                {/* Sort Dropdown */}
+                <select
+                  value={historySortBy}
+                  onChange={(e) => setHistorySortBy(e.target.value as 'newest' | 'oldest' | 'duration' | 'sets')}
+                  className="bg-bodymap-dark border border-gray-700 text-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:border-neon-green"
+                  aria-label="Sort workout history"
+                >
+                  <option value="newest">Newest First</option>
+                  <option value="oldest">Oldest First</option>
+                  <option value="duration">Longest Duration</option>
+                  <option value="sets">Most Sets</option>
+                </select>
+              </div>
             </div>
+          )}
+
+          {workoutHistory.length > 0 ? (
+            filteredHistoryResult.logs.length > 0 ? (
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredHistoryResult.logs.map((log) => {
+                  const logMins = Math.max(1, Math.round(log.durationSeconds / 60))
+                  const dateFormatted = new Date(log.completedAt).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })
+
+                  return (
+                    <div
+                      key={log.id}
+                      className="p-4 bg-bodymap-dark rounded-xl border border-gray-800 hover:border-gray-700 transition-colors flex flex-col justify-between"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <span className="text-[11px] font-poppins font-bold px-2 py-0.5 rounded bg-neon-green/15 text-neon-green">
+                            Day {log.dayIndex + 1}
+                          </span>
+                          <span className="text-[11px] text-gray-500">{dateFormatted}</span>
+                        </div>
+
+                        <h3 className="font-poppins font-bold text-sm text-primary-text truncate">
+                          {log.dayTitle}
+                        </h3>
+                        <p className="text-xs text-secondary-text truncate mb-3">
+                          {log.dayType}
+                        </p>
+
+                        <div className="flex items-center gap-3 text-xs text-secondary-text mb-3">
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5 text-electric-purple" /> {logMins}m
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Award className="w-3.5 h-3.5 text-bright-coral" /> {log.totalSetsCompleted} sets
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-neon-green" /> {log.totalExercises} exercises
+                          </span>
+                        </div>
+
+                        {/* Session Caloric Burn Estimate */}
+                        {(() => {
+                          const calRes = calculateSessionCaloricExpenditure(logMins, currentWeightNum || 70, 'moderate')
+                          return calRes.hasValidInput ? (
+                            <div className="text-[10px] font-mono text-gray-400 bg-gray-900/60 px-2 py-0.5 rounded border border-gray-800 mb-2 inline-block">
+                              🔥 {calRes.calorieEstimateLabel}
+                            </div>
+                          ) : null
+                        })()}
+
+                        {/* Post-Workout Subjective Reflection Display */}
+                        {log.sessionReflection && (log.sessionReflection.energyRating || log.sessionReflection.perceivedReadiness || (log.sessionReflection.reflectionTags && log.sessionReflection.reflectionTags.length > 0)) && (
+                          <div className="mt-2 pt-2 border-t border-gray-850 text-[10px] space-y-1">
+                            <div className="flex items-center gap-1.5 text-gray-400">
+                              <Smile className="w-3 h-3 text-bright-coral" />
+                              <span className="font-semibold text-gray-300">Reflection:</span>
+                              {log.sessionReflection.energyRating && (
+                                <span className="text-neon-green font-mono">
+                                  ⚡ Energy {log.sessionReflection.energyRating}/5
+                                </span>
+                              )}
+                              {log.sessionReflection.perceivedReadiness && (
+                                <span className="text-electric-purple font-medium capitalize">
+                                  • {log.sessionReflection.perceivedReadiness} Readiness
+                                </span>
+                              )}
+                            </div>
+                            {log.sessionReflection.reflectionTags && log.sessionReflection.reflectionTags.length > 0 && (
+                              <div className="flex flex-wrap gap-1 pt-0.5">
+                                {log.sessionReflection.reflectionTags.map(tag => (
+                                  <span key={tag} className="px-1.5 py-0.2 rounded bg-gray-850 text-gray-400 font-mono text-[9px]">
+                                    #{tag.replace(/\s+/g, '')}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      <Link
+                        to={`/gym-mode/${log.dayIndex}`}
+                        className="text-[11px] font-semibold text-electric-purple hover:text-neon-green transition-colors inline-flex items-center gap-1 pt-2 border-t border-gray-800"
+                      >
+                        Repeat Session &rarr;
+                      </Link>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="p-8 text-center bg-bodymap-dark/60 rounded-xl border border-gray-800/80">
+                <p className="text-sm font-poppins font-medium text-primary-text mb-1">
+                  No workouts found matching &ldquo;{historySearchQuery || `Day ${Number(selectedDayFilter) + 1}`}&rdquo;
+                </p>
+                <p className="text-xs text-secondary-text mb-4">
+                  Try adjusting your search keywords or clear the filter.
+                </p>
+                <Button
+                  onClick={() => {
+                    setHistorySearchQuery('')
+                    setSelectedDayFilter('all')
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="text-xs border-gray-700"
+                >
+                  Clear Filters
+                </Button>
+              </div>
+            )
           ) : (
             <div className="p-8 text-center bg-bodymap-dark/60 rounded-xl border border-gray-800/80">
               <p className="text-sm font-poppins font-medium text-primary-text mb-1">
