@@ -51,6 +51,16 @@ describe('Gym Mode Execution System & Micro-Interactions', () => {
     expect(screen.getAllByText(/SET 4/i).length).toBeGreaterThan(0)
   })
 
+  it('allows stepping weight by ±2.5 kg with quick steppers', () => {
+    renderGymMode(0)
+    const incWeight = screen.getByLabelText(/Increase weight by 2.5 kg for set 1/i)
+    const decWeight = screen.getByLabelText(/Decrease weight by 2.5 kg for set 1/i)
+
+    fireEvent.click(incWeight)
+    fireEvent.click(decWeight)
+    expect(screen.getAllByText(/SET 1/i).length).toBeGreaterThan(0)
+  })
+
   it('completing a set activates the Rest Timer overlay', () => {
     renderGymMode(0)
     const logBtn = screen.getByLabelText(/Complete set 1/i)

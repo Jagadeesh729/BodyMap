@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Download,
@@ -14,7 +14,11 @@ import {
   Sparkles,
   ArrowRight,
   Dumbbell,
-  Play
+  Play,
+  ShoppingCart,
+  Utensils,
+  RefreshCw,
+  X
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/hooks/use-toast'
@@ -23,8 +27,14 @@ import { parseAndValidatePlan } from '@/lib/planSchema'
 import { DEFAULT_WEEKLY_PLAN, type DayPlan } from '@/types/plan'
 import { loadActiveSession } from '@/lib/sessionStorage'
 import type { WorkoutSession } from '@/types/workoutSession'
+import {
+  findMealAlternatives,
+  aggregateGroceryList,
+  type FoodAlternative,
+  type GroceryCategoryGroup
+} from '@/lib/nutritionAlternatives'
 
-const WeeklyPlanPage = () => {
+const WeeklyPlanPage: React.FC = () => {
   const { state, dispatch } = usePlan()
   const [activeSession, setActiveSession] = useState<WorkoutSession | null>(null)
 
@@ -34,9 +44,22 @@ const WeeklyPlanPage = () => {
       setActiveSession(saved)
     }
   }, [])
+
   const [expandedDay, setExpandedDay] = useState<number | null>(0)
   const [showRawMarkdown, setShowRawMarkdown] = useState(false)
   const [copied, setCopied] = useState(false)
+
+  // Nutrition & Grocery Modal States
+  const [isGroceryModalOpen, setIsGroceryModalOpen] = useState(false)
+  const [selectedMealForSwap, setSelectedMealForSwap] = useState<{ title: string; text: string } | null>(null)
+  const [checkedGroceryItems, setCheckedGroceryItems] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('bodymap_grocery_checked')
+      return saved ? JSON.parse(saved) : {}
+    } catch {
+      return {}
+    }
+  })
 
   const toggleDay = (index: number) => {
     setExpandedDay(expandedDay === index ? null : index)
@@ -96,9 +119,57 @@ const WeeklyPlanPage = () => {
       }))
     : DEFAULT_WEEKLY_PLAN
 
-  return (
+  // Extract all meal strings across 7 days for the grocery aggregator
+  const allMealTexts = useMemo(() => {
+    const texts: string[] = []
+    for (const d of displayDays) {
+      if (d.meals.breakfast) texts.push(d.meals.breakfast)
+      if (d.meals.lunch) texts.push(d.meals.lunch)
+      if (d.meals.dinner) texts.push(d.meals.dinner)
+      if (d.meals.snacks) texts.push(...d.meals.snacks)
+    }
+    return texts
+  }, [displayDays])
 
-    <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8">
+  const groceryCategories: GroceryCategoryGroup[] = useMemo(() => {
+    return aggregateGroceryList(allMealTexts)
+  }, [allMealTexts])
+
+  const handleToggleGroceryItem = (itemId: string) => {
+    const updated = {
+      ...checkedGroceryItems,
+      [itemId]: !checkedGroceryItems[itemId]
+    }
+    setCheckedGroceryItems(updated)
+    try {
+      localStorage.setItem('bodymap_grocery_checked', JSON.stringify(updated))
+    } catch {
+      // Ignore storage error
+    }
+  }
+
+  const handleCopyGroceryList = () => {
+    let output = `🛒 BODYMAP 7-DAY GROCERY CHECKLIST\n`
+    output += `Generated for: ${state.formData.mainGoal || 'Fitness'} Plan\n\n`
+    for (const group of groceryCategories) {
+      output += `[ ${group.category.toUpperCase()} ]\n`
+      for (const item of group.items) {
+        const isChecked = checkedGroceryItems[item.id] ? '[x]' : '[ ]'
+        output += `${isChecked} ${item.name}\n`
+      }
+      output += '\n'
+    }
+    navigator.clipboard.writeText(output)
+    toast({ title: 'Grocery List Copied! 📋', description: 'Categorized grocery checklist copied to clipboard.' })
+  }
+
+  const mealAlternatives: FoodAlternative[] = useMemo(() => {
+    if (!selectedMealForSwap) return []
+    return findMealAlternatives(selectedMealForSwap.text, state.formData.dietaryPreference || 'all')
+  }, [selectedMealForSwap, state.formData.dietaryPreference])
+
+  return (
+    <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8 bg-bodymap-dark text-primary-text">
       <div className="max-w-6xl mx-auto">
 
         {!state.isGenerated && (
@@ -110,7 +181,7 @@ const WeeklyPlanPage = () => {
                   Viewing Sample 7-Day Plan
                 </h2>
                 <p className="text-secondary-text font-open-sans text-xs sm:text-sm">
-                  Complete the 5-step questionnaire to generate a plan custom tailored to your biomechanics, equipment, and diet.
+                  Complete the questionnaire to generate a plan custom tailored to your biomechanics, equipment, and diet.
                 </p>
               </div>
             </div>
@@ -151,9 +222,8 @@ const WeeklyPlanPage = () => {
           <p className="text-base sm:text-lg text-secondary-text font-open-sans max-w-2xl mx-auto">
             {state.isGenerated
               ? `Personalized for your ${state.formData.mainGoal || 'fitness'} goal • ${state.formData.timePerDay || '30'} mins/day`
-              : 'Interactive schedule with exercise sets, reps, and precise calorie meal targets'}
+              : 'Interactive schedule with exercise sets, reps, and precise nutrition targets'}
           </p>
-
         </div>
 
         <div className="card-dark mb-8">
@@ -171,17 +241,24 @@ const WeeklyPlanPage = () => {
               className="bg-neon-green h-2.5 rounded-full transition-all duration-500 ease-out"
               style={{ width: `${progressPercent}%` }}
             />
-
           </div>
         </div>
 
+        {/* Action Buttons Toolbar */}
         <div className="flex flex-wrap justify-center gap-3 sm:gap-4 mb-10">
-          <Link to="/download-plan" className="btn-primary text-sm py-2.5 px-5">
-            <Download className="w-4 h-4 mr-2" aria-hidden="true" />
-            Download Options
+          <Button
+            onClick={() => setIsGroceryModalOpen(true)}
+            className="btn-primary text-sm py-2.5 px-5 flex items-center gap-2"
+          >
+            <ShoppingCart className="w-4 h-4" />
+            7-Day Grocery List
+          </Button>
+          <Link to="/download-plan" className="btn-coral text-sm py-2.5 px-5 flex items-center gap-2">
+            <Download className="w-4 h-4" />
+            Export &amp; Backups
           </Link>
-          <Link to="/edit-plan" className="btn-coral text-sm py-2.5 px-5">
-            <Edit className="w-4 h-4 mr-2" aria-hidden="true" />
+          <Link to="/edit-plan" className="btn-secondary text-sm py-2.5 px-5 flex items-center gap-2 border border-gray-700 bg-card-dark text-secondary-text hover:text-primary-text">
+            <Edit className="w-4 h-4" />
             Adjust Plan
           </Link>
           <Button
@@ -215,105 +292,91 @@ const WeeklyPlanPage = () => {
           <div className="space-y-4">
             {displayDays.map((day, index) => {
               const completed = isDayCompleted(index)
-
               const isExpanded = expandedDay === index
 
               return (
                 <div
                   key={day.day}
-                  className={`card-dark transition-all duration-200 ${
-                    completed ? 'border-neon-green/40 bg-card-dark/80' : ''
+                  className={`card-dark transition-all duration-300 border ${
+                    completed
+                      ? 'border-neon-green/30 bg-neon-green/5'
+                      : 'border-gray-800 hover:border-gray-700'
                   }`}
                 >
-                  <div className="flex items-center justify-between gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <button
-                      type="button"
                       onClick={() => toggleDay(index)}
+                      className="flex items-center space-x-4 flex-grow text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-neon-green rounded-lg"
                       aria-expanded={isExpanded}
                       aria-controls={`day-content-${index}`}
-                      className="flex-1 flex items-center justify-between text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-green rounded-lg p-1"
                     >
-                      <div className="flex items-center space-x-4">
-                        <div
-                          className={`w-3.5 h-3.5 rounded-full flex-shrink-0 ${
-                            day.isRest ? 'bg-bright-coral' : 'bg-neon-green'
-                          }`}
-                          aria-hidden="true"
-                        />
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h2 className="text-lg sm:text-xl font-poppins font-semibold text-primary-text">
-                              {day.day}
-                            </h2>
-                            {completed && (
-                              <span className="text-xs bg-neon-green/20 text-neon-green font-medium px-2 py-0.5 rounded">
-                                Done
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs sm:text-sm text-secondary-text font-open-sans">
-                            {day.type} • {day.duration}
-                          </p>
-                        </div>
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center font-poppins font-bold text-sm flex-shrink-0 ${
+                        completed ? 'bg-neon-green text-bodymap-dark' : 'bg-gray-800 text-primary-text'
+                      }`}>
+                        {index + 1}
                       </div>
-
-                      <div className="flex items-center space-x-3">
-                        {!day.isRest && day.focus.length > 0 && (
-                          <div className="hidden sm:flex space-x-2">
-                            {day.focus.map((bodyPart) => (
-                              <span
-                                key={bodyPart}
-                                className="px-2.5 py-0.5 bg-electric-purple/20 text-electric-purple rounded-full text-xs font-medium"
-                              >
-                                {bodyPart}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-
-                        {isExpanded ? (
-                          <ChevronUp className="w-5 h-5 text-secondary-text" aria-hidden="true" />
-                        ) : (
-                          <ChevronDown className="w-5 h-5 text-secondary-text" aria-hidden="true" />
-                        )}
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-lg font-poppins font-semibold text-primary-text">
+                            {day.day}
+                          </h2>
+                          {day.isRest && (
+                            <span className="text-[10px] font-poppins font-bold px-2 py-0.5 rounded bg-electric-purple/20 text-electric-purple border border-electric-purple/30">
+                              Recovery
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs sm:text-sm text-secondary-text font-open-sans">
+                          {day.type} &bull; {day.duration}
+                        </p>
                       </div>
                     </button>
 
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
                       {!day.isRest && (
                         <Link
                           to={`/gym-mode/${index}`}
-                          className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5 shrink-0 shadow-sm"
-                          aria-label={`Start Gym Mode workout for ${day.day}`}
+                          className="btn-primary text-xs py-2 px-3.5 inline-flex items-center gap-1.5 shadow-sm shadow-neon-green/20"
                         >
                           <Play className="w-3.5 h-3.5 fill-current" />
-                          <span className="hidden sm:inline">Start</span> Workout
+                          Gym Mode
                         </Link>
                       )}
 
                       <button
-                        type="button"
                         onClick={() => toggleDayComplete(index)}
-                        aria-label={completed ? `Mark ${day.day} as incomplete` : `Mark ${day.day} as completed`}
-                        className="p-2 text-secondary-text hover:text-neon-green transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-green rounded-full"
+                        className={`p-2 rounded-lg border transition-colors ${
+                          completed
+                            ? 'bg-neon-green/20 border-neon-green text-neon-green'
+                            : 'border-gray-700 text-gray-400 hover:border-gray-500 hover:text-primary-text'
+                        }`}
+                        title={completed ? 'Mark incomplete' : 'Mark complete'}
+                        aria-label={completed ? `Mark Day ${index + 1} incomplete` : `Mark Day ${index + 1} complete`}
                       >
                         {completed ? (
-                          <CheckCircle2 className="w-6 h-6 text-neon-green" />
+                          <CheckCircle2 className="w-5 h-5 text-neon-green" />
                         ) : (
-                          <Circle className="w-6 h-6 text-gray-500" />
+                          <Circle className="w-5 h-5" />
                         )}
+                      </button>
+
+                      <button
+                        onClick={() => toggleDay(index)}
+                        className="p-2 text-gray-400 hover:text-primary-text rounded-lg hover:bg-gray-800"
+                        aria-label={isExpanded ? `Collapse Day ${index + 1}` : `Expand Day ${index + 1}`}
+                      >
+                        {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
                       </button>
                     </div>
                   </div>
 
                   {isExpanded && (
                     <div id={`day-content-${index}`} className="mt-6 pt-6 border-t border-gray-800">
-
                       <div className="grid lg:grid-cols-2 gap-8">
                         <div>
                           <h3 className="text-base sm:text-lg font-poppins font-semibold text-primary-text mb-4 flex items-center gap-2">
                             <Dumbbell className="w-4 h-4 text-neon-green" />
-                            {day.isRest ? 'Recovery & Mobility Activities' : 'Workout Details'}
+                            {day.isRest ? 'Recovery & Mobility Activities' : 'Workout Routine'}
                           </h3>
 
                           {!day.isRest && day.workout.warmup.length > 0 && (
@@ -360,14 +423,26 @@ const WeeklyPlanPage = () => {
                         </div>
 
                         <div>
-                          <h3 className="text-base sm:text-lg font-poppins font-semibold text-primary-text mb-4">
-                            Daily Nutrition Plan
-                          </h3>
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-base sm:text-lg font-poppins font-semibold text-primary-text flex items-center gap-2">
+                              <Utensils className="w-4 h-4 text-bright-coral" /> Daily Nutrition Plan
+                            </h3>
+                            <span className="text-xs text-secondary-text font-mono">
+                              ~{day.totalCalories} kcal target
+                            </span>
+                          </div>
 
                           <div className="space-y-3">
                             <div className="p-3 bg-bodymap-dark rounded-lg border border-gray-800">
                               <div className="flex justify-between items-center mb-1">
                                 <h4 className="text-neon-green font-semibold text-sm">Breakfast</h4>
+                                <button
+                                  onClick={() => setSelectedMealForSwap({ title: 'Breakfast', text: day.meals.breakfast })}
+                                  className="text-[11px] font-semibold text-secondary-text hover:text-neon-green flex items-center gap-1 transition-colors"
+                                  title="Find protein alternatives"
+                                >
+                                  <RefreshCw className="w-3 h-3" /> Swap Protein
+                                </button>
                               </div>
                               <p className="text-secondary-text text-xs sm:text-sm leading-relaxed">{day.meals.breakfast}</p>
                             </div>
@@ -375,6 +450,13 @@ const WeeklyPlanPage = () => {
                             <div className="p-3 bg-bodymap-dark rounded-lg border border-gray-800">
                               <div className="flex justify-between items-center mb-1">
                                 <h4 className="text-electric-purple font-semibold text-sm">Lunch</h4>
+                                <button
+                                  onClick={() => setSelectedMealForSwap({ title: 'Lunch', text: day.meals.lunch })}
+                                  className="text-[11px] font-semibold text-secondary-text hover:text-electric-purple flex items-center gap-1 transition-colors"
+                                  title="Find protein alternatives"
+                                >
+                                  <RefreshCw className="w-3 h-3" /> Swap Protein
+                                </button>
                               </div>
                               <p className="text-secondary-text text-xs sm:text-sm leading-relaxed">{day.meals.lunch}</p>
                             </div>
@@ -382,6 +464,13 @@ const WeeklyPlanPage = () => {
                             <div className="p-3 bg-bodymap-dark rounded-lg border border-gray-800">
                               <div className="flex justify-between items-center mb-1">
                                 <h4 className="text-bright-coral font-semibold text-sm">Dinner</h4>
+                                <button
+                                  onClick={() => setSelectedMealForSwap({ title: 'Dinner', text: day.meals.dinner })}
+                                  className="text-[11px] font-semibold text-secondary-text hover:text-bright-coral flex items-center gap-1 transition-colors"
+                                  title="Find protein alternatives"
+                                >
+                                  <RefreshCw className="w-3 h-3" /> Swap Protein
+                                </button>
                               </div>
                               <p className="text-secondary-text text-xs sm:text-sm leading-relaxed">{day.meals.dinner}</p>
                             </div>
@@ -397,16 +486,8 @@ const WeeklyPlanPage = () => {
                                 ))}
                               </ul>
                             </div>
-
-                            <div className="text-center pt-3 border-t border-gray-800 flex justify-between items-center">
-                              <span className="text-xs text-secondary-text font-open-sans">Estimated Target:</span>
-                              <span className="text-neon-green font-bold font-poppins text-sm">
-                                ~{day.totalCalories} kcal
-                              </span>
-                            </div>
                           </div>
                         </div>
-
                       </div>
                     </div>
                   )}
@@ -416,18 +497,160 @@ const WeeklyPlanPage = () => {
           </div>
         )}
 
-        <div className="mt-12 text-center">
-          <div className="card-dark max-w-2xl mx-auto bg-gradient-to-r from-neon-green/10 to-electric-purple/10 border-gray-800">
-            <h2 className="text-sm font-poppins font-semibold text-neon-green uppercase tracking-wider mb-2">
-              Weekly Motivation
-            </h2>
-            <blockquote className="text-secondary-text font-open-sans text-base sm:text-lg italic">
-              "Success is the sum of small efforts repeated day in and day out."
-            </blockquote>
+      </div>
+
+      {/* 7-Day Grocery List Modal Dialog */}
+      {isGroceryModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="card-dark max-w-2xl w-full p-6 space-y-6 border border-gray-700 max-h-[90vh] flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between pb-4 border-b border-gray-800">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-neon-green/20 flex items-center justify-center">
+                    <ShoppingCart className="w-5 h-5 text-neon-green" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-poppins font-bold text-primary-text">
+                      7-Day Grocery Shopping List
+                    </h3>
+                    <p className="text-xs text-secondary-text">
+                      Aggregated items across your 7-day meal schedule
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setIsGroceryModalOpen(false)}
+                  className="p-1.5 text-gray-400 hover:text-primary-text rounded-lg hover:bg-gray-800"
+                  aria-label="Close grocery list"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Categorized Grocery Checklist */}
+              <div className="overflow-y-auto max-h-[55vh] pr-2 mt-4 space-y-5">
+                {groceryCategories.map((group) => (
+                  <div key={group.category} className="space-y-2">
+                    <h4 className="text-xs font-poppins font-bold uppercase tracking-wider text-neon-green flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-neon-green" />
+                      {group.category} ({group.items.length})
+                    </h4>
+                    <div className="grid sm:grid-cols-2 gap-2">
+                      {group.items.map((item) => {
+                        const isChecked = Boolean(checkedGroceryItems[item.id])
+                        return (
+                          <label
+                            key={item.id}
+                            className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                              isChecked
+                                ? 'bg-neon-green/10 border-neon-green/30 text-gray-400 line-through'
+                                : 'bg-bodymap-dark border-gray-800 text-primary-text hover:border-gray-700'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => handleToggleGroceryItem(item.id)}
+                              className="w-4 h-4 rounded border-gray-700 text-neon-green focus:ring-neon-green bg-gray-900"
+                            />
+                            <span className="text-xs font-medium truncate">{item.name}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Modal Footer Controls */}
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-4 border-t border-gray-800">
+              <button
+                onClick={() => {
+                  setCheckedGroceryItems({})
+                  try { localStorage.removeItem('bodymap_grocery_checked') } catch { /* Ignore */ }
+                  toast({ title: 'Checklist Reset', description: 'All grocery checkmarks have been cleared.' })
+                }}
+                className="text-xs text-gray-400 hover:text-bright-coral underline"
+              >
+                Clear all checkboxes
+              </button>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Button
+                  onClick={handleCopyGroceryList}
+                  size="sm"
+                  className="btn-primary text-xs py-2 px-4 flex items-center gap-1.5 w-full sm:w-auto"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  Copy Categorized Checklist
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
+      )}
 
-      </div>
+      {/* Smart Meal Protein Alternatives Modal */}
+      {selectedMealForSwap && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="card-dark max-w-lg w-full p-6 space-y-4 border border-gray-700">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-800">
+              <div>
+                <h3 className="text-lg font-poppins font-bold text-primary-text flex items-center gap-2">
+                  <Utensils className="w-5 h-5 text-neon-green" />
+                  {selectedMealForSwap.title} Protein Alternatives
+                </h3>
+                <p className="text-xs text-secondary-text truncate max-w-sm mt-0.5">
+                  Current: {selectedMealForSwap.text}
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedMealForSwap(null)}
+                className="p-1 text-gray-400 hover:text-primary-text rounded"
+                aria-label="Close protein alternatives"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+              {mealAlternatives.map((alt) => (
+                <div key={alt.id} className="p-3.5 bg-bodymap-dark rounded-xl border border-gray-800 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-poppins font-bold text-sm text-primary-text">
+                      {alt.name}
+                    </span>
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded bg-neon-green/20 text-neon-green">
+                      ~{alt.approxProteinGrams}g protein
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-secondary-text font-open-sans">
+                    <span>Portion: <strong>{alt.portion}</strong></span>
+                    <span>&bull;</span>
+                    <span>Energy: <strong>~{alt.approxCalories} kcal</strong></span>
+                  </div>
+                  <p className="text-xs text-gray-400 leading-relaxed italic">
+                    {alt.notes}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <Button
+                onClick={() => setSelectedMealForSwap(null)}
+                size="sm"
+                className="btn-primary text-xs px-4"
+              >
+                Done
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }

@@ -265,6 +265,22 @@ export const GymModePage: React.FC = () => {
     setSession(prev => ({ ...prev, exercises: updatedExercises }))
   }
 
+  const handleStepWeight = (setIndex: number, delta: number) => {
+    const updatedExercises = [...session.exercises]
+    const ex = { ...updatedExercises[session.currentExerciseIndex] }
+    const sets = [...ex.sets]
+    const s = { ...sets[setIndex - 1] }
+    const currentWeight = typeof s.weightKg === 'number' ? s.weightKg : 0
+    const nextWeight = Math.max(0, Number((currentWeight + delta).toFixed(1)))
+
+    s.weightKg = nextWeight === 0 && currentWeight === 0 ? null : nextWeight
+    sets[setIndex - 1] = s
+    ex.sets = sets
+    updatedExercises[session.currentExerciseIndex] = ex
+
+    setSession(prev => ({ ...prev, exercises: updatedExercises }))
+  }
+
   // Dynamic Set Management
   const handleAddSet = () => {
     const updatedExercises = [...session.exercises]
@@ -752,17 +768,33 @@ export const GymModePage: React.FC = () => {
                 <span className="text-[10px] text-gray-500 uppercase px-1">reps</span>
               </div>
 
-              {/* Optional Weight Input */}
-              <div className="hidden sm:flex items-center gap-1.5 bg-bodymap-dark px-2 py-1 rounded-lg border border-gray-800 w-24">
+              {/* Weight Input & Steppers */}
+              <div className="hidden sm:flex items-center gap-1 bg-bodymap-dark px-1.5 py-1 rounded-lg border border-gray-800">
+                <button
+                  onClick={() => handleStepWeight(set.setIndex, -2.5)}
+                  className="px-1.5 py-0.5 rounded bg-gray-800 text-[10px] text-gray-400 hover:text-primary-text font-mono hover:bg-gray-700 active:scale-95"
+                  title="Decrease 2.5 kg"
+                  aria-label={`Decrease weight by 2.5 kg for set ${set.setIndex}`}
+                >
+                  -2.5
+                </button>
                 <Input
                   type="number"
                   placeholder="kg"
                   value={set.weightKg !== null ? set.weightKg : ''}
                   onChange={(e) => handleUpdateSetWeight(set.setIndex, e.target.value)}
-                  className="bg-transparent border-0 text-xs p-0 text-center text-primary-text focus:ring-0 w-full"
+                  className="bg-transparent border-0 text-xs p-0 text-center text-primary-text focus:ring-0 w-12"
                   aria-label={`Weight in kg for set ${set.setIndex}`}
                 />
-                <span className="text-[10px] text-gray-500">kg</span>
+                <span className="text-[10px] text-gray-500 pr-0.5">kg</span>
+                <button
+                  onClick={() => handleStepWeight(set.setIndex, 2.5)}
+                  className="px-1.5 py-0.5 rounded bg-gray-800 text-[10px] text-neon-green hover:bg-gray-700 font-mono active:scale-95"
+                  title="Increase 2.5 kg"
+                  aria-label={`Increase weight by 2.5 kg for set ${set.setIndex}`}
+                >
+                  +2.5
+                </button>
               </div>
 
               {/* Large Checkmark Action Button */}

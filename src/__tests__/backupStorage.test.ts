@@ -4,19 +4,22 @@ import {
   validateAndParseBackup,
   restoreBackupData,
   BACKUP_SCHEMA_IDENTIFIER,
+  LEGACY_BACKUP_SCHEMA_IDENTIFIER,
   BACKUP_SCHEMA_VERSION,
-  type BodyMapBackupV1
+  type BodyMapBackupV2
 } from '@/lib/backupStorage'
 import { savePersistedState, loadPersistedState } from '@/context/planStorage'
 import { saveCompletedWorkoutLog, loadWorkoutHistory } from '@/lib/sessionStorage'
 import { defaultFormData } from '@/context/PlanContext'
+import { loadSavedPlans, savePlanToLibrary } from '@/lib/savedPlansStorage'
+import { loadBodyMetrics, saveBodyMeasurement } from '@/lib/bodyMetricsStorage'
 
-describe('Local-First Backup and Restore Storage Suite', () => {
+describe('Local-First Backup and Restore Storage Suite V2', () => {
   beforeEach(() => {
     localStorage.clear()
   })
 
-  it('generates a valid backup payload containing full user state', () => {
+  it('generates a valid V2 backup payload containing full user state, saved plans, and body metrics', () => {
     localStorage.setItem('bodymap_user_name', 'Coach Maya')
     savePersistedState({
       formData: { ...defaultFormData, mainGoal: 'bulk', weight: '78' },
@@ -24,6 +27,21 @@ describe('Local-First Backup and Restore Storage Suite', () => {
       isGenerated: true,
       weightLog: [{ date: 'Oct 1', weight: 78 }],
       completedDays: [{ date: '2026-08-26', dayIndex: 0 }]
+    })
+
+    savePlanToLibrary('Hypertrophy Split A', {
+      formData: { ...defaultFormData, mainGoal: 'bulk' },
+      generatedPlan: '# Split A',
+      isGenerated: true,
+      weightLog: [],
+      completedDays: []
+    })
+
+    saveBodyMeasurement({
+      date: '2026-08-26',
+      unit: 'cm',
+      waist: 82,
+      chest: 104
     })
 
     saveCompletedWorkoutLog({
@@ -44,7 +62,10 @@ describe('Local-First Backup and Restore Storage Suite', () => {
     expect(payload.schema).toBe(BACKUP_SCHEMA_IDENTIFIER)
     expect(payload.userName).toBe('Coach Maya')
     expect(payload.planState.isGenerated).toBe(true)
-    expect(payload.planState.formData.mainGoal).toBe('bulk')
+    expect(payload.savedPlans.length).toBe(1)
+    expect(payload.savedPlans[0].name).toBe('Hypertrophy Split A')
+    expect(payload.bodyMetrics.length).toBe(1)
+    expect(payload.bodyMetrics[0].waist).toBe(82)
     expect(payload.workoutHistory.length).toBe(1)
     expect(payload.workoutHistory[0].id).toBe('log_99')
   })
@@ -68,8 +89,36 @@ describe('Local-First Backup and Restore Storage Suite', () => {
     expect(missingPlanState.success).toBe(false)
   })
 
-  it('successfully parses and restores a valid backup into localStorage', () => {
-    const mockBackup: BodyMapBackupV1 = {
+  it('safely parses and auto-migrates legacy V1 backups into V2 format', () => {
+    const legacyV1 = {
+      version: '2.2.0',
+      schema: LEGACY_BACKUP_SCHEMA_IDENTIFIER,
+      exportedAt: '2026-08-26T10:00:00Z',
+      userName: 'Legacy Athlete',
+      planState: {
+        formData: { ...defaultFormData, mainGoal: 'slim', weight: '70' },
+        generatedPlan: '# Legacy Plan',
+        isGenerated: true,
+        weightLog: [],
+        completedDays: []
+      },
+      activeSession: null,
+      workoutHistory: []
+    }
+
+    const parseResult = validateAndParseBackup(JSON.stringify(legacyV1))
+    expect(parseResult.success).toBe(true)
+    if (parseResult.success) {
+      expect(parseResult.data.schema).toBe(BACKUP_SCHEMA_IDENTIFIER)
+      expect(parseResult.data.userName).toBe('Legacy Athlete')
+      expect(parseResult.data.savedPlans).toEqual([])
+      expect(parseResult.data.bodyMetrics).toEqual([])
+      expect(parseResult.data.planState.formData.mainGoal).toBe('slim')
+    }
+  })
+
+  it('successfully parses and restores a valid V2 backup into localStorage atomically', () => {
+    const mockBackup: BodyMapBackupV2 = {
       version: BACKUP_SCHEMA_VERSION,
       schema: BACKUP_SCHEMA_IDENTIFIER,
       exportedAt: new Date().toISOString(),
@@ -81,6 +130,30 @@ describe('Local-First Backup and Restore Storage Suite', () => {
         weightLog: [{ date: 'Sep 1', weight: 65 }],
         completedDays: [{ date: '2026-08-25', dayIndex: 0 }]
       },
+      savedPlans: [
+        {
+          id: 'sp_restored',
+          name: 'Restored Seasonal Plan',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          planState: {
+            formData: { ...defaultFormData, mainGoal: 'endurance' },
+            generatedPlan: '# Endurance Plan',
+            isGenerated: true,
+            weightLog: [],
+            completedDays: []
+          }
+        }
+      ],
+      bodyMetrics: [
+        {
+          id: 'bm_restored',
+          date: '2026-08-25',
+          timestamp: Date.now(),
+          unit: 'cm',
+          waist: 79.5
+        }
+      ],
       activeSession: null,
       workoutHistory: [
         {
@@ -109,6 +182,14 @@ describe('Local-First Backup and Restore Storage Suite', () => {
       expect(restoredPlan.formData.mainGoal).toBe('slim')
       expect(restoredPlan.formData.weight).toBe('65')
       expect(localStorage.getItem('bodymap_user_name')).toBe('Champion Athlete')
+
+      const restoredSavedPlans = loadSavedPlans()
+      expect(restoredSavedPlans.length).toBe(1)
+      expect(restoredSavedPlans[0].id).toBe('sp_restored')
+
+      const restoredMetrics = loadBodyMetrics()
+      expect(restoredMetrics.length).toBe(1)
+      expect(restoredMetrics[0].waist).toBe(79.5)
 
       const restoredHistory = loadWorkoutHistory()
       expect(restoredHistory.length).toBe(1)

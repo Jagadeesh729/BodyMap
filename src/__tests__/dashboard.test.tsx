@@ -100,4 +100,19 @@ describe('DashboardPage & Chronological Weight Sorting System', () => {
     expect(screen.getByText(/No Gym Mode workouts completed yet/i)).toBeDefined()
     expect(screen.getByText(/Active Streak/i)).toBeDefined()
   })
+
+  it('renders interactive Body Measurements card with unit toggles and empty state', () => {
+    renderDashboard()
+    expect(screen.getAllByText(/Body Measurements/i).length).toBeGreaterThan(0)
+    expect(screen.getByText(/No body measurements recorded yet/i)).toBeDefined()
+    expect(screen.getByRole('button', { name: /cm/i })).toBeDefined()
+    expect(screen.getByRole('button', { name: /in/i })).toBeDefined()
+  })
+
+  it('renders Multi-Plan Saved Training Plans Library section and save trigger', () => {
+    renderDashboard()
+    expect(screen.getByText(/Saved Training Plans Library/i)).toBeDefined()
+    expect(screen.getByText(/No saved plans in your library yet/i)).toBeDefined()
+    expect(screen.getAllByText(/Save Current Plan/i).length).toBeGreaterThan(0)
+  })
 })

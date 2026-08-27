@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
   TrendingUp,
@@ -8,47 +8,87 @@ import {
   User,
   Plus,
   Dumbbell,
-  Sparkles,
   ArrowRight,
   Flame,
   CheckCircle2,
   Clock,
-  Award
+  Award,
+  Layers,
+  Copy,
+  Trash2,
+  BookmarkPlus,
+  Ruler,
+  AlertTriangle,
+  RotateCcw
 } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from '@/hooks/use-toast'
 import { usePlan } from '@/context/PlanContext'
-import { loadWorkoutHistory } from '@/lib/sessionStorage'
-import type { CompletedWorkoutLog } from '@/types/workoutSession'
+import { loadWorkoutHistory, loadActiveSession } from '@/lib/sessionStorage'
+import type { CompletedWorkoutLog, WorkoutSession } from '@/types/workoutSession'
 import { calculateWorkoutStreak } from '@/lib/streakCalculation'
+import type { SavedPlan } from '@/types/savedPlan'
+import {
+  loadSavedPlans,
+  savePlanToLibrary,
+  duplicateSavedPlan,
+  deleteSavedPlan
+} from '@/lib/savedPlansStorage'
+import type { BodyMeasurementEntry, MetricUnit } from '@/types/bodyMetrics'
+import {
+  loadBodyMetrics,
+  saveBodyMeasurement,
+  calculateBodyMetricDeltas
+} from '@/lib/bodyMetricsStorage'
 
-interface Measurement {
-  part: string
-  current: number
-  change: number
-}
-
-const DEFAULT_MEASUREMENTS: Measurement[] = [
-  { part: 'Chest', current: 98, change: -2 },
-  { part: 'Waist', current: 85, change: -4 },
-  { part: 'Arms', current: 33, change: +1.5 },
-  { part: 'Thighs', current: 58, change: -2 },
-]
-
-const DashboardPage = () => {
+const DashboardPage: React.FC = () => {
   const { state, dispatch } = usePlan()
   const { formData, isGenerated, completedDays, weightLog } = state
 
   const [newWeight, setNewWeight] = useState('')
-  const [userName, setUserName] = useState(() => localStorage.getItem('bodymap_user_name') || 'Athlete')
+  const [userName, setUserName] = useState(() => {
+    try {
+      return localStorage.getItem('bodymap_user_name') || 'Athlete'
+    } catch {
+      return 'Athlete'
+    }
+  })
   const [isEditingName, setIsEditingName] = useState(false)
-  const [measurements] = useState<Measurement[]>(DEFAULT_MEASUREMENTS)
   const [workoutHistory, setWorkoutHistory] = useState<CompletedWorkoutLog[]>([])
+  const [activeSession, setActiveSession] = useState<WorkoutSession | null>(null)
+
+  // Multi-Plan Library State
+  const [savedPlans, setSavedPlans] = useState<SavedPlan[]>([])
+  const [isSavePlanModalOpen, setIsSavePlanModalOpen] = useState(false)
+  const [planSaveName, setPlanSaveName] = useState('')
+  const [pendingPlanSwitch, setPendingPlanSwitch] = useState<SavedPlan | null>(null)
+  const [isPlanSwitchConfirmOpen, setIsPlanSwitchConfirmOpen] = useState(false)
+
+  // Body Metrics State
+  const [bodyMetrics, setBodyMetrics] = useState<BodyMeasurementEntry[]>([])
+  const [metricUnit, setMetricUnit] = useState<MetricUnit>('cm')
+  const [isLogMetricModalOpen, setIsLogMetricModalOpen] = useState(false)
+  const [metricForm, setMetricForm] = useState({
+    date: new Date().toISOString().split('T')[0],
+    waist: '',
+    chest: '',
+    arms: '',
+    thighs: '',
+    hips: '',
+    notes: ''
+  })
+
+  const refreshData = () => {
+    setWorkoutHistory(loadWorkoutHistory())
+    setActiveSession(loadActiveSession())
+    setSavedPlans(loadSavedPlans())
+    setBodyMetrics(loadBodyMetrics())
+  }
 
   useEffect(() => {
-    setWorkoutHistory(loadWorkoutHistory())
+    refreshData()
   }, [])
 
   const initialWeightNum = Number(formData.weight) || 72
@@ -58,30 +98,41 @@ const DashboardPage = () => {
     ? Math.round(initialWeightNum * 1.08)
     : initialWeightNum
 
-  // Built dynamic chart data from chronologically sorted weightLog if present, else standard progression
-  const sortedWeightLog = [...weightLog].sort((a, b) => {
-    const timeA = Date.parse(a.date)
-    const timeB = Date.parse(b.date)
-    if (!isNaN(timeA) && !isNaN(timeB)) {
-      return timeA - timeB
-    }
-    return 0
-  })
+  // Built dynamic chart data from chronologically sorted weightLog
+  const sortedWeightLog = useMemo(() => {
+    return [...weightLog].sort((a, b) => {
+      const timeA = Date.parse(a.date)
+      const timeB = Date.parse(b.date)
+      if (!isNaN(timeA) && !isNaN(timeB)) {
+        return timeA - timeB
+      }
+      return 0
+    })
+  }, [weightLog])
 
-  const chartData = sortedWeightLog.length > 0
-    ? sortedWeightLog.map((entry, _idx) => ({ week: entry.date || `Entry ${_idx + 1}`, weight: entry.weight }))
-    : [
-        { week: 'Start', weight: initialWeightNum },
-        { week: 'Wk 1', weight: Number((initialWeightNum - 0.4).toFixed(1)) },
-        { week: 'Wk 2', weight: Number((initialWeightNum - 0.9).toFixed(1)) },
-        { week: 'Wk 3', weight: Number((initialWeightNum - 1.3).toFixed(1)) },
-        { week: 'Current', weight: Number((initialWeightNum - 1.8).toFixed(1)) },
-      ]
+  const chartData = useMemo(() => {
+    if (sortedWeightLog.length > 0) {
+      return sortedWeightLog.map(entry => ({
+        date: entry.date,
+        weight: entry.weight
+      }))
+    }
+    const currentW = initialWeightNum
+    const delta = (targetWeightNum - currentW) / 4
+    return [
+      { date: 'Start', weight: currentW },
+      { date: 'W2', weight: Number((currentW + delta * 0.3).toFixed(1)) },
+      { date: 'W3', weight: Number((currentW + delta * 0.6).toFixed(1)) },
+      { date: 'W4', weight: Number((currentW + delta * 0.85).toFixed(1)) },
+      { date: 'Target', weight: targetWeightNum },
+    ]
+  }, [sortedWeightLog, initialWeightNum, targetWeightNum])
 
   const currentWeightNum = chartData[chartData.length - 1].weight
   const weightChange = Number((currentWeightNum - initialWeightNum).toFixed(1))
   const completedWorkoutsCount = Math.max(completedDays.length, workoutHistory.length)
   const currentStreak = calculateWorkoutStreak(workoutHistory, completedDays)
+  const metricDeltas = useMemo(() => calculateBodyMetricDeltas(bodyMetrics, metricUnit), [bodyMetrics, metricUnit])
 
   const handleAddWeight = (e: React.FormEvent) => {
     e.preventDefault()
@@ -96,145 +147,254 @@ const DashboardPage = () => {
       payload: { date: todayStr, weight: val }
     })
     setNewWeight('')
-    toast({ title: 'Weight Logged!', description: `Recorded ${val} kg for ${todayStr}.` })
+    toast({ title: 'Weight Logged! ⚖️', description: `Recorded ${val} kg for ${todayStr}.` })
   }
 
   const handleSaveName = () => {
+    const trimmed = userName.trim()
+    if (!trimmed) {
+      setUserName('Athlete')
+      localStorage.setItem('bodymap_user_name', 'Athlete')
+    } else {
+      localStorage.setItem('bodymap_user_name', trimmed)
+    }
     setIsEditingName(false)
-    localStorage.setItem('bodymap_user_name', userName)
-    toast({ title: 'Profile Updated', description: `Display name updated to ${userName}.` })
+    toast({ title: 'Profile Updated', description: 'Your athlete name has been saved.' })
+  }
+
+  // --- Multi-Plan Handlers ---
+  const handleSaveCurrentPlan = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!state.generatedPlan && !isGenerated) {
+      toast({ title: 'No Plan to Save', description: 'Generate a routine before saving it to your library.', variant: 'destructive' })
+      return
+    }
+    const nameToUse = planSaveName.trim() || `${state.formData.mainGoal || 'Custom'} Routine (${new Date().toLocaleDateString()})`
+    savePlanToLibrary(nameToUse, state)
+    setSavedPlans(loadSavedPlans())
+    setIsSavePlanModalOpen(false)
+    setPlanSaveName('')
+    toast({ title: 'Plan Saved to Library! 📚', description: `"${nameToUse}" has been saved.` })
+  }
+
+  const handleTriggerPlanSwitch = (plan: SavedPlan) => {
+    const currentSession = loadActiveSession()
+    if (currentSession && currentSession.status === 'in-progress') {
+      setPendingPlanSwitch(plan)
+      setIsPlanSwitchConfirmOpen(true)
+    } else {
+      executePlanSwitch(plan)
+    }
+  }
+
+  const executePlanSwitch = (plan: SavedPlan) => {
+    dispatch({
+      type: 'LOAD_SAVED_PLAN',
+      payload: plan.planState
+    })
+    setPendingPlanSwitch(null)
+    setIsPlanSwitchConfirmOpen(false)
+    toast({ title: 'Plan Activated! ⚡', description: `Switched active routine to "${plan.name}".` })
+  }
+
+  const handleDuplicatePlan = (id: string) => {
+    const dup = duplicateSavedPlan(id)
+    if (dup) {
+      setSavedPlans(loadSavedPlans())
+      toast({ title: 'Plan Duplicated', description: `Created copy: "${dup.name}"` })
+    }
+  }
+
+  const handleDeletePlan = (id: string, name: string) => {
+    if (window.confirm(`Are you sure you want to delete "${name}" from your library?`)) {
+      deleteSavedPlan(id)
+      setSavedPlans(loadSavedPlans())
+      toast({ title: 'Plan Deleted', description: `"${name}" removed from library.` })
+    }
+  }
+
+  // --- Body Measurement Handlers ---
+  const handleLogMeasurementSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const waistNum = parseFloat(metricForm.waist)
+    const chestNum = parseFloat(metricForm.chest)
+    const armsNum = parseFloat(metricForm.arms)
+    const thighsNum = parseFloat(metricForm.thighs)
+    const hipsNum = parseFloat(metricForm.hips)
+
+    if (isNaN(waistNum) && isNaN(chestNum) && isNaN(armsNum) && isNaN(thighsNum) && isNaN(hipsNum)) {
+      toast({ title: 'Empty Log', description: 'Please enter at least one measurement value.', variant: 'destructive' })
+      return
+    }
+
+    saveBodyMeasurement({
+      date: metricForm.date || new Date().toISOString().split('T')[0],
+      unit: metricUnit,
+      waist: isNaN(waistNum) ? undefined : waistNum,
+      chest: isNaN(chestNum) ? undefined : chestNum,
+      arms: isNaN(armsNum) ? undefined : armsNum,
+      thighs: isNaN(thighsNum) ? undefined : thighsNum,
+      hips: isNaN(hipsNum) ? undefined : hipsNum,
+      notes: metricForm.notes.trim() || undefined
+    })
+
+    setBodyMetrics(loadBodyMetrics())
+    setIsLogMetricModalOpen(false)
+    setMetricForm({
+      date: new Date().toISOString().split('T')[0],
+      waist: '',
+      chest: '',
+      arms: '',
+      thighs: '',
+      hips: '',
+      notes: ''
+    })
+    toast({ title: 'Measurements Logged! 📏', description: `Recorded body composition for ${metricForm.date}.` })
   }
 
   return (
-    <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
-
-        {/* Not generated banner */}
-        {!isGenerated && (
-          <div className="mb-8 p-4 sm:p-6 bg-neon-green/10 border border-neon-green/30 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <Sparkles className="w-8 h-8 text-neon-green flex-shrink-0" />
-              <div>
-                <h2 className="font-poppins font-semibold text-primary-text text-base">
-                  Unlock Personalized Fitness Tracking
-                </h2>
-                <p className="text-secondary-text text-xs sm:text-sm">
-                  Complete the questionnaire to sync your target goals, calories, and personalized workout streak.
-                </p>
-              </div>
+    <div className="min-h-screen bg-bodymap-dark py-12 px-4 sm:px-6 lg:px-8 text-primary-text">
+      <div className="max-w-7xl mx-auto space-y-8">
+        
+        {/* Profile Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card-dark p-6 rounded-2xl border border-gray-800">
+          <div className="flex items-center space-x-4">
+            <div className="w-14 h-14 bg-neon-green/20 rounded-full flex items-center justify-center border border-neon-green/30 shrink-0">
+              <User className="w-7 h-7 text-neon-green" />
             </div>
-            <Link to="/create-plan" className="btn-primary text-xs sm:text-sm py-2 px-4 whitespace-nowrap">
-              Generate AI Plan
-              <ArrowRight className="w-4 h-4 ml-1.5 inline" />
+            <div>
+              <div className="flex items-center gap-2">
+                {isEditingName ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={userName}
+                      onChange={(e) => setUserName(e.target.value)}
+                      className="input-dark py-1 px-2 h-8 text-lg font-poppins font-bold w-48"
+                      autoFocus
+                    />
+                    <Button onClick={handleSaveName} size="sm" className="btn-primary h-8 px-3 text-xs">
+                      Save
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <h1 className="text-xl sm:text-2xl font-poppins font-bold text-primary-text">
+                      Hello, {userName}
+                    </h1>
+                    <button
+                      onClick={() => setIsEditingName(true)}
+                      className="text-gray-400 hover:text-neon-green transition-colors"
+                      title="Edit display name"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                  </>
+                )}
+              </div>
+              <p className="text-xs sm:text-sm text-secondary-text font-open-sans">
+                Goal: <span className="text-electric-purple font-semibold capitalize">{formData.mainGoal || 'Full Body Transformation'}</span> &bull; {formData.fitnessLevel || 'Intermediate'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <Button
+              onClick={() => setIsSavePlanModalOpen(true)}
+              variant="outline"
+              size="sm"
+              className="border-gray-700 bg-bodymap-dark hover:bg-gray-800 text-xs font-semibold text-primary-text flex items-center gap-1.5"
+            >
+              <BookmarkPlus className="w-4 h-4 text-electric-purple" />
+              Save Active Plan
+            </Button>
+            <Link to="/weekly-plan" className="btn-primary text-xs py-2.5 px-4 inline-flex items-center gap-2">
+              <Calendar className="w-4 h-4" />
+              View Weekly Plan
             </Link>
           </div>
-        )}
+        </div>
 
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10">
-          <div>
-            <div className="flex items-center gap-3">
-              {isEditingName ? (
-                <div className="flex items-center gap-2">
-                  <Input
-                    value={userName}
-                    onChange={(e) => setUserName(e.target.value)}
-                    className="input-dark max-w-[200px]"
-                    placeholder="Your Name"
-                    autoFocus
-                  />
-                  <Button onClick={handleSaveName} size="sm" className="btn-primary py-1 px-3 text-xs">
-                    Save
-                  </Button>
-                </div>
-              ) : (
-                <h1 className="text-3xl sm:text-4xl font-poppins font-bold text-primary-text flex items-center gap-2">
-                  Hello, {userName}!
-                  <button
-                    onClick={() => setIsEditingName(true)}
-                    className="text-xs text-secondary-text hover:text-neon-green underline font-normal ml-2"
-                    aria-label="Edit display name"
-                  >
-                    edit
-                  </button>
-                </h1>
-              )}
+        {/* Quick Stats Grid */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="card-dark p-4 sm:p-5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-poppins font-bold uppercase tracking-wider text-secondary-text">Current Weight</span>
+              <TrendingUp className="w-4 h-4 text-neon-green" />
             </div>
-            <p className="text-base sm:text-lg text-secondary-text font-open-sans mt-1">
-              Here is your fitness and body composition progress
+            <p className="text-2xl sm:text-3xl font-poppins font-bold text-primary-text mt-2">
+              {currentWeightNum} <span className="text-sm font-normal text-secondary-text">kg</span>
+            </p>
+            <p className="text-xs text-secondary-text mt-1">
+              Initial: {initialWeightNum} kg
             </p>
           </div>
 
-          <Link to="/weekly-plan" className="btn-primary text-sm py-2.5 px-5 self-start sm:self-auto flex items-center gap-2">
-            <Dumbbell className="w-4 h-4" />
-            Today's Workout
-          </Link>
-        </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-10">
-          <div className="card-dark text-center">
-            <div className="w-12 h-12 bg-neon-green/20 rounded-full flex items-center justify-center mx-auto mb-3">
-              <TrendingUp className="w-6 h-6 text-neon-green" aria-hidden="true" />
+          <div className="card-dark p-4 sm:p-5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-poppins font-bold uppercase tracking-wider text-secondary-text">Weight Delta</span>
+              <TrendingUp className="w-4 h-4 text-electric-purple" />
             </div>
-            <p className="text-2xl sm:text-3xl font-poppins font-bold text-primary-text">
+            <p className={`text-2xl sm:text-3xl font-poppins font-bold mt-2 ${
+              weightChange <= 0 ? 'text-neon-green' : 'text-bright-coral'
+            }`}>
+              {weightChange > 0 ? `+${weightChange}` : weightChange} <span className="text-sm font-normal text-secondary-text">kg</span>
+            </p>
+            <p className="text-xs text-secondary-text mt-1">
+              Target: {targetWeightNum} kg
+            </p>
+          </div>
+
+          <div className="card-dark p-4 sm:p-5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-poppins font-bold uppercase tracking-wider text-secondary-text">Active Streak</span>
+              <Flame className="w-4 h-4 text-bright-coral" />
+            </div>
+            <p className="text-2xl sm:text-3xl font-poppins font-bold text-bright-coral mt-2">
+              {currentStreak} <span className="text-sm font-normal text-secondary-text">days</span>
+            </p>
+            <p className="text-xs text-secondary-text mt-1">
+              {currentStreak > 0 ? 'Consistent progress!' : 'Start today to begin streak'}
+            </p>
+          </div>
+
+          <div className="card-dark p-4 sm:p-5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-poppins font-bold uppercase tracking-wider text-secondary-text">Workouts</span>
+              <CheckCircle2 className="w-4 h-4 text-neon-green" />
+            </div>
+            <p className="text-2xl sm:text-3xl font-poppins font-bold text-primary-text mt-2">
               {completedWorkoutsCount}
             </p>
-            <p className="text-xs sm:text-sm text-secondary-text font-open-sans mt-1">Workouts Logged</p>
-          </div>
-
-          <div className="card-dark text-center">
-            <div className="w-12 h-12 bg-bright-coral/20 rounded-full flex items-center justify-center mx-auto mb-3">
-              <Flame className="w-6 h-6 text-bright-coral" aria-hidden="true" />
-            </div>
-            <p className="text-2xl sm:text-3xl font-poppins font-bold text-primary-text">
-              {currentStreak} {currentStreak === 1 ? 'Day' : 'Days'}
+            <p className="text-xs text-secondary-text mt-1">
+              Verified sessions logged
             </p>
-            <p className="text-xs sm:text-sm text-secondary-text font-open-sans mt-1">Active Streak</p>
-          </div>
-
-          <div className="card-dark text-center">
-            <div className="w-12 h-12 bg-electric-purple/20 rounded-full flex items-center justify-center mx-auto mb-3">
-              <Calendar className="w-6 h-6 text-electric-purple" aria-hidden="true" />
-            </div>
-            <p className="text-2xl sm:text-3xl font-poppins font-bold text-primary-text">
-              {formData.timePerDay ? `${formData.timePerDay}m` : '45m'}
-            </p>
-            <p className="text-xs sm:text-sm text-secondary-text font-open-sans mt-1">Daily Target</p>
-          </div>
-
-          <div className="card-dark text-center">
-            <div className="w-12 h-12 bg-neon-green/20 rounded-full flex items-center justify-center mx-auto mb-3">
-              <User className="w-6 h-6 text-neon-green" aria-hidden="true" />
-            </div>
-            <p className="text-2xl sm:text-3xl font-poppins font-bold text-primary-text">
-              {currentWeightNum} kg
-            </p>
-            <p className="text-xs sm:text-sm text-secondary-text font-open-sans mt-1">Current Weight</p>
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-8 mb-12">
-          {/* Weight Chart with Logger */}
+        {/* Charts & Body Composition Grid */}
+        <div className="grid lg:grid-cols-2 gap-8">
+          
+          {/* Weight Progression Chart */}
           <div className="card-dark flex flex-col justify-between">
             <div>
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg sm:text-xl font-poppins font-semibold text-primary-text">
-                  Weight Progression
-                </h2>
-                <div className="flex items-center gap-2 text-xs text-secondary-text">
-                  <span>Delta: <strong className={weightChange <= 0 ? 'text-neon-green' : 'text-bright-coral'}>{weightChange > 0 ? `+${weightChange}` : weightChange} kg</strong></span>
-                  <span>•</span>
-                  <span>Target: <strong className="text-neon-green">{targetWeightNum} kg</strong></span>
+                <div>
+                  <h2 className="text-lg sm:text-xl font-poppins font-semibold text-primary-text">
+                    Weight Progression
+                  </h2>
+                  <p className="text-xs text-secondary-text">Chronological trend vs goal target</p>
                 </div>
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-neon-green/20 text-neon-green border border-neon-green/30">
+                  Target: {targetWeightNum} kg
+                </span>
               </div>
 
-              <div className="h-60 sm:h-64 w-full" role="region" aria-label="Weight progress line chart">
+              <div className="h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2a" />
-                    <XAxis dataKey="week" stroke="#9ca3af" fontSize={12} tickLine={false} />
-                    <YAxis stroke="#9ca3af" fontSize={12} domain={['dataMin - 1', 'dataMax + 1']} tickLine={false} />
+                  <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                    <XAxis dataKey="date" stroke="#9CA3AF" fontSize={12} tickLine={false} />
+                    <YAxis domain={['dataMin - 2', 'dataMax + 2']} stroke="#9CA3AF" fontSize={12} tickLine={false} />
                     <Tooltip
                       contentStyle={{
                         backgroundColor: '#1E1E1E',
@@ -273,37 +433,189 @@ const DashboardPage = () => {
             </form>
           </div>
 
-          {/* Body Measurements */}
+          {/* Interactive Body Composition & Circumference Tracker */}
           <div className="card-dark flex flex-col justify-between">
             <div>
-              <h2 className="text-lg sm:text-xl font-poppins font-semibold text-primary-text mb-4">
-                Body Measurements
-              </h2>
-              <div className="space-y-3">
-                {measurements.map((measurement) => (
-                  <div key={measurement.part} className="flex justify-between items-center p-3.5 bg-bodymap-dark rounded-lg border border-gray-800">
-                    <span className="text-secondary-text font-open-sans text-sm">{measurement.part}</span>
-                    <div className="text-right">
-                      <span className="text-primary-text font-semibold text-sm">{measurement.current} cm</span>
-                      <span className={`ml-2 text-xs font-semibold px-2 py-0.5 rounded ${
-                        measurement.change > 0 ? 'bg-bright-coral/20 text-bright-coral' : 'bg-neon-green/20 text-neon-green'
-                      }`}>
-                        {measurement.change > 0 ? '+' : ''}{measurement.change} cm
-                      </span>
-
-                    </div>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-lg sm:text-xl font-poppins font-semibold text-primary-text flex items-center gap-2">
+                    <Ruler className="w-5 h-5 text-neon-green" /> Body Measurements
+                  </h2>
+                  <p className="text-xs text-secondary-text">Chronological circumference tracking</p>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center bg-bodymap-dark p-0.5 rounded-lg border border-gray-800 text-xs">
+                    <button
+                      onClick={() => setMetricUnit('cm')}
+                      className={`px-2 py-1 rounded font-semibold transition-colors ${metricUnit === 'cm' ? 'bg-neon-green text-bodymap-dark' : 'text-gray-400 hover:text-primary-text'}`}
+                    >
+                      cm
+                    </button>
+                    <button
+                      onClick={() => setMetricUnit('in')}
+                      className={`px-2 py-1 rounded font-semibold transition-colors ${metricUnit === 'in' ? 'bg-neon-green text-bodymap-dark' : 'text-gray-400 hover:text-primary-text'}`}
+                    >
+                      in
+                    </button>
                   </div>
-                ))}
+
+                  <Button
+                    onClick={() => setIsLogMetricModalOpen(true)}
+                    size="sm"
+                    className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Log
+                  </Button>
+                </div>
               </div>
+
+              {/* Metrics Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {(['waist', 'chest', 'arms', 'thighs', 'hips'] as const).map((key) => {
+                  const data = metricDeltas[key]
+                  return (
+                    <div key={key} className="p-3 bg-bodymap-dark rounded-xl border border-gray-800">
+                      <span className="text-xs text-secondary-text font-poppins capitalize">{data.label}</span>
+                      <div className="mt-1 flex items-baseline justify-between">
+                        <span className="text-lg font-poppins font-bold text-primary-text">
+                          {data.current !== null ? `${data.current} ${metricUnit}` : '—'}
+                        </span>
+                        {data.deltaFromPrevious !== null && (
+                          <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded ${
+                            data.deltaFromPrevious <= 0 ? 'bg-neon-green/20 text-neon-green' : 'bg-bright-coral/20 text-bright-coral'
+                          }`}>
+                            {data.deltaFromPrevious > 0 ? `+${data.deltaFromPrevious}` : data.deltaFromPrevious}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-gray-500 block mt-0.5">
+                        {data.baseline !== null ? `Base: ${data.baseline} ${metricUnit}` : 'No baseline'}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {bodyMetrics.length === 0 && (
+                <p className="text-xs text-secondary-text text-center mt-4 bg-bodymap-dark/50 p-3 rounded-lg border border-dashed border-gray-800">
+                  No body measurements recorded yet. Tap <strong>+ Log</strong> to start tracking circumference.
+                </p>
+              )}
             </div>
 
             <div className="mt-4 pt-4 border-t border-gray-800 flex items-center justify-between text-xs text-secondary-text">
-              <span>Goal: {formData.mainGoal || 'Full Body Fitness'}</span>
-              <Link to="/edit-plan" className="text-electric-purple hover:underline">
-                Update Goals &rarr;
-              </Link>
+              <span>Total Recorded Logs: <strong>{bodyMetrics.length}</strong></span>
+              {bodyMetrics.length > 0 && (
+                <span className="text-gray-400">
+                  Latest: {bodyMetrics[0].date}
+                </span>
+              )}
             </div>
           </div>
+        </div>
+
+        {/* Multi-Plan Library Section */}
+        <div className="card-dark">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-electric-purple/20 flex items-center justify-center">
+                <Layers className="w-5 h-5 text-electric-purple" />
+              </div>
+              <div>
+                <h2 className="text-lg sm:text-xl font-poppins font-semibold text-primary-text">
+                  Saved Training Plans Library
+                </h2>
+                <p className="text-xs text-secondary-text font-open-sans">
+                  Manage multiple training splits and seasonal routines locally
+                </p>
+              </div>
+            </div>
+
+            <Button
+              onClick={() => setIsSavePlanModalOpen(true)}
+              size="sm"
+              className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5"
+            >
+              <BookmarkPlus className="w-3.5 h-3.5" />
+              Save Current Plan
+            </Button>
+          </div>
+
+          {savedPlans.length > 0 ? (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {savedPlans.map((plan) => (
+                <div
+                  key={plan.id}
+                  className="p-4 bg-bodymap-dark rounded-xl border border-gray-800 hover:border-gray-700 transition-colors flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <span className="text-[11px] font-poppins font-bold px-2 py-0.5 rounded bg-electric-purple/15 text-electric-purple">
+                        {plan.planState.formData.mainGoal || 'Custom Plan'}
+                      </span>
+                      <span className="text-[11px] text-gray-500">
+                        {new Date(plan.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+
+                    <h3 className="font-poppins font-bold text-sm text-primary-text truncate mb-1">
+                      {plan.name}
+                    </h3>
+                    <p className="text-xs text-secondary-text mb-3">
+                      {plan.planState.formData.fitnessLevel || 'Intermediate'} &bull; {plan.planState.formData.timePerDay || '45'} mins/day
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2 pt-3 border-t border-gray-800">
+                    <Button
+                      onClick={() => handleTriggerPlanSwitch(plan)}
+                      size="sm"
+                      className="btn-primary text-[11px] py-1 px-3 h-7 flex items-center gap-1"
+                    >
+                      <RotateCcw className="w-3 h-3" /> Activate
+                    </Button>
+
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleDuplicatePlan(plan.id)}
+                        className="p-1.5 text-gray-400 hover:text-electric-purple transition-colors rounded hover:bg-gray-800"
+                        title="Duplicate plan"
+                        aria-label={`Duplicate plan ${plan.name}`}
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDeletePlan(plan.id, plan.name)}
+                        className="p-1.5 text-gray-400 hover:text-bright-coral transition-colors rounded hover:bg-gray-800"
+                        title="Delete plan"
+                        aria-label={`Delete plan ${plan.name}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="p-8 text-center bg-bodymap-dark/60 rounded-xl border border-gray-800/80">
+              <p className="text-sm font-poppins font-medium text-primary-text mb-1">
+                No saved plans in your library yet
+              </p>
+              <p className="text-xs text-secondary-text mb-4 max-w-md mx-auto">
+                Save your currently active plan or create multiple routines for different training goals.
+              </p>
+              <Button
+                onClick={() => setIsSavePlanModalOpen(true)}
+                size="sm"
+                className="btn-primary text-xs py-2 px-5 inline-flex items-center gap-2"
+              >
+                <BookmarkPlus className="w-3.5 h-3.5" />
+                Save Current Plan to Library
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Recent Workout History Stream */}
@@ -442,25 +754,197 @@ const DashboardPage = () => {
                 <h3 className="font-poppins font-semibold text-primary-text group-hover:text-neon-green transition-colors">
                   Export Plan
                 </h3>
-                <p className="text-xs text-secondary-text font-open-sans">Download printable PDF or share</p>
+                <p className="text-xs text-secondary-text font-open-sans">Download printable PDF or JSON backup</p>
               </div>
             </div>
           </Link>
         </div>
 
-        {/* Motivational Card */}
-        <div className="mt-12 text-center">
-          <div className="card-dark max-w-2xl mx-auto bg-gradient-to-r from-neon-green/10 to-electric-purple/10 border-gray-800">
-            <h2 className="text-xs font-poppins font-semibold text-neon-green uppercase tracking-wider mb-2">
-              Today's Focus
-            </h2>
-            <blockquote className="text-secondary-text font-open-sans text-base italic">
-              "Your body can stand almost anything. It's your mind you have to convince."
-            </blockquote>
+      </div>
+
+      {/* Save Plan Modal Dialog */}
+      {isSavePlanModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="card-dark max-w-md w-full p-6 space-y-4 border border-gray-700">
+            <h3 className="text-lg font-poppins font-bold text-primary-text flex items-center gap-2">
+              <BookmarkPlus className="w-5 h-5 text-electric-purple" />
+              Save Routine to Library
+            </h3>
+            <p className="text-xs text-secondary-text">
+              Save your current 7-day routine so you can switch back to it anytime.
+            </p>
+            <form onSubmit={handleSaveCurrentPlan} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-secondary-text mb-1">Plan Name</label>
+                <Input
+                  value={planSaveName}
+                  onChange={(e) => setPlanSaveName(e.target.value)}
+                  placeholder="e.g., Hypertrophy Block A"
+                  className="input-dark text-sm"
+                  autoFocus
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button
+                  type="button"
+                  onClick={() => setIsSavePlanModalOpen(false)}
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs"
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" size="sm" className="btn-primary text-xs">
+                  Save Plan
+                </Button>
+              </div>
+            </form>
           </div>
         </div>
+      )}
 
-      </div>
+      {/* Plan Switch Conflict Warning Dialog */}
+      {isPlanSwitchConfirmOpen && pendingPlanSwitch && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="card-dark max-w-md w-full p-6 space-y-4 border border-bright-coral/50">
+            <div className="flex items-center gap-3 text-bright-coral">
+              <AlertTriangle className="w-6 h-6 shrink-0" />
+              <h3 className="text-lg font-poppins font-bold text-primary-text">
+                Active Workout in Progress
+              </h3>
+            </div>
+            <p className="text-xs text-secondary-text leading-relaxed">
+              You currently have an active Gym Mode workout for <strong>{activeSession?.dayTitle}</strong>. Switching plans will activate &ldquo;{pendingPlanSwitch.name}&rdquo;.
+            </p>
+            <div className="flex flex-col sm:flex-row justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                onClick={() => {
+                  setPendingPlanSwitch(null)
+                  setIsPlanSwitchConfirmOpen(false)
+                }}
+                variant="ghost"
+                size="sm"
+                className="text-xs"
+              >
+                Keep Current
+              </Button>
+              <Button
+                type="button"
+                onClick={() => executePlanSwitch(pendingPlanSwitch)}
+                size="sm"
+                className="btn-coral text-xs"
+              >
+                Switch Plan Anyway
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Log Body Measurements Modal Dialog */}
+      {isLogMetricModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="card-dark max-w-lg w-full p-6 space-y-4 border border-gray-700">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-poppins font-bold text-primary-text flex items-center gap-2">
+                <Ruler className="w-5 h-5 text-neon-green" />
+                Log Body Measurements
+              </h3>
+              <span className="text-xs font-semibold text-neon-green uppercase tracking-wider">
+                Unit: {metricUnit}
+              </span>
+            </div>
+
+            <form onSubmit={handleLogMeasurementSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-secondary-text mb-1">Date</label>
+                <Input
+                  type="date"
+                  value={metricForm.date}
+                  onChange={(e) => setMetricForm({ ...metricForm, date: e.target.value })}
+                  className="input-dark text-sm"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs text-secondary-text mb-1">Waist ({metricUnit})</label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    placeholder="e.g. 82.5"
+                    value={metricForm.waist}
+                    onChange={(e) => setMetricForm({ ...metricForm, waist: e.target.value })}
+                    className="input-dark text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-secondary-text mb-1">Chest ({metricUnit})</label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    placeholder="e.g. 102"
+                    value={metricForm.chest}
+                    onChange={(e) => setMetricForm({ ...metricForm, chest: e.target.value })}
+                    className="input-dark text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-secondary-text mb-1">Arms ({metricUnit})</label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    placeholder="e.g. 36.5"
+                    value={metricForm.arms}
+                    onChange={(e) => setMetricForm({ ...metricForm, arms: e.target.value })}
+                    className="input-dark text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-secondary-text mb-1">Thighs ({metricUnit})</label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    placeholder="e.g. 58"
+                    value={metricForm.thighs}
+                    onChange={(e) => setMetricForm({ ...metricForm, thighs: e.target.value })}
+                    className="input-dark text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-secondary-text mb-1">Hips ({metricUnit})</label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    placeholder="e.g. 96"
+                    value={metricForm.hips}
+                    onChange={(e) => setMetricForm({ ...metricForm, hips: e.target.value })}
+                    className="input-dark text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-gray-800">
+                <Button
+                  type="button"
+                  onClick={() => setIsLogMetricModalOpen(false)}
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs"
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" size="sm" className="btn-primary text-xs">
+                  Save Measurements
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
