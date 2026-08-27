@@ -50,6 +50,8 @@ import {
 import { generateWarmupProtocol } from '@/lib/warmupProtocol'
 import { calculateRecommendedRestSeconds } from '@/lib/restIntervalEngine'
 import { extractPersonalRecords, normalizeExerciseName } from '@/lib/personalRecords'
+import { calculateBarbellPlates } from '@/lib/plateLoadingCalculator'
+import { extractPreviousSetPerformance } from '@/lib/exerciseSetProgress'
 import { playTimerChime, triggerVibration } from '@/lib/audioCues'
 import { RestTimerOverlay } from '@/components/gym/RestTimerOverlay'
 import { ExerciseSubstitutionModal } from '@/components/gym/ExerciseSubstitutionModal'
@@ -278,6 +280,16 @@ export const GymModePage: React.FC = () => {
     const allPrs = extractPersonalRecords(history)
     const norm = normalizeExerciseName(currentExercise.name)
     return allPrs.find(p => normalizeExerciseName(p.exerciseName) === norm) || null
+  }, [currentExercise])
+
+  const plateCalculation = useMemo(() => {
+    return calculateBarbellPlates(targetWorkingWeight, 20)
+  }, [targetWorkingWeight])
+
+  const previousSetPerformance = useMemo(() => {
+    if (!currentExercise) return null
+    const history = loadWorkoutHistory()
+    return extractPreviousSetPerformance(currentExercise.name, history)
   }, [currentExercise])
 
   const handleStartEditNote = () => {
@@ -771,6 +783,21 @@ export const GymModePage: React.FC = () => {
                   Sync Timer
                 </button>
               </div>
+
+              {/* Barbell Plates Loading Helper */}
+              {plateCalculation.hasValidConfiguration && targetWorkingWeight && targetWorkingWeight >= 20 && (
+                <div className="mt-2 flex items-center gap-1.5 text-[11px] text-gray-300 bg-bodymap-dark/80 px-2.5 py-1 rounded-lg border border-gray-800 w-fit">
+                  <span className="text-neon-green font-semibold">🏋️ Plates:</span>
+                  <span className="font-mono">{plateCalculation.summaryLabel}</span>
+                </div>
+              )}
+
+              {/* Previous Session Set-by-Set Performance */}
+              {previousSetPerformance && previousSetPerformance.hasPreviousSession && (
+                <div className="mt-1.5 text-[11px] text-secondary-text">
+                  <span className="text-gray-400">📊 {previousSetPerformance.formattedSummary}</span>
+                </div>
+              )}
             </div>
 
             <Button

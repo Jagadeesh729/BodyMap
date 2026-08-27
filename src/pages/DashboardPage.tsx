@@ -51,6 +51,7 @@ import { calculateVolumeAnalytics, type VolumeAnalyticsResult } from '@/lib/volu
 import { calculateEstimated1RM } from '@/lib/oneRepMax'
 import { generate28DayAdherenceCalendar, type AdherenceDayCell } from '@/lib/adherenceCalendar'
 import { calculateWorkloadDensity, type WorkloadDensityMetrics } from '@/lib/workloadIntensity'
+import { calculateTimeSinceLastWorkout } from '@/lib/recoveryReadiness'
 
 const DashboardPage: React.FC = () => {
   const { state, dispatch } = usePlan()
@@ -157,6 +158,9 @@ const DashboardPage: React.FC = () => {
   }, [workoutHistory])
   const latestWorkloadDensity: WorkloadDensityMetrics = useMemo(() => {
     return calculateWorkloadDensity(workoutHistory[0])
+  }, [workoutHistory])
+  const timeSinceLastWorkout = useMemo(() => {
+    return calculateTimeSinceLastWorkout(workoutHistory)
   }, [workoutHistory])
 
   const handleAddWeight = (e: React.FormEvent) => {
@@ -328,6 +332,13 @@ const DashboardPage: React.FC = () => {
               <p className="text-xs sm:text-sm text-secondary-text font-open-sans">
                 Goal: <span className="text-electric-purple font-semibold capitalize">{formData.mainGoal || 'Full Body Transformation'}</span> &bull; {formData.fitnessLevel || 'Intermediate'}
               </p>
+              {timeSinceLastWorkout.hasHistory && (
+                <p className="text-[11px] text-gray-400 mt-1 flex items-center gap-1.5">
+                  <span>⏱️ Last Session: <strong className="text-neon-green">{timeSinceLastWorkout.formattedTimeAgo}</strong></span>
+                  <span className="text-gray-600">&bull;</span>
+                  <span className="text-gray-400">{timeSinceLastWorkout.bucketLabel}</span>
+                </p>
+              )}
             </div>
           </div>
 
