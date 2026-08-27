@@ -54,6 +54,7 @@ import {
 } from '@/lib/bodyMetricsStorage'
 import { calculateMilestones, type Milestone } from '@/lib/milestoneTracker'
 import { extractPersonalRecords, type PersonalRecord } from '@/lib/personalRecords'
+import { aggregateCrossSessionExercises, type ExerciseCrossSessionSummary } from '@/lib/exerciseCrossSessionEngine'
 import { calculateVolumeAnalytics, type VolumeAnalyticsResult } from '@/lib/volumeAnalytics'
 import { calculateEstimated1RM } from '@/lib/oneRepMax'
 import { generate28DayAdherenceCalendar, type AdherenceDayCell } from '@/lib/adherenceCalendar'
@@ -187,6 +188,9 @@ const DashboardPage: React.FC = () => {
   }, [workoutHistory, completedDays, currentStreak, savedPlans])
   const personalRecords: PersonalRecord[] = useMemo(() => {
     return extractPersonalRecords(workoutHistory)
+  }, [workoutHistory])
+  const crossSessionExercises: ExerciseCrossSessionSummary[] = useMemo(() => {
+    return aggregateCrossSessionExercises(workoutHistory)
   }, [workoutHistory])
   const volumeAnalytics: VolumeAnalyticsResult = useMemo(() => {
     return calculateVolumeAnalytics(windowFilteredLogsSummary.filteredLogs)
@@ -612,6 +616,31 @@ const DashboardPage: React.FC = () => {
             <p className="text-xs text-secondary-text text-center bg-bodymap-dark/50 p-4 rounded-xl border border-dashed border-gray-800">
               No personal records logged yet. Complete weighted sets in Gym Mode to build your all-time PR vault.
             </p>
+          )}
+
+          {/* Cross-Session Movement Frequency Strip */}
+          {crossSessionExercises.length > 0 && (
+            <div className="mt-4 pt-3.5 border-t border-gray-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs">
+              <div>
+                <span className="text-[11px] font-poppins font-bold uppercase tracking-wider text-bright-coral block">
+                  Movement Volume &amp; Consistency
+                </span>
+                <span className="text-secondary-text text-[11px]">
+                  Multi-session set volume recorded across training splits.
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5 font-mono text-[10px]">
+                {crossSessionExercises.slice(0, 4).map(ex => (
+                  <span
+                    key={ex.normalizedName}
+                    className="px-2 py-0.5 rounded bg-gray-900 border border-gray-800 text-gray-300 font-semibold"
+                    title={ex.factualSummary}
+                  >
+                    {ex.exerciseName}: <strong className="text-bright-coral">{ex.totalSetsCompleted} sets</strong> ({ex.totalSessions}x)
+                  </span>
+                ))}
+              </div>
+            </div>
           )}
         </div>
 
