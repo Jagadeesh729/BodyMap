@@ -11,6 +11,8 @@ export interface BackupValidationResult {
 
 /**
  * Deterministically validates BodyMap backup JSON payload integrity without modifying state.
+ * Supports both canonical V2 schema (`schema: 'bodymap_backup_v2'`, `planState`, `workoutHistory`)
+ * and legacy V1 payloads (`version: 'bodymap_backup_v1'`, `state`, `history`).
  */
 export function validateBackupPayload(payload: unknown): BackupValidationResult {
   const errors: string[] = []
@@ -30,31 +32,33 @@ export function validateBackupPayload(payload: unknown): BackupValidationResult 
   }
 
   const raw = payload as Record<string, unknown>
-  const version = typeof raw.version === 'string' ? raw.version : 'unknown'
+  const schemaOrVersion = (typeof raw.schema === 'string' ? raw.schema : (typeof raw.version === 'string' ? raw.version : 'unknown'))
 
-  if (version !== 'bodymap_backup_v2' && version !== 'bodymap_backup_v1') {
-    errors.push(`Unsupported backup schema version: "${version}". Expected "bodymap_backup_v2".`)
+  if (schemaOrVersion !== 'bodymap_backup_v2' && schemaOrVersion !== 'bodymap_backup_v1') {
+    errors.push(`Unsupported backup schema version: "${schemaOrVersion}". Expected "bodymap_backup_v2".`)
   }
 
   if (typeof raw.exportedAt !== 'string' || isNaN(new Date(raw.exportedAt).getTime())) {
     warnings.push('Export timestamp missing or invalid format.')
   }
 
-  // Validate state
-  if (!raw.state || typeof raw.state !== 'object') {
+  // Validate state (support both canonical planState and legacy state)
+  const stateObj = raw.planState || raw.state
+  if (!stateObj || typeof stateObj !== 'object') {
     errors.push('Required "state" object is missing from backup payload.')
   }
 
-  const state = (raw.state || {}) as Record<string, unknown>
+  const state = (stateObj || {}) as Record<string, unknown>
   const weightLogs = Array.isArray(state.weightLog) ? state.weightLog : []
   const weightLogsCount = weightLogs.length
 
-  // Validate history
+  // Validate history (support both canonical workoutHistory and legacy history)
   let workoutCount = 0
-  if (Array.isArray(raw.history)) {
-    workoutCount = raw.history.length
-    for (let i = 0; i < Math.min(raw.history.length, 50); i++) {
-      const item = raw.history[i]
+  const historyArray = Array.isArray(raw.workoutHistory) ? raw.workoutHistory : (Array.isArray(raw.history) ? raw.history : null)
+  if (historyArray) {
+    workoutCount = historyArray.length
+    for (let i = 0; i < Math.min(historyArray.length, 50); i++) {
+      const item = historyArray[i]
       if (!item || typeof item !== 'object' || typeof item.completedAt !== 'string') {
         warnings.push(`Workout record at index ${i} has incomplete metadata.`)
         break
@@ -70,12 +74,12 @@ export function validateBackupPayload(payload: unknown): BackupValidationResult 
 
   const isValid = errors.length === 0
   const summaryText = isValid
-    ? `Valid backup (${version}): ${workoutCount} workouts, ${savedPlansCount} saved plans, ${weightLogsCount} weight logs.`
+    ? `Valid backup (${schemaOrVersion}): ${workoutCount} workouts, ${savedPlansCount} saved plans, ${weightLogsCount} weight logs.`
     : `Integrity check failed: ${errors.join(', ')}`
 
   return {
     isValid,
-    version,
+    version: schemaOrVersion,
     workoutCount,
     savedPlansCount,
     weightLogsCount,

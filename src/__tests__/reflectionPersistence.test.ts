@@ -9,8 +9,7 @@ import {
   saveReflectionForSession,
   saveCompletedWorkoutLog,
   loadWorkoutHistory,
-  clearWorkoutHistory,
-  WORKOUT_HISTORY_STORAGE_KEY
+  clearWorkoutHistory
 } from '@/lib/sessionStorage'
 import {
   generateBackupPayload,
@@ -207,10 +206,7 @@ describe('saveReflectionForSession', () => {
 // ── Backup Round-Trip Tests ────────────────────────────────────────────────────
 
 describe('reflection backup round-trip', () => {
-  it('sessionReflection survives a backup export and import cycle', async () => {
-    const { generateBackupPayload, validateAndParseBackup, restoreBackupData } =
-      await import('@/lib/backupStorage')
-
+  it('sessionReflection survives a backup export and import cycle', () => {
     const log = makeLog()
     saveCompletedWorkoutLog(log)
     saveReflectionForSession(log.sessionId, {

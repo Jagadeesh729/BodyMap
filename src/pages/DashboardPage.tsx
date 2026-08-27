@@ -23,7 +23,8 @@ import {
   GitCompare,
   Trophy,
   Activity,
-  X
+  X,
+  Smile
 } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { Button } from '@/components/ui/button'
@@ -1223,6 +1224,35 @@ const DashboardPage: React.FC = () => {
                           </div>
                         ) : null
                       })()}
+
+                      {/* Post-Workout Subjective Reflection Display */}
+                      {log.sessionReflection && (log.sessionReflection.energyRating || log.sessionReflection.perceivedReadiness || (log.sessionReflection.reflectionTags && log.sessionReflection.reflectionTags.length > 0)) && (
+                        <div className="mt-2 pt-2 border-t border-gray-850 text-[10px] space-y-1">
+                          <div className="flex items-center gap-1.5 text-gray-400">
+                            <Smile className="w-3 h-3 text-bright-coral" />
+                            <span className="font-semibold text-gray-300">Reflection:</span>
+                            {log.sessionReflection.energyRating && (
+                              <span className="text-neon-green font-mono">
+                                ⚡ Energy {log.sessionReflection.energyRating}/5
+                              </span>
+                            )}
+                            {log.sessionReflection.perceivedReadiness && (
+                              <span className="text-electric-purple font-medium capitalize">
+                                • {log.sessionReflection.perceivedReadiness} Readiness
+                              </span>
+                            )}
+                          </div>
+                          {log.sessionReflection.reflectionTags && log.sessionReflection.reflectionTags.length > 0 && (
+                            <div className="flex flex-wrap gap-1 pt-0.5">
+                              {log.sessionReflection.reflectionTags.map(tag => (
+                                <span key={tag} className="px-1.5 py-0.2 rounded bg-gray-850 text-gray-400 font-mono text-[9px]">
+                                  #{tag.replace(/\s+/g, '')}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     <Link
