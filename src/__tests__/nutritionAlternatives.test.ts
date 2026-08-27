@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
   findMealAlternatives,
-  aggregateGroceryList
+  aggregateGroceryList,
+  scaleGroceryList,
+  type GroceryCategoryGroup
 } from '@/lib/nutritionAlternatives'
 
 describe('Nutrition Alternatives & Grocery Aggregator Suite', () => {
@@ -62,5 +64,33 @@ describe('Nutrition Alternatives & Grocery Aggregator Suite', () => {
     expect(groups.length).toBeGreaterThan(0)
     const allItems = groups.flatMap(g => g.items)
     expect(allItems.length).toBeGreaterThan(0)
+  })
+
+  it('scales grocery item quantities deterministically without mutating source data', () => {
+    const sampleGroups: GroceryCategoryGroup[] = [
+      {
+        category: 'Protein',
+        items: [
+          { id: '1', name: '200g Chicken Breast', category: 'Protein', checked: false },
+          { id: '2', name: 'Eggs (Dozen)', category: 'Protein', checked: false }
+        ]
+      }
+    ]
+
+    // 1x multiplier leaves data unchanged
+    const scaled1x = scaleGroceryList(sampleGroups, 1)
+    expect(scaled1x[0].items[0].name).toBe('200g Chicken Breast')
+
+    // 2x multiplier doubles numeric quantity
+    const scaled2x = scaleGroceryList(sampleGroups, 2)
+    expect(scaled2x[0].items[0].name).toBe('400 g Chicken Breast')
+    expect(scaled2x[0].items[1].name).toBe('Eggs (Dozen) (2x)')
+
+    // 4x multiplier quadruples numeric quantity
+    const scaled4x = scaleGroceryList(sampleGroups, 4)
+    expect(scaled4x[0].items[0].name).toBe('800 g Chicken Breast')
+
+    // Original source data is completely unmutated
+    expect(sampleGroups[0].items[0].name).toBe('200g Chicken Breast')
   })
 })

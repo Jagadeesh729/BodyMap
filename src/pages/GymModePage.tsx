@@ -33,8 +33,10 @@ import {
   saveActiveSession,
   loadActiveSession,
   clearActiveSession,
+  loadWorkoutHistory,
   saveCompletedWorkoutLog
 } from '@/lib/sessionStorage'
+import { findPreviousPerformance, type ExerciseHistoryRecord } from '@/lib/progressionEngine'
 import { playTimerChime, triggerVibration } from '@/lib/audioCues'
 import { RestTimerOverlay } from '@/components/gym/RestTimerOverlay'
 import { ExerciseSubstitutionModal } from '@/components/gym/ExerciseSubstitutionModal'
@@ -313,6 +315,30 @@ export const GymModePage: React.FC = () => {
     updatedExercises[session.currentExerciseIndex] = ex
     setSession(prev => ({ ...prev, exercises: updatedExercises }))
     toast({ title: 'Set Removed', description: `Removed last set from ${ex.name}.` })
+  }
+
+  // Previous Session Ghost Reference
+  const previousPerformance: ExerciseHistoryRecord | null = useMemo(() => {
+    if (!currentExercise?.name) return null
+    const history = loadWorkoutHistory()
+    return findPreviousPerformance(currentExercise.name, history)
+  }, [currentExercise?.name])
+
+  const handleMatchPreviousWeight = () => {
+    if (!previousPerformance?.lastWeightKg || !currentExercise) return
+    const weightToCopy = previousPerformance.lastWeightKg
+    const updatedExercises = [...session.exercises]
+    const ex = { ...updatedExercises[session.currentExerciseIndex] }
+    ex.sets = ex.sets.map(s => ({
+      ...s,
+      weightKg: weightToCopy
+    }))
+    updatedExercises[session.currentExerciseIndex] = ex
+    setSession(prev => ({ ...prev, exercises: updatedExercises }))
+    toast({
+      title: 'Previous Weight Applied ⚖️',
+      description: `Applied ${weightToCopy} kg across sets for ${ex.name}.`
+    })
   }
 
   // Timer controls
@@ -688,6 +714,29 @@ export const GymModePage: React.FC = () => {
             <div className="mt-4 p-3 bg-bodymap-dark/90 rounded-lg border border-gray-800 text-xs text-secondary-text leading-relaxed">
               <strong className="text-neon-green font-semibold mr-1.5">Coach Cue:</strong>
               {currentExercise.formCue}
+            </div>
+          )}
+
+          {/* Previous Session Reference Ghost Badge */}
+          {previousPerformance && (
+            <div className="mt-3 p-3 bg-electric-purple/10 rounded-lg border border-electric-purple/30 text-xs flex items-center justify-between gap-3">
+              <div>
+                <span className="text-[11px] font-poppins font-bold uppercase tracking-wider text-electric-purple block">
+                  Historical Fact
+                </span>
+                <span className="text-primary-text font-medium">
+                  {previousPerformance.factualSummary}
+                </span>
+              </div>
+              {previousPerformance.lastWeightKg && (
+                <button
+                  onClick={handleMatchPreviousWeight}
+                  className="px-2.5 py-1 rounded bg-electric-purple/20 hover:bg-electric-purple/30 text-electric-purple text-xs font-semibold shrink-0 transition-colors border border-electric-purple/40"
+                  title="Copy previous weight to all sets"
+                >
+                  Match Previous Weight
+                </button>
+              )}
             </div>
           )}
         </section>

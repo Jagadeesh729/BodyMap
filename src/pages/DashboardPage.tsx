@@ -19,7 +19,9 @@ import {
   BookmarkPlus,
   Ruler,
   AlertTriangle,
-  RotateCcw
+  RotateCcw,
+  GitCompare,
+  X
 } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { Button } from '@/components/ui/button'
@@ -42,6 +44,7 @@ import {
   saveBodyMeasurement,
   calculateBodyMetricDeltas
 } from '@/lib/bodyMetricsStorage'
+import { calculateMilestones, type Milestone } from '@/lib/milestoneTracker'
 
 const DashboardPage: React.FC = () => {
   const { state, dispatch } = usePlan()
@@ -65,6 +68,7 @@ const DashboardPage: React.FC = () => {
   const [planSaveName, setPlanSaveName] = useState('')
   const [pendingPlanSwitch, setPendingPlanSwitch] = useState<SavedPlan | null>(null)
   const [isPlanSwitchConfirmOpen, setIsPlanSwitchConfirmOpen] = useState(false)
+  const [comparingPlanIds, setComparingPlanIds] = useState<{ planAId: string; planBId: string } | null>(null)
 
   // Body Metrics State
   const [bodyMetrics, setBodyMetrics] = useState<BodyMeasurementEntry[]>([])
@@ -133,6 +137,9 @@ const DashboardPage: React.FC = () => {
   const completedWorkoutsCount = Math.max(completedDays.length, workoutHistory.length)
   const currentStreak = calculateWorkoutStreak(workoutHistory, completedDays)
   const metricDeltas = useMemo(() => calculateBodyMetricDeltas(bodyMetrics, metricUnit), [bodyMetrics, metricUnit])
+  const verifiedMilestones: Milestone[] = useMemo(() => {
+    return calculateMilestones(workoutHistory, completedDays, currentStreak, savedPlans)
+  }, [workoutHistory, completedDays, currentStreak, savedPlans])
 
   const handleAddWeight = (e: React.FormEvent) => {
     e.preventDefault()
@@ -252,6 +259,15 @@ const DashboardPage: React.FC = () => {
     toast({ title: 'Measurements Logged! 📏', description: `Recorded body composition for ${metricForm.date}.` })
   }
 
+  // Plan Comparison Derived Objects
+  const comparisonDetails = useMemo(() => {
+    if (!comparingPlanIds) return null
+    const planA = savedPlans.find(p => p.id === comparingPlanIds.planAId)
+    const planB = savedPlans.find(p => p.id === comparingPlanIds.planBId)
+    if (!planA || !planB) return null
+    return { planA, planB }
+  }, [comparingPlanIds, savedPlans])
+
   return (
     <div className="min-h-screen bg-bodymap-dark py-12 px-4 sm:px-6 lg:px-8 text-primary-text">
       <div className="max-w-7xl mx-auto space-y-8">
@@ -368,6 +384,48 @@ const DashboardPage: React.FC = () => {
             <p className="text-xs text-secondary-text mt-1">
               Verified sessions logged
             </p>
+          </div>
+        </div>
+
+        {/* Verified Training Milestones Section */}
+        <div className="card-dark">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2.5">
+              <Award className="w-5 h-5 text-neon-green" />
+              <h2 className="text-base sm:text-lg font-poppins font-semibold text-primary-text">
+                Verified Training Milestones
+              </h2>
+            </div>
+            <span className="text-xs text-secondary-text">
+              {verifiedMilestones.filter(m => m.isUnlocked).length} of {verifiedMilestones.length} Unlocked
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {verifiedMilestones.slice(0, 8).map((m) => (
+              <div
+                key={m.id}
+                className={`p-3 rounded-xl border transition-all ${
+                  m.isUnlocked
+                    ? 'bg-neon-green/10 border-neon-green/40 text-primary-text shadow-sm shadow-neon-green/5'
+                    : 'bg-bodymap-dark border-gray-800 text-gray-500 opacity-75'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-1 mb-1">
+                  <span className={`text-[11px] font-poppins font-bold truncate ${m.isUnlocked ? 'text-neon-green' : 'text-gray-400'}`}>
+                    {m.title}
+                  </span>
+                  {m.isUnlocked && <CheckCircle2 className="w-3.5 h-3.5 text-neon-green shrink-0" />}
+                </div>
+                <p className="text-[11px] text-secondary-text truncate mb-2">{m.description}</p>
+                <div className="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
+                  <div
+                    className={`h-full transition-all duration-300 ${m.isUnlocked ? 'bg-neon-green' : 'bg-gray-600'}`}
+                    style={{ width: `${m.progressPercent}%` }}
+                  />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -517,7 +575,7 @@ const DashboardPage: React.FC = () => {
 
         {/* Multi-Plan Library Section */}
         <div className="card-dark">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-electric-purple/20 flex items-center justify-center">
                 <Layers className="w-5 h-5 text-electric-purple" />
@@ -532,14 +590,27 @@ const DashboardPage: React.FC = () => {
               </div>
             </div>
 
-            <Button
-              onClick={() => setIsSavePlanModalOpen(true)}
-              size="sm"
-              className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5"
-            >
-              <BookmarkPlus className="w-3.5 h-3.5" />
-              Save Current Plan
-            </Button>
+            <div className="flex items-center gap-2">
+              {savedPlans.length >= 2 && (
+                <Button
+                  onClick={() => setComparingPlanIds({ planAId: savedPlans[0].id, planBId: savedPlans[1].id })}
+                  variant="outline"
+                  size="sm"
+                  className="border-gray-700 text-xs py-1.5 px-3 flex items-center gap-1 text-secondary-text hover:text-primary-text"
+                >
+                  <GitCompare className="w-3.5 h-3.5 text-electric-purple" />
+                  Compare Plans
+                </Button>
+              )}
+              <Button
+                onClick={() => setIsSavePlanModalOpen(true)}
+                size="sm"
+                className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5"
+              >
+                <BookmarkPlus className="w-3.5 h-3.5" />
+                Save Current Plan
+              </Button>
+            </div>
           </div>
 
           {savedPlans.length > 0 ? (
@@ -761,6 +832,85 @@ const DashboardPage: React.FC = () => {
         </div>
 
       </div>
+
+      {/* Plan Comparison Modal Dialog */}
+      {comparisonDetails && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="card-dark max-w-3xl w-full p-6 space-y-6 border border-gray-700 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-800">
+              <div className="flex items-center gap-2">
+                <GitCompare className="w-5 h-5 text-electric-purple" />
+                <h3 className="text-lg font-poppins font-bold text-primary-text">
+                  Side-by-Side Plan Comparison
+                </h3>
+              </div>
+              <button
+                onClick={() => setComparingPlanIds(null)}
+                className="p-1.5 text-gray-400 hover:text-primary-text rounded-lg hover:bg-gray-800"
+                aria-label="Close comparison"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              {/* Plan A */}
+              <div className="p-4 bg-bodymap-dark rounded-xl border border-gray-800 space-y-3">
+                <span className="text-[11px] font-poppins font-bold uppercase tracking-wider text-electric-purple">
+                  Plan A
+                </span>
+                <h4 className="text-base font-poppins font-bold text-primary-text truncate">
+                  {comparisonDetails.planA.name}
+                </h4>
+                <div className="space-y-2 text-xs text-secondary-text">
+                  <p>Goal: <strong className="text-primary-text">{comparisonDetails.planA.planState.formData.mainGoal || 'Custom'}</strong></p>
+                  <p>Fitness Level: <strong className="text-primary-text">{comparisonDetails.planA.planState.formData.fitnessLevel || 'Intermediate'}</strong></p>
+                  <p>Daily Time: <strong className="text-primary-text">{comparisonDetails.planA.planState.formData.timePerDay || '45'} mins</strong></p>
+                  <p>Equipment: <strong className="text-primary-text">{comparisonDetails.planA.planState.formData.equipment?.join(', ') || 'Bodyweight'}</strong></p>
+                  <p>Focus Areas: <strong className="text-primary-text">{comparisonDetails.planA.planState.formData.bodyFocus?.join(', ') || 'Full Body'}</strong></p>
+                </div>
+                <Button
+                  onClick={() => {
+                    executePlanSwitch(comparisonDetails.planA)
+                    setComparingPlanIds(null)
+                  }}
+                  size="sm"
+                  className="btn-primary text-xs w-full mt-2"
+                >
+                  Activate Plan A
+                </Button>
+              </div>
+
+              {/* Plan B */}
+              <div className="p-4 bg-bodymap-dark rounded-xl border border-gray-800 space-y-3">
+                <span className="text-[11px] font-poppins font-bold uppercase tracking-wider text-neon-green">
+                  Plan B
+                </span>
+                <h4 className="text-base font-poppins font-bold text-primary-text truncate">
+                  {comparisonDetails.planB.name}
+                </h4>
+                <div className="space-y-2 text-xs text-secondary-text">
+                  <p>Goal: <strong className="text-primary-text">{comparisonDetails.planB.planState.formData.mainGoal || 'Custom'}</strong></p>
+                  <p>Fitness Level: <strong className="text-primary-text">{comparisonDetails.planB.planState.formData.fitnessLevel || 'Intermediate'}</strong></p>
+                  <p>Daily Time: <strong className="text-primary-text">{comparisonDetails.planB.planState.formData.timePerDay || '45'} mins</strong></p>
+                  <p>Equipment: <strong className="text-primary-text">{comparisonDetails.planB.planState.formData.equipment?.join(', ') || 'Bodyweight'}</strong></p>
+                  <p>Focus Areas: <strong className="text-primary-text">{comparisonDetails.planB.planState.formData.bodyFocus?.join(', ') || 'Full Body'}</strong></p>
+                </div>
+                <Button
+                  onClick={() => {
+                    executePlanSwitch(comparisonDetails.planB)
+                    setComparingPlanIds(null)
+                  }}
+                  size="sm"
+                  className="btn-coral text-xs w-full mt-2"
+                >
+                  Activate Plan B
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Save Plan Modal Dialog */}
       {isSavePlanModalOpen && (

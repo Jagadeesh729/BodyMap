@@ -263,3 +263,39 @@ export function aggregateGroceryList(mealStrings: string[]): GroceryCategoryGrou
 
   return result
 }
+
+/**
+ * Deterministically scales grocery item quantities based on serving multiplier (1x, 2x, 3x, 4x).
+ * Preserves baseline data integrity with zero cumulative drift.
+ */
+export function scaleGroceryList(
+  groups: GroceryCategoryGroup[],
+  multiplier: number = 1
+): GroceryCategoryGroup[] {
+  const safeMult = Math.min(4, Math.max(1, Math.round(multiplier)))
+  if (safeMult === 1) return groups
+
+  return groups.map(group => ({
+    category: group.category,
+    items: group.items.map(item => {
+      const quantityRegex = /(\d+(?:\.\d+)?)\s*(g|kg|ml|l|oz|lb|cups?|tbsp|tsp|pieces?|servings?)/i
+      let scaledName = item.name
+
+      if (quantityRegex.test(item.name)) {
+        scaledName = item.name.replace(quantityRegex, (match, numStr, unit) => {
+          const num = parseFloat(numStr)
+          if (isNaN(num)) return match
+          const scaledNum = Number((num * safeMult).toFixed(1))
+          return `${scaledNum} ${unit}`
+        })
+      } else {
+        scaledName = `${item.name} (${safeMult}x)`
+      }
+
+      return {
+        ...item,
+        name: scaledName
+      }
+    })
+  }))
+}

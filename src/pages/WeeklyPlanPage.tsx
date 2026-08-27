@@ -30,6 +30,7 @@ import type { WorkoutSession } from '@/types/workoutSession'
 import {
   findMealAlternatives,
   aggregateGroceryList,
+  scaleGroceryList,
   type FoodAlternative,
   type GroceryCategoryGroup
 } from '@/lib/nutritionAlternatives'
@@ -51,6 +52,7 @@ const WeeklyPlanPage: React.FC = () => {
 
   // Nutrition & Grocery Modal States
   const [isGroceryModalOpen, setIsGroceryModalOpen] = useState(false)
+  const [servingMultiplier, setServingMultiplier] = useState<number>(1)
   const [selectedMealForSwap, setSelectedMealForSwap] = useState<{ title: string; text: string } | null>(null)
   const [checkedGroceryItems, setCheckedGroceryItems] = useState<Record<string, boolean>>(() => {
     try {
@@ -135,6 +137,10 @@ const WeeklyPlanPage: React.FC = () => {
     return aggregateGroceryList(allMealTexts)
   }, [allMealTexts])
 
+  const scaledGroceryCategories: GroceryCategoryGroup[] = useMemo(() => {
+    return scaleGroceryList(groceryCategories, servingMultiplier)
+  }, [groceryCategories, servingMultiplier])
+
   const handleToggleGroceryItem = (itemId: string) => {
     const updated = {
       ...checkedGroceryItems,
@@ -149,9 +155,9 @@ const WeeklyPlanPage: React.FC = () => {
   }
 
   const handleCopyGroceryList = () => {
-    let output = `🛒 BODYMAP 7-DAY GROCERY CHECKLIST\n`
+    let output = `🛒 BODYMAP 7-DAY GROCERY CHECKLIST (${servingMultiplier}x Servings)\n`
     output += `Generated for: ${state.formData.mainGoal || 'Fitness'} Plan\n\n`
-    for (const group of groceryCategories) {
+    for (const group of scaledGroceryCategories) {
       output += `[ ${group.category.toUpperCase()} ]\n`
       for (const item of group.items) {
         const isChecked = checkedGroceryItems[item.id] ? '[x]' : '[ ]'
@@ -160,7 +166,7 @@ const WeeklyPlanPage: React.FC = () => {
       output += '\n'
     }
     navigator.clipboard.writeText(output)
-    toast({ title: 'Grocery List Copied! 📋', description: 'Categorized grocery checklist copied to clipboard.' })
+    toast({ title: 'Grocery List Copied! 📋', description: `Categorized ${servingMultiplier}x grocery checklist copied to clipboard.` })
   }
 
   const mealAlternatives: FoodAlternative[] = useMemo(() => {
@@ -528,9 +534,29 @@ const WeeklyPlanPage: React.FC = () => {
                 </button>
               </div>
 
+              {/* Serving Scaler Selector Bar */}
+              <div className="flex items-center justify-between py-2 px-3 bg-bodymap-dark rounded-lg border border-gray-800 mt-3">
+                <span className="text-xs font-semibold text-secondary-text">Batch Serving Multiplier:</span>
+                <div className="flex items-center bg-card-dark p-0.5 rounded-lg border border-gray-700 text-xs">
+                  {[1, 2, 3, 4].map((mult) => (
+                    <button
+                      key={mult}
+                      onClick={() => setServingMultiplier(mult)}
+                      className={`px-2.5 py-1 rounded font-semibold transition-colors ${
+                        servingMultiplier === mult
+                          ? 'bg-neon-green text-bodymap-dark font-bold'
+                          : 'text-gray-400 hover:text-primary-text'
+                      }`}
+                    >
+                      {mult}x
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Categorized Grocery Checklist */}
-              <div className="overflow-y-auto max-h-[55vh] pr-2 mt-4 space-y-5">
-                {groceryCategories.map((group) => (
+              <div className="overflow-y-auto max-h-[50vh] pr-2 mt-3 space-y-5">
+                {scaledGroceryCategories.map((group) => (
                   <div key={group.category} className="space-y-2">
                     <h4 className="text-xs font-poppins font-bold uppercase tracking-wider text-neon-green flex items-center gap-1.5">
                       <span className="w-1.5 h-1.5 rounded-full bg-neon-green" />
