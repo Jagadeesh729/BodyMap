@@ -44,6 +44,7 @@ import {
   duplicateSavedPlan,
   deleteSavedPlan
 } from '@/lib/savedPlansStorage'
+import { compareSavedPlans } from '@/lib/planComparisonEngine'
 import type { BodyMeasurementEntry, MetricUnit } from '@/types/bodyMetrics'
 import {
   loadBodyMetrics,
@@ -1488,6 +1489,35 @@ const DashboardPage: React.FC = () => {
                 <X className="w-5 h-5" />
               </button>
             </div>
+            {/* Deterministic Plan Comparison Insights Banner */}
+            {(() => {
+              const comp = compareSavedPlans(comparisonDetails.planA, comparisonDetails.planB)
+              return (
+                <div className="p-3.5 bg-bodymap-dark rounded-xl border border-gray-800 space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-poppins font-bold text-gray-200">Comparison Summary:</span>
+                    <span className={`font-mono text-[11px] px-2 py-0.5 rounded font-semibold ${
+                      comp.timePerDayDeltaMinutes === 0
+                        ? 'bg-gray-800 text-gray-300'
+                        : comp.timePerDayDeltaMinutes > 0
+                        ? 'bg-electric-purple/20 text-electric-purple'
+                        : 'bg-neon-green/20 text-neon-green'
+                    }`}>
+                      {comp.timePerDayLabel}
+                    </span>
+                  </div>
+                  <p className="text-secondary-text text-[11px]">
+                    {comp.factualSummary}
+                  </p>
+                  {comp.sharedEquipment.length > 0 && (
+                    <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
+                      <span className="font-semibold text-gray-300">Shared Gear:</span>
+                      <span className="capitalize">{comp.sharedEquipment.join(', ')}</span>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
 
             <div className="grid sm:grid-cols-2 gap-4">
               {/* Plan A */}
