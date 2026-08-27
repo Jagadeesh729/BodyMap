@@ -2,6 +2,7 @@ import React from 'react'
 import { X, RefreshCw, CheckCircle2, Dumbbell, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getExerciseAlternatives, type ExerciseAlternative } from '@/lib/exerciseSubstitution'
+import { getMovementPattern } from '@/lib/movementPatterns'
 
 interface ExerciseSubstitutionModalProps {
   currentExerciseName: string
@@ -38,9 +39,14 @@ export const ExerciseSubstitutionModal: React.FC<ExerciseSubstitutionModalProps>
               <h2 className="text-lg font-poppins font-bold text-primary-text">
                 Substitute Exercise
               </h2>
-              <p className="text-xs text-secondary-text font-open-sans truncate max-w-xs sm:max-w-sm">
-                Replacing: <strong className="text-neon-green font-semibold">{currentExerciseName}</strong>
-              </p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <p className="text-xs text-secondary-text font-open-sans truncate max-w-xs sm:max-w-sm">
+                  Replacing: <strong className="text-neon-green font-semibold">{currentExerciseName}</strong>
+                </p>
+                <span className="text-[10px] font-mono px-2 py-0.2 rounded bg-gray-800 text-gray-300 border border-gray-700 font-medium">
+                  {getMovementPattern(currentExerciseName).pattern}
+                </span>
+              </div>
             </div>
           </div>
           <button
@@ -79,9 +85,14 @@ export const ExerciseSubstitutionModal: React.FC<ExerciseSubstitutionModalProps>
                   <h3 className="font-poppins font-semibold text-primary-text text-sm sm:text-base group-hover:text-neon-green transition-colors">
                     {alt.name}
                   </h3>
-                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 bg-electric-purple/20 text-electric-purple rounded border border-electric-purple/40 shrink-0">
-                    {alt.equipment}
-                  </span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-gray-800 text-gray-300 border border-gray-700 font-medium">
+                      {getMovementPattern(alt.name).pattern}
+                    </span>
+                    <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 bg-electric-purple/20 text-electric-purple rounded border border-electric-purple/40">
+                      {alt.equipment}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="mt-2 space-y-1 text-xs">

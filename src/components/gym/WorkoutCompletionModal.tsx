@@ -9,6 +9,8 @@ interface WorkoutCompletionModalProps {
   totalExercises: number
   totalSetsCompleted: number
   totalVolumeKg?: number
+  workloadDensityKgPerMin?: number
+  sessionPRs?: string[]
   comparisonSummary?: string
   recoveryAdvice?: string
   onViewPlan: () => void
@@ -22,6 +24,8 @@ export const WorkoutCompletionModal: React.FC<WorkoutCompletionModalProps> = ({
   totalExercises,
   totalSetsCompleted,
   totalVolumeKg,
+  workloadDensityKgPerMin,
+  sessionPRs = [],
   comparisonSummary,
   recoveryAdvice,
   onViewPlan,
@@ -83,9 +87,30 @@ export const WorkoutCompletionModal: React.FC<WorkoutCompletionModalProps> = ({
                 <Flame className="w-3 h-3 text-neon-green" /> Volume
               </div>
               <p className="text-base sm:text-lg font-poppins font-bold text-neon-green">{totalVolumeKg} <span className="text-[11px] font-normal text-secondary-text">kg</span></p>
+              {workloadDensityKgPerMin !== undefined && workloadDensityKgPerMin > 0 && (
+                <span className="text-[10px] text-gray-500 font-mono block mt-0.5">
+                  ~{workloadDensityKgPerMin} kg/min
+                </span>
+              )}
             </div>
           )}
         </div>
+
+        {/* Session PRs Celebration Banner */}
+        {sessionPRs.length > 0 && (
+          <div className="p-3 bg-neon-green/10 rounded-xl border border-neon-green/30 text-left text-xs">
+            <span className="text-[11px] font-poppins font-bold uppercase tracking-wider text-neon-green block mb-1">
+              🏆 New Personal Records Achieved!
+            </span>
+            <div className="flex flex-wrap gap-1.5 font-mono text-[11px]">
+              {sessionPRs.map((pr, idx) => (
+                <span key={idx} className="px-2 py-0.5 rounded bg-neon-green/20 text-neon-green border border-neon-green/40 font-semibold">
+                  {pr}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Smart Coach Debrief Breakdown */}
         {(comparisonSummary || recoveryAdvice) && (

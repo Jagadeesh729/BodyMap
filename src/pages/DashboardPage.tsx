@@ -54,6 +54,8 @@ import { calculateWorkloadDensity, type WorkloadDensityMetrics } from '@/lib/wor
 import { calculateTimeSinceLastWorkout } from '@/lib/recoveryReadiness'
 import { calculate7DayTrainingStrain, type TrainingStrainResult } from '@/lib/trainingStrain'
 import { calculateWeeklyMuscleFrequency } from '@/lib/muscleFrequencyMatrix'
+import { calculateDeloadAdvisory } from '@/lib/deloadRecommender'
+import { calculateAdherenceTier } from '@/lib/adherenceTiers'
 import { DEFAULT_WEEKLY_PLAN } from '@/types/plan'
 
 const DashboardPage: React.FC = () => {
@@ -171,6 +173,12 @@ const DashboardPage: React.FC = () => {
   const muscleFrequency = useMemo(() => {
     return calculateWeeklyMuscleFrequency(DEFAULT_WEEKLY_PLAN)
   }, [])
+  const deloadAdvisory = useMemo(() => {
+    return calculateDeloadAdvisory(workoutHistory)
+  }, [workoutHistory])
+  const adherenceTier = useMemo(() => {
+    return calculateAdherenceTier(workoutHistory)
+  }, [workoutHistory])
 
   const handleAddWeight = (e: React.FormEvent) => {
     e.preventDefault()
@@ -427,16 +435,21 @@ const DashboardPage: React.FC = () => {
 
         {/* 28-Day Training Consistency & Adherence Heatmap */}
         <div className="card-dark">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+            <div className="flex items-center gap-2.5">
               <Calendar className="w-5 h-5 text-neon-green" />
               <h2 className="text-base sm:text-lg font-poppins font-semibold text-primary-text">
                 28-Day Training Consistency
               </h2>
             </div>
-            <span className="text-xs text-secondary-text">
-              {adherenceCalendar.filter(d => d.isCompleted).length} Active Training Days
-            </span>
+            <div className="flex items-center gap-2">
+              <span className={`text-[11px] font-mono font-semibold px-2.5 py-0.5 rounded border ${adherenceTier.tierColor}`}>
+                {adherenceTier.tierLabel}
+              </span>
+              <span className="text-xs text-secondary-text hidden sm:inline">
+                • {adherenceCalendar.filter(d => d.isCompleted).length} Active Days
+              </span>
+            </div>
           </div>
 
           <div className="grid grid-cols-7 sm:grid-cols-14 lg:grid-cols-28 gap-1.5 pt-2">
@@ -670,6 +683,29 @@ const DashboardPage: React.FC = () => {
                   </span>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Deload Advisory Status */}
+          {deloadAdvisory.hasData && (
+            <div className="mt-3.5 pt-3.5 border-t border-gray-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+              <div>
+                <span className="text-[11px] font-poppins font-bold uppercase tracking-wider text-bright-coral block">
+                  Deload &amp; Recovery Advisory
+                </span>
+                <span className="text-secondary-text">
+                  {deloadAdvisory.explanation}
+                </span>
+              </div>
+              <span className={`px-2.5 py-1 rounded font-mono text-[11px] font-semibold shrink-0 border ${
+                deloadAdvisory.status === 'deload_recommended'
+                  ? 'bg-bright-coral/20 text-bright-coral border-bright-coral/40'
+                  : deloadAdvisory.status === 'consider_deload'
+                  ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/40'
+                  : 'bg-neon-green/15 text-neon-green border-neon-green/30'
+              }`}>
+                {deloadAdvisory.tierLabel}
+              </span>
             </div>
           )}
         </div>

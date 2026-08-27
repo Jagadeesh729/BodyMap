@@ -55,6 +55,7 @@ import { extractPreviousSetPerformance } from '@/lib/exerciseSetProgress'
 import { getRecommendedRepTempo } from '@/lib/setTempoGuidance'
 import { calculateRIRFromRPE } from '@/lib/rpePacingEngine'
 import { getStandardWorkoutTags, toggleTagInNote } from '@/lib/workoutTagTaxonomy'
+import { calculateSessionDebrief } from '@/lib/sessionDebrief'
 import { playTimerChime, triggerVibration } from '@/lib/audioCues'
 import { RestTimerOverlay } from '@/components/gym/RestTimerOverlay'
 import { ExerciseSubstitutionModal } from '@/components/gym/ExerciseSubstitutionModal'
@@ -1299,6 +1300,28 @@ export const GymModePage: React.FC = () => {
         const comparison = compareWorkoutWithPrevious(session.dayIndex, volumeMetrics.totalVolumeKg, history)
         const recoveryAdvice = generateRecoveryAdvice(session.elapsedSeconds, totalSetsCompleted, volumeMetrics)
 
+        const convertedSession: WorkoutSession = {
+          id: session.sessionId,
+          dayIndex: session.dayIndex,
+          dayTitle: session.dayTitle,
+          startedAt: session.startedAt,
+          completedAt: Date.now(),
+          durationSeconds: session.elapsedSeconds,
+          status: 'completed',
+          exercises: session.exercises.map(ex => ({
+            name: ex.name,
+            focus: ex.focus,
+            sets: ex.sets.map((s, idx) => ({
+              setNumber: idx + 1,
+              targetReps: s.targetReps || '10',
+              weight: s.weightKg,
+              reps: s.actualReps || 0,
+              completed: s.completed
+            }))
+          }))
+        }
+        const debrief = calculateSessionDebrief(convertedSession)
+
         return (
           <WorkoutCompletionModal
             dayTitle={session.dayTitle}
@@ -1307,6 +1330,7 @@ export const GymModePage: React.FC = () => {
             totalExercises={totalExercises}
             totalSetsCompleted={totalSetsCompleted}
             totalVolumeKg={volumeMetrics.totalVolumeKg}
+            workloadDensityKgPerMin={debrief.workloadDensityKgPerMin}
             comparisonSummary={comparison.summaryText}
             recoveryAdvice={recoveryAdvice}
             onViewPlan={() => {
