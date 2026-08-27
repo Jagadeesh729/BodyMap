@@ -45,6 +45,7 @@ import {
   deleteSavedPlan
 } from '@/lib/savedPlansStorage'
 import { compareSavedPlans } from '@/lib/planComparisonEngine'
+import { calculateGoalProgress } from '@/lib/goalProgressEngine'
 import type { BodyMeasurementEntry, MetricUnit } from '@/types/bodyMetrics'
 import {
   loadBodyMetrics,
@@ -175,6 +176,9 @@ const DashboardPage: React.FC = () => {
 
   const currentWeightNum = chartData[chartData.length - 1].weight
   const weightChange = Number((currentWeightNum - initialWeightNum).toFixed(1))
+  const goalProgress = useMemo(() => {
+    return calculateGoalProgress(initialWeightNum, currentWeightNum, targetWeightNum, sortedWeightLog)
+  }, [initialWeightNum, currentWeightNum, targetWeightNum, sortedWeightLog])
   const completedWorkoutsCount = Math.max(completedDays.length, workoutHistory.length)
   const currentStreak = calculateWorkoutStreak(workoutHistory, completedDays)
   const metricDeltas = useMemo(() => calculateBodyMetricDeltas(bodyMetrics, metricUnit), [bodyMetrics, metricUnit])
@@ -432,18 +436,22 @@ const DashboardPage: React.FC = () => {
             </p>
           </div>
 
-          <div className="card-dark p-4 sm:p-5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-poppins font-bold uppercase tracking-wider text-secondary-text">Weight Delta</span>
-              <TrendingUp className="w-4 h-4 text-electric-purple" />
+          <div className="card-dark p-4 sm:p-5 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-poppins font-bold uppercase tracking-wider text-secondary-text">Weight Delta</span>
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-electric-purple/20 text-electric-purple border border-electric-purple/30">
+                  {goalProgress.progressPercent}% Goal
+                </span>
+              </div>
+              <p className={`text-2xl sm:text-3xl font-poppins font-bold mt-2 ${
+                weightChange <= 0 ? 'text-neon-green' : 'text-bright-coral'
+              }`}>
+                {weightChange > 0 ? `+${weightChange}` : weightChange} <span className="text-sm font-normal text-secondary-text">kg</span>
+              </p>
             </div>
-            <p className={`text-2xl sm:text-3xl font-poppins font-bold mt-2 ${
-              weightChange <= 0 ? 'text-neon-green' : 'text-bright-coral'
-            }`}>
-              {weightChange > 0 ? `+${weightChange}` : weightChange} <span className="text-sm font-normal text-secondary-text">kg</span>
-            </p>
             <p className="text-xs text-secondary-text mt-1">
-              Target: {targetWeightNum} kg
+              Target: {targetWeightNum} kg ({goalProgress.remainingKg > 0 ? `${goalProgress.remainingKg} kg left` : 'Achieved!'})
             </p>
           </div>
 
