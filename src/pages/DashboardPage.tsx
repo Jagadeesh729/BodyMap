@@ -46,6 +46,7 @@ import {
 } from '@/lib/savedPlansStorage'
 import { compareSavedPlans } from '@/lib/planComparisonEngine'
 import { calculateGoalProgress } from '@/lib/goalProgressEngine'
+import { calculateGoalTrajectory } from '@/lib/goalTrajectoryEngine'
 import type { BodyMeasurementEntry, MetricUnit } from '@/types/bodyMetrics'
 import {
   loadBodyMetrics,
@@ -180,6 +181,9 @@ const DashboardPage: React.FC = () => {
   const goalProgress = useMemo(() => {
     return calculateGoalProgress(initialWeightNum, currentWeightNum, targetWeightNum, sortedWeightLog)
   }, [initialWeightNum, currentWeightNum, targetWeightNum, sortedWeightLog])
+  const goalTrajectory = useMemo(() => {
+    return calculateGoalTrajectory(initialWeightNum, currentWeightNum, targetWeightNum)
+  }, [initialWeightNum, currentWeightNum, targetWeightNum])
   const completedWorkoutsCount = Math.max(completedDays.length, workoutHistory.length)
   const currentStreak = calculateWorkoutStreak(workoutHistory, completedDays)
   const metricDeltas = useMemo(() => calculateBodyMetricDeltas(bodyMetrics, metricUnit), [bodyMetrics, metricUnit])
@@ -456,6 +460,11 @@ const DashboardPage: React.FC = () => {
             </div>
             <p className="text-xs text-secondary-text mt-1">
               Target: {targetWeightNum} kg ({goalProgress.remainingKg > 0 ? `${goalProgress.remainingKg} kg left` : 'Achieved!'})
+              {goalProgress.remainingKg > 0 && goalTrajectory.milestoneCheckpoints.find(m => m.milestonePercent > goalProgress.progressPercent) && (
+                <span className="block text-[10px] text-gray-400 font-mono mt-0.5">
+                  Next checkpoint: {goalTrajectory.milestoneCheckpoints.find(m => m.milestonePercent > goalProgress.progressPercent)?.label}
+                </span>
+              )}
             </p>
           </div>
 
