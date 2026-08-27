@@ -4,6 +4,23 @@ import type { PlanState } from '@/context/PlanContext'
 export const SAVED_PLANS_STORAGE_KEY = 'bodymap_saved_plans'
 
 /**
+ * Normalizes an array of tags: trims, removes duplicates, enforces reasonable limit.
+ */
+export function normalizePlanTags(rawTags?: unknown): string[] {
+  if (!Array.isArray(rawTags)) return []
+  const unique = new Set<string>()
+  for (const t of rawTags) {
+    if (typeof t === 'string') {
+      const clean = t.trim().replace(/^#+/, '').slice(0, 30)
+      if (clean.length > 0) {
+        unique.add(clean.toLowerCase())
+      }
+    }
+  }
+  return Array.from(unique).slice(0, 8)
+}
+
+/**
  * Loads all saved plans from local storage with corruption recovery and safe schema validation.
  */
 export function loadSavedPlans(): SavedPlan[] {
@@ -36,6 +53,8 @@ export function loadSavedPlans(): SavedPlan[] {
           createdAt: item.createdAt,
           updatedAt: typeof item.updatedAt === 'string' ? item.updatedAt : item.createdAt,
           isArchived: Boolean(item.isArchived),
+          tags: normalizePlanTags(item.tags),
+          notes: typeof item.notes === 'string' ? item.notes.slice(0, 1000) : undefined,
           planState: {
             formData: item.planState.formData || {},
             generatedPlan: typeof item.planState.generatedPlan === 'string' ? item.planState.generatedPlan : '',
@@ -75,7 +94,12 @@ export function persistSavedPlans(plans: SavedPlan[]): boolean {
 /**
  * Saves a new plan to the local library.
  */
-export function savePlanToLibrary(name: string, planState: PlanState): SavedPlan {
+export function savePlanToLibrary(
+  name: string,
+  planState: PlanState,
+  tags?: string[],
+  notes?: string
+): SavedPlan {
   const currentPlans = loadSavedPlans()
   const now = new Date().toISOString()
   const newPlan: SavedPlan = {
@@ -84,6 +108,8 @@ export function savePlanToLibrary(name: string, planState: PlanState): SavedPlan
     createdAt: now,
     updatedAt: now,
     isArchived: false,
+    tags: normalizePlanTags(tags),
+    notes: typeof notes === 'string' ? notes.trim().slice(0, 1000) : undefined,
     planState: {
       formData: { ...planState.formData },
       generatedPlan: planState.generatedPlan,
@@ -96,6 +122,20 @@ export function savePlanToLibrary(name: string, planState: PlanState): SavedPlan
   const updatedPlans = [newPlan, ...currentPlans]
   persistSavedPlans(updatedPlans)
   return newPlan
+}
+
+/**
+ * Updates tags and notes for an existing saved plan.
+ */
+export function updatePlanNotesAndTags(id: string, tags: string[], notes: string): boolean {
+  const currentPlans = loadSavedPlans()
+  const index = currentPlans.findIndex(p => p.id === id)
+  if (index === -1) return false
+
+  currentPlans[index].tags = normalizePlanTags(tags)
+  currentPlans[index].notes = notes.trim().slice(0, 1000)
+  currentPlans[index].updatedAt = new Date().toISOString()
+  return persistSavedPlans(currentPlans)
 }
 
 /**
@@ -126,6 +166,8 @@ export function duplicateSavedPlan(id: string): SavedPlan | null {
     name: `${target.name} (Copy)`,
     createdAt: now,
     updatedAt: now,
+    tags: target.tags ? [...target.tags] : [],
+    notes: target.notes,
     planState: JSON.parse(JSON.stringify(target.planState))
   }
 

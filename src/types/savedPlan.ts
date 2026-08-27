@@ -6,5 +6,7 @@ export interface SavedPlan {
   createdAt: string
   updatedAt: string
   isArchived?: boolean
+  tags?: string[]
+  notes?: string
   planState: PlanState
 }

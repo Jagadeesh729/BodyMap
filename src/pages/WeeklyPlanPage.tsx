@@ -35,6 +35,7 @@ import {
   type FoodAlternative,
   type GroceryCategoryGroup
 } from '@/lib/nutritionAlternatives'
+import { estimateDailyMacros, type DailyMacroEstimate } from '@/lib/macroEstimator'
 
 const WeeklyPlanPage: React.FC = () => {
   const { state, dispatch } = usePlan()
@@ -177,6 +178,10 @@ const WeeklyPlanPage: React.FC = () => {
     return findMealAlternatives(selectedMealForSwap.text, state.formData.dietaryPreference || 'all')
   }, [selectedMealForSwap, state.formData.dietaryPreference])
 
+  const dailyMacros: DailyMacroEstimate = useMemo(() => {
+    return estimateDailyMacros(state.formData.weight, state.formData.mainGoal)
+  }, [state.formData.weight, state.formData.mainGoal])
+
   return (
     <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8 bg-bodymap-dark text-primary-text">
       <div className="max-w-6xl mx-auto">
@@ -277,6 +282,32 @@ const WeeklyPlanPage: React.FC = () => {
               </div>
             )
           })()}
+
+          {/* Daily Macro Target Breakdown */}
+          {dailyMacros.hasData && (
+            <div className="mt-3.5 pt-3.5 border-t border-gray-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2">
+                <Flame className="w-4 h-4 text-neon-green" />
+                <span className="font-poppins font-semibold text-primary-text">
+                  Daily Macro Target: ~{dailyMacros.totalKcal} kcal
+                </span>
+                <span className="text-[10px] text-gray-500 hidden sm:inline">
+                  (Estimated from goal &amp; weight)
+                </span>
+              </div>
+              <div className="flex items-center gap-2 font-mono text-[11px]">
+                <span className="px-2 py-0.5 rounded bg-electric-purple/20 text-electric-purple border border-electric-purple/30 font-semibold">
+                  P: {dailyMacros.proteinGrams}g
+                </span>
+                <span className="px-2 py-0.5 rounded bg-bright-coral/20 text-bright-coral border border-bright-coral/30 font-semibold">
+                  C: {dailyMacros.carbGrams}g
+                </span>
+                <span className="px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 font-semibold">
+                  F: {dailyMacros.fatGrams}g
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Action Buttons Toolbar */}

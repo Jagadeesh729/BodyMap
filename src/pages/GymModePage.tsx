@@ -42,6 +42,11 @@ import {
   compareWorkoutWithPrevious,
   generateRecoveryAdvice
 } from '@/lib/smartCoach'
+import {
+  getExerciseNote,
+  saveExerciseNote,
+  deleteExerciseNote
+} from '@/lib/exerciseNotesStorage'
 import { playTimerChime, triggerVibration } from '@/lib/audioCues'
 import { RestTimerOverlay } from '@/components/gym/RestTimerOverlay'
 import { ExerciseSubstitutionModal } from '@/components/gym/ExerciseSubstitutionModal'
@@ -240,6 +245,33 @@ export const GymModePage: React.FC = () => {
       }
     })
   }, [])
+
+  // Exercise Personal Cue Note State
+  const [isEditingNote, setIsEditingNote] = useState(false)
+  const [noteDraft, setNoteDraft] = useState('')
+
+  const currentExerciseNote = useMemo(() => {
+    return currentExercise ? getExerciseNote(currentExercise.name) : null
+  }, [currentExercise])
+
+  const handleStartEditNote = () => {
+    setNoteDraft(currentExerciseNote || '')
+    setIsEditingNote(true)
+  }
+
+  const handleSaveNote = () => {
+    if (currentExercise) {
+      saveExerciseNote(currentExercise.name, noteDraft)
+    }
+    setIsEditingNote(false)
+  }
+
+  const handleDeleteNote = () => {
+    if (currentExercise) {
+      deleteExerciseNote(currentExercise.name)
+    }
+    setIsEditingNote(false)
+  }
 
   // Update Completed Reps / Weight
   const handleUpdateSetReps = (setIndex: number, delta: number) => {
@@ -744,6 +776,63 @@ export const GymModePage: React.FC = () => {
               )}
             </div>
           )}
+
+          {/* Personal Cue / Athlete Form Note */}
+          <div className="mt-3 p-3 bg-bodymap-dark/80 rounded-lg border border-gray-800 text-xs">
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <span className="text-[11px] font-poppins font-bold uppercase tracking-wider text-bright-coral">
+                Personal Cue
+              </span>
+              {!isEditingNote && (
+                <button
+                  onClick={handleStartEditNote}
+                  className="text-[11px] text-gray-400 hover:text-bright-coral font-medium transition-colors"
+                >
+                  {currentExerciseNote ? 'Edit Cue' : '+ Add Private Note'}
+                </button>
+              )}
+            </div>
+
+            {isEditingNote ? (
+              <div className="space-y-2 mt-2">
+                <input
+                  type="text"
+                  value={noteDraft}
+                  onChange={(e) => setNoteDraft(e.target.value)}
+                  placeholder="e.g. Bench pin hole 4, feet slightly wider..."
+                  className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-xs text-primary-text focus:outline-none focus:border-bright-coral"
+                  maxLength={500}
+                  autoFocus
+                />
+                <div className="flex items-center justify-end gap-2">
+                  {currentExerciseNote && (
+                    <button
+                      onClick={handleDeleteNote}
+                      className="px-2 py-1 rounded text-red-400 hover:bg-red-950/40 text-[11px] font-medium mr-auto"
+                    >
+                      Delete
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setIsEditingNote(false)}
+                    className="px-2.5 py-1 rounded bg-gray-800 hover:bg-gray-700 text-secondary-text text-[11px] font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveNote}
+                    className="px-2.5 py-1 rounded bg-bright-coral hover:bg-bright-coral/90 text-bodymap-dark font-bold text-[11px]"
+                  >
+                    Save Note
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-secondary-text text-xs italic">
+                {currentExerciseNote || 'No private notes saved for this movement yet.'}
+              </p>
+            )}
+          </div>
         </section>
 
         {/* Big Touch-Friendly Set Logger */}

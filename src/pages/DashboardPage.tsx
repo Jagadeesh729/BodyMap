@@ -47,6 +47,7 @@ import {
 } from '@/lib/bodyMetricsStorage'
 import { calculateMilestones, type Milestone } from '@/lib/milestoneTracker'
 import { extractPersonalRecords, type PersonalRecord } from '@/lib/personalRecords'
+import { calculateVolumeAnalytics, type VolumeAnalyticsResult } from '@/lib/volumeAnalytics'
 
 const DashboardPage: React.FC = () => {
   const { state, dispatch } = usePlan()
@@ -144,6 +145,9 @@ const DashboardPage: React.FC = () => {
   }, [workoutHistory, completedDays, currentStreak, savedPlans])
   const personalRecords: PersonalRecord[] = useMemo(() => {
     return extractPersonalRecords(workoutHistory)
+  }, [workoutHistory])
+  const volumeAnalytics: VolumeAnalyticsResult = useMemo(() => {
+    return calculateVolumeAnalytics(workoutHistory)
   }, [workoutHistory])
 
   const handleAddWeight = (e: React.FormEvent) => {
@@ -475,6 +479,55 @@ const DashboardPage: React.FC = () => {
           )}
         </div>
 
+        {/* Weekly Muscle Focus & Volume Analytics Section */}
+        <div className="card-dark">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2.5">
+              <Layers className="w-5 h-5 text-electric-purple" />
+              <h2 className="text-base sm:text-lg font-poppins font-semibold text-primary-text">
+                Muscle Focus &amp; Weighted Volume
+              </h2>
+            </div>
+            <span className="text-xs text-secondary-text">
+              {volumeAnalytics.totalWeightedVolumeKg.toLocaleString()} kg Total Weighted Load
+            </span>
+          </div>
+
+          {volumeAnalytics.hasData ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              {volumeAnalytics.focusBreakdown.map((item) => (
+                <div
+                  key={item.category}
+                  className="p-3 bg-bodymap-dark rounded-xl border border-gray-800 flex flex-col justify-between"
+                >
+                  <div>
+                    <span className="text-xs font-poppins font-bold text-electric-purple block">
+                      {item.category}
+                    </span>
+                    <span className="text-[11px] text-secondary-text block mt-0.5">
+                      {item.totalSets} completed sets
+                    </span>
+                  </div>
+                  <div className="mt-2 pt-2 border-t border-gray-800/80 flex items-baseline justify-between">
+                    <span className="text-sm font-poppins font-bold text-primary-text">
+                      {item.weightedVolumeKg > 0 ? `${item.weightedVolumeKg} kg` : 'Bodyweight'}
+                    </span>
+                    {item.percentageOfVolume > 0 && (
+                      <span className="text-[10px] font-semibold text-neon-green">
+                        {item.percentageOfVolume}%
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-secondary-text text-center bg-bodymap-dark/50 p-4 rounded-xl border border-dashed border-gray-800">
+              No workout volume recorded yet. Complete exercises in Gym Mode to view your muscle group volume attribution.
+            </p>
+          )}
+        </div>
+
         {/* Charts & Body Composition Grid */}
         <div className="grid lg:grid-cols-2 gap-8">
           
@@ -679,9 +732,19 @@ const DashboardPage: React.FC = () => {
                     <h3 className="font-poppins font-bold text-sm text-primary-text truncate mb-1">
                       {plan.name}
                     </h3>
-                    <p className="text-xs text-secondary-text mb-3">
+                    <p className="text-xs text-secondary-text mb-2">
                       {plan.planState.formData.fitnessLevel || 'Intermediate'} &bull; {plan.planState.formData.timePerDay || '45'} mins/day
                     </p>
+
+                    {plan.tags && plan.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-3">
+                        {plan.tags.map(tag => (
+                          <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
+                            #{tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center justify-between gap-2 pt-3 border-t border-gray-800">

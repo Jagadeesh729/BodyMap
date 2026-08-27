@@ -7,6 +7,8 @@ import {
   deleteSavedPlan,
   archiveSavedPlan,
   clearSavedPlans,
+  normalizePlanTags,
+  updatePlanNotesAndTags,
   SAVED_PLANS_STORAGE_KEY
 } from '@/lib/savedPlansStorage'
 import type { PlanState } from '@/context/PlanContext'
@@ -117,5 +119,20 @@ describe('Multi-Plan Library Storage Suite', () => {
     const all = loadSavedPlans()
     expect(all.length).toBe(1)
     expect(all[0].id).toBe('valid_1')
+  })
+
+  it('normalizes tags and updates plan tags and notes safely', () => {
+    expect(normalizePlanTags(['#Hypertrophy', '  travel  ', '#hypertrophy', ''])).toEqual(['hypertrophy', 'travel'])
+
+    const plan = savePlanToLibrary('Custom Split', mockPlanState, ['#strength'], 'Primary strength block')
+    expect(plan.tags).toEqual(['strength'])
+    expect(plan.notes).toBe('Primary strength block')
+
+    const success = updatePlanNotesAndTags(plan.id, ['powerlifting', '#deload'], 'Use 80% 1RM')
+    expect(success).toBe(true)
+
+    const updated = loadSavedPlans().find(p => p.id === plan.id)
+    expect(updated?.tags).toEqual(['powerlifting', 'deload'])
+    expect(updated?.notes).toBe('Use 80% 1RM')
   })
 })
