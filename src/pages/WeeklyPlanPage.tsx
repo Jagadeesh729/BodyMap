@@ -18,7 +18,8 @@ import {
   ShoppingCart,
   Utensils,
   RefreshCw,
-  X
+  X,
+  Flame
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/hooks/use-toast'
