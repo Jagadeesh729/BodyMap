@@ -28,6 +28,7 @@ import { BodyMapLogo } from '@/components/BodyMapLogo'
 import { exportBackupToFile, validateAndParseBackup, restoreBackupData, generateBackupPayload } from '@/lib/backupStorage'
 import { validateBackupPayload } from '@/lib/backupIntegrity'
 import { analyzeBackupDiagnostics } from '@/lib/backupDiagnostics'
+import { generateVaultManifest } from '@/lib/vaultManifestEngine'
 
 const DownloadPlanPage = () => {
   const { state } = usePlan()
@@ -369,13 +370,23 @@ const DownloadPlanPage = () => {
               try {
                 const currentPayload = generateBackupPayload()
                 const diag = analyzeBackupDiagnostics(currentPayload)
+                const manifest = generateVaultManifest(currentPayload)
                 return (
                   <div className="pt-3 border-t border-gray-800/80 flex flex-wrap items-center justify-between gap-2 text-xs text-secondary-text">
                     <div className="flex items-center gap-2">
                       <Activity className="w-3.5 h-3.5 text-neon-green" />
-                      <span className="font-semibold text-gray-300">Vault Status:</span>
+                      <span className="font-semibold text-gray-300">Vault Manifest:</span>
                       <span className="text-neon-green font-mono text-[11px]">
-                        {diag.totalRecords} records stored (~{Math.max(1, Math.round(diag.totalEstimatedBytes / 1024))} KB)
+                        {diag.totalRecords} records (~{Math.max(1, Math.round(diag.totalEstimatedBytes / 1024))} KB)
+                      </span>
+                      <span className={`text-[10px] font-mono px-2 py-0.2 rounded font-semibold uppercase ${
+                        manifest.vaultHealthStatus === 'optimal'
+                          ? 'bg-neon-green/20 text-neon-green border border-neon-green/30'
+                          : manifest.vaultHealthStatus === 'moderate'
+                          ? 'bg-electric-purple/20 text-electric-purple border border-electric-purple/30'
+                          : 'bg-bright-coral/20 text-bright-coral border border-bright-coral/30'
+                      }`}>
+                        {manifest.vaultHealthStatus}
                       </span>
                     </div>
                     <div className="flex flex-wrap gap-2 text-[11px] font-mono text-gray-400">
