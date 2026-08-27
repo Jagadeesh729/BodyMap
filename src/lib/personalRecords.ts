@@ -1,6 +1,8 @@
 import type { CompletedWorkoutLog } from '@/types/workoutSession'
 import { normalizeExerciseName } from '@/lib/progressionEngine'
 
+export { normalizeExerciseName }
+
 export interface PersonalRecord {
   id: string
   exerciseName: string

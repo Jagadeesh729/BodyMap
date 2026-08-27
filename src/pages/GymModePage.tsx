@@ -48,6 +48,8 @@ import {
   deleteExerciseNote
 } from '@/lib/exerciseNotesStorage'
 import { generateWarmupProtocol } from '@/lib/warmupProtocol'
+import { calculateRecommendedRestSeconds } from '@/lib/restIntervalEngine'
+import { extractPersonalRecords, normalizeExerciseName } from '@/lib/personalRecords'
 import { playTimerChime, triggerVibration } from '@/lib/audioCues'
 import { RestTimerOverlay } from '@/components/gym/RestTimerOverlay'
 import { ExerciseSubstitutionModal } from '@/components/gym/ExerciseSubstitutionModal'
@@ -265,6 +267,18 @@ export const GymModePage: React.FC = () => {
   const warmupProtocol = useMemo(() => {
     return generateWarmupProtocol(targetWorkingWeight)
   }, [targetWorkingWeight])
+
+  const recommendedRest = useMemo(() => {
+    return calculateRecommendedRestSeconds(currentExercise?.name || '', targetWorkingWeight ? 8 : 10)
+  }, [currentExercise, targetWorkingWeight])
+
+  const currentExercisePr = useMemo(() => {
+    if (!currentExercise) return null
+    const history = loadWorkoutHistory()
+    const allPrs = extractPersonalRecords(history)
+    const norm = normalizeExerciseName(currentExercise.name)
+    return allPrs.find(p => normalizeExerciseName(p.exerciseName) === norm) || null
+  }, [currentExercise])
 
   const handleStartEditNote = () => {
     setNoteDraft(currentExerciseNote || '')
@@ -745,6 +759,18 @@ export const GymModePage: React.FC = () => {
               <p className="text-xs sm:text-sm text-secondary-text mt-1">
                 Target Focus: <strong className="text-electric-purple font-semibold">{currentExercise?.focus}</strong>
               </p>
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-[11px] text-secondary-text">
+                  ⏱️ Recommended Rest: <strong className="text-neon-green font-semibold">{recommendedRest.recommendedRestSeconds}s</strong> ({recommendedRest.rangeLabel})
+                </span>
+                <button
+                  onClick={() => handleSetRestDuration(recommendedRest.recommendedRestSeconds)}
+                  className="px-2 py-0.5 rounded bg-gray-800 hover:bg-gray-700 text-[10px] font-mono text-neon-green border border-gray-700 transition-colors"
+                  title="Set rest timer to recommended duration"
+                >
+                  Sync Timer
+                </button>
+              </div>
             </div>
 
             <Button
@@ -934,6 +960,11 @@ export const GymModePage: React.FC = () => {
                 <span className="font-poppins font-semibold text-sm">
                   SET {set.setIndex}
                 </span>
+                {set.weightKg && currentExercisePr && set.weightKg > currentExercisePr.value && (
+                  <span className="hidden sm:inline-block px-2 py-0.5 rounded bg-bright-coral/20 text-bright-coral border border-bright-coral/40 text-[10px] font-poppins font-bold animate-pulse">
+                    🎯 PR Attempt (+{(set.weightKg - currentExercisePr.value).toFixed(1)} kg)
+                  </span>
+                )}
               </div>
 
               {/* Reps Stepper */}

@@ -50,6 +50,7 @@ import { extractPersonalRecords, type PersonalRecord } from '@/lib/personalRecor
 import { calculateVolumeAnalytics, type VolumeAnalyticsResult } from '@/lib/volumeAnalytics'
 import { calculateEstimated1RM } from '@/lib/oneRepMax'
 import { generate28DayAdherenceCalendar, type AdherenceDayCell } from '@/lib/adherenceCalendar'
+import { calculateWorkloadDensity, type WorkloadDensityMetrics } from '@/lib/workloadIntensity'
 
 const DashboardPage: React.FC = () => {
   const { state, dispatch } = usePlan()
@@ -153,6 +154,9 @@ const DashboardPage: React.FC = () => {
   }, [workoutHistory])
   const adherenceCalendar: AdherenceDayCell[] = useMemo(() => {
     return generate28DayAdherenceCalendar(workoutHistory)
+  }, [workoutHistory])
+  const latestWorkloadDensity: WorkloadDensityMetrics = useMemo(() => {
+    return calculateWorkloadDensity(workoutHistory[0])
   }, [workoutHistory])
 
   const handleAddWeight = (e: React.FormEvent) => {
@@ -575,6 +579,28 @@ const DashboardPage: React.FC = () => {
             <p className="text-xs text-secondary-text text-center bg-bodymap-dark/50 p-4 rounded-xl border border-dashed border-gray-800">
               No workout volume recorded yet. Complete exercises in Gym Mode to view your muscle group volume attribution.
             </p>
+          )}
+
+          {/* Workload Density & Session Efficiency Metrics */}
+          {latestWorkloadDensity.hasData && (
+            <div className="mt-4 pt-3.5 border-t border-gray-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+              <div>
+                <span className="text-[11px] font-poppins font-bold uppercase tracking-wider text-neon-green block">
+                  Latest Session Density &amp; Pacing
+                </span>
+                <span className="text-secondary-text">
+                  {latestWorkloadDensity.explanation}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 font-mono text-[11px] shrink-0">
+                <span className="px-2.5 py-1 rounded bg-neon-green/20 text-neon-green border border-neon-green/40 font-semibold">
+                  ~{latestWorkloadDensity.densityKgPerMin} kg/min
+                </span>
+                <span className="px-2.5 py-1 rounded bg-electric-purple/20 text-electric-purple border border-electric-purple/40 font-semibold">
+                  ~{latestWorkloadDensity.setsPerHour} sets/hr
+                </span>
+              </div>
+            </div>
           )}
         </div>
 

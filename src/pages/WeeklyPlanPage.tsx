@@ -42,6 +42,7 @@ import {
   resetTodayHydration,
   calculateHydrationTarget
 } from '@/lib/hydrationTracker'
+import { estimateGroceryPackaging } from '@/lib/groceryCostEstimator'
 
 const WeeklyPlanPage: React.FC = () => {
   const { state, dispatch } = usePlan()
@@ -694,6 +695,7 @@ const WeeklyPlanPage: React.FC = () => {
                     <div className="grid sm:grid-cols-2 gap-2">
                       {group.items.map((item) => {
                         const isChecked = Boolean(checkedGroceryItems[item.id])
+                        const pkg = estimateGroceryPackaging(item.name, item.quantity || 100, item.unit || 'g')
                         return (
                           <label
                             key={item.id}
@@ -707,9 +709,16 @@ const WeeklyPlanPage: React.FC = () => {
                               type="checkbox"
                               checked={isChecked}
                               onChange={() => handleToggleGroceryItem(item.id)}
-                              className="w-4 h-4 rounded border-gray-700 text-neon-green focus:ring-neon-green bg-gray-900"
+                              className="w-4 h-4 rounded border-gray-700 text-neon-green focus:ring-neon-green bg-gray-900 shrink-0"
                             />
-                            <span className="text-xs font-medium truncate">{item.name}</span>
+                            <div className="min-w-0 flex-1">
+                              <span className="text-xs font-medium truncate block">{item.name}</span>
+                              {pkg.hasPackageEstimate && !isChecked && (
+                                <span className="text-[10px] text-electric-purple font-mono block mt-0.5">
+                                  📦 {pkg.displayLabel}
+                                </span>
+                              )}
+                            </div>
                           </label>
                         )
                       })}
