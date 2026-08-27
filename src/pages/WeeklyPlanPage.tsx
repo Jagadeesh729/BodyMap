@@ -44,6 +44,7 @@ import {
 } from '@/lib/hydrationTracker'
 import { estimateGroceryPackaging } from '@/lib/groceryCostEstimator'
 import { calculateMicronutrientGuide } from '@/lib/micronutrientGuide'
+import { forecastEnergyBalancePace } from '@/lib/energyBalanceForecaster'
 
 const WeeklyPlanPage: React.FC = () => {
   const { state, dispatch } = usePlan()
@@ -207,6 +208,13 @@ const WeeklyPlanPage: React.FC = () => {
     return calculateMicronutrientGuide(dailyMacros.totalKcal)
   }, [dailyMacros.totalKcal])
 
+  const energyForecast = useMemo(() => {
+    const weightNum = parseFloat(state.formData.weight) || 70
+    // Standard baseline maintenance estimate ~32 kcal/kg
+    const estimatedMaintenance = Math.round(weightNum * 32)
+    return forecastEnergyBalancePace(dailyMacros.totalKcal, estimatedMaintenance)
+  }, [dailyMacros.totalKcal, state.formData.weight])
+
   return (
     <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8 bg-bodymap-dark text-primary-text">
       <div className="max-w-6xl mx-auto">
@@ -333,6 +341,11 @@ const WeeklyPlanPage: React.FC = () => {
                 {micronutrientGuide.hasCalculation && (
                   <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold">
                     Fiber: ~{micronutrientGuide.estimatedFiberGrams}g
+                  </span>
+                )}
+                {energyForecast.hasForecast && (
+                  <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 font-semibold">
+                    {energyForecast.formattedPaceLabel}
                   </span>
                 )}
               </div>

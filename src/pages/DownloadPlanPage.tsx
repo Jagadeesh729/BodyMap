@@ -25,6 +25,7 @@ import { calculateBMI } from '@/lib/bmi'
 import { DEFAULT_WEEKLY_PLAN, type DayPlan } from '@/types/plan'
 import { BodyMapLogo } from '@/components/BodyMapLogo'
 import { exportBackupToFile, validateAndParseBackup, restoreBackupData } from '@/lib/backupStorage'
+import { validateBackupPayload } from '@/lib/backupIntegrity'
 
 const DownloadPlanPage = () => {
   const { state } = usePlan()
@@ -173,6 +174,16 @@ const DownloadPlanPage = () => {
         toast({
           title: 'Import Failed',
           description: parseResult.error,
+          variant: 'destructive'
+        })
+        return
+      }
+
+      const integrity = validateBackupPayload(parseResult.data)
+      if (!integrity.isValid) {
+        toast({
+          title: 'Integrity Check Failed',
+          description: integrity.errors.join(', '),
           variant: 'destructive'
         })
         return

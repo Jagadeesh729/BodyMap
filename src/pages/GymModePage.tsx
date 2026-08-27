@@ -52,6 +52,7 @@ import { calculateRecommendedRestSeconds } from '@/lib/restIntervalEngine'
 import { extractPersonalRecords, normalizeExerciseName } from '@/lib/personalRecords'
 import { calculateBarbellPlates } from '@/lib/plateLoadingCalculator'
 import { extractPreviousSetPerformance } from '@/lib/exerciseSetProgress'
+import { getRecommendedRepTempo } from '@/lib/setTempoGuidance'
 import { playTimerChime, triggerVibration } from '@/lib/audioCues'
 import { RestTimerOverlay } from '@/components/gym/RestTimerOverlay'
 import { ExerciseSubstitutionModal } from '@/components/gym/ExerciseSubstitutionModal'
@@ -291,6 +292,10 @@ export const GymModePage: React.FC = () => {
     const history = loadWorkoutHistory()
     return extractPreviousSetPerformance(currentExercise.name, history)
   }, [currentExercise])
+
+  const tempoGuidance = useMemo(() => {
+    return getRecommendedRepTempo(state.formData.mainGoal, currentExercise?.focus)
+  }, [state.formData.mainGoal, currentExercise])
 
   const handleStartEditNote = () => {
     setNoteDraft(currentExerciseNote || '')
@@ -798,6 +803,13 @@ export const GymModePage: React.FC = () => {
                   <span className="text-gray-400">📊 {previousSetPerformance.formattedSummary}</span>
                 </div>
               )}
+
+              {/* Repetition Tempo Reference */}
+              <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-gray-400">
+                <span>🎯 Suggested Tempo:</span>
+                <span className="font-mono text-electric-purple font-semibold">{tempoGuidance.tempoString}</span>
+                <span className="text-gray-500">({tempoGuidance.summaryLabel})</span>
+              </div>
             </div>
 
             <Button
