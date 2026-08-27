@@ -22,6 +22,7 @@ import {
   RotateCcw,
   GitCompare,
   Trophy,
+  Activity,
   X
 } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
@@ -56,6 +57,8 @@ import { calculate7DayTrainingStrain, type TrainingStrainResult } from '@/lib/tr
 import { calculateWeeklyMuscleFrequency } from '@/lib/muscleFrequencyMatrix'
 import { calculateDeloadAdvisory } from '@/lib/deloadRecommender'
 import { calculateAdherenceTier } from '@/lib/adherenceTiers'
+import { calculateSplitBalance } from '@/lib/splitBalanceMatrix'
+import { calculateTargetHeartRateZones } from '@/lib/targetHeartRateZones'
 import { DEFAULT_WEEKLY_PLAN } from '@/types/plan'
 
 const DashboardPage: React.FC = () => {
@@ -179,6 +182,12 @@ const DashboardPage: React.FC = () => {
   const adherenceTier = useMemo(() => {
     return calculateAdherenceTier(workoutHistory)
   }, [workoutHistory])
+  const splitBalance = useMemo(() => {
+    return calculateSplitBalance(DEFAULT_WEEKLY_PLAN)
+  }, [])
+  const heartRateZones = useMemo(() => {
+    return calculateTargetHeartRateZones(formData.age || 30)
+  }, [formData.age])
 
   const handleAddWeight = (e: React.FormEvent) => {
     e.preventDefault()
@@ -708,6 +717,23 @@ const DashboardPage: React.FC = () => {
               </span>
             </div>
           )}
+
+          {/* Weekly Split Balance Matrix */}
+          {splitBalance.hasData && (
+            <div className="mt-3.5 pt-3.5 border-t border-gray-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+              <div>
+                <span className="text-[11px] font-poppins font-bold uppercase tracking-wider text-electric-purple block">
+                  Weekly Split Balance (PPL Ratio)
+                </span>
+                <span className="text-secondary-text">
+                  {splitBalance.summary}
+                </span>
+              </div>
+              <span className="px-2.5 py-1 rounded font-mono text-[11px] font-semibold shrink-0 border bg-electric-purple/15 text-electric-purple border-electric-purple/30">
+                {splitBalance.balanceStatusLabel}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Charts & Body Composition Grid */}
@@ -852,6 +878,59 @@ const DashboardPage: React.FC = () => {
               )}
             </div>
           </div>
+        </div>
+
+        {/* Target Heart Rate & Intensity Zones Section */}
+        <div className="card-dark">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+            <div className="flex items-center gap-2.5">
+              <Activity className="w-5 h-5 text-bright-coral" />
+              <div>
+                <h2 className="text-base sm:text-lg font-poppins font-semibold text-primary-text">
+                  Target Heart Rate &amp; Intensity Zones
+                </h2>
+                <p className="text-xs text-secondary-text">
+                  {heartRateZones.formulaLabel}
+                </p>
+              </div>
+            </div>
+            <span className="text-[11px] font-mono text-gray-400 bg-gray-800/80 px-2.5 py-1 rounded border border-gray-700">
+              Age: {heartRateZones.age} yrs • Est. Max: {heartRateZones.estimatedMaxHr} BPM
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-1">
+            {heartRateZones.zones.map((zone) => (
+              <div
+                key={zone.zoneNumber}
+                className={`p-3 rounded-xl border flex flex-col justify-between ${zone.zoneColor}`}
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-1 mb-1">
+                    <span className="text-[11px] font-poppins font-bold uppercase tracking-wider">
+                      Zone {zone.zoneNumber}
+                    </span>
+                    <span className="text-[10px] font-mono opacity-80">
+                      {zone.intensityRange}
+                    </span>
+                  </div>
+                  <h3 className="font-poppins font-bold text-sm text-primary-text truncate">
+                    {zone.zoneName}
+                  </h3>
+                  <div className="mt-1 font-mono text-base font-bold text-primary-text">
+                    {zone.bpmRange.min}–{zone.bpmRange.max} <span className="text-xs font-normal text-secondary-text">BPM</span>
+                  </div>
+                </div>
+                <p className="text-[10px] text-gray-400 mt-2 leading-relaxed">
+                  {zone.description}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-[10px] text-gray-500 italic mt-3 text-center sm:text-left">
+            * {heartRateZones.disclaimer}
+          </p>
         </div>
 
         {/* Multi-Plan Library Section */}

@@ -56,6 +56,8 @@ import { getRecommendedRepTempo } from '@/lib/setTempoGuidance'
 import { calculateRIRFromRPE } from '@/lib/rpePacingEngine'
 import { getStandardWorkoutTags, toggleTagInNote } from '@/lib/workoutTagTaxonomy'
 import { calculateSessionDebrief } from '@/lib/sessionDebrief'
+import { calculateRecoveryHydration } from '@/lib/recoveryHydrationReplenishment'
+import { calculateExerciseProgression } from '@/lib/exerciseProgressionTrajectory'
 import { playTimerChime, triggerVibration } from '@/lib/audioCues'
 import { RestTimerOverlay } from '@/components/gym/RestTimerOverlay'
 import { ExerciseSubstitutionModal } from '@/components/gym/ExerciseSubstitutionModal'
@@ -294,6 +296,12 @@ export const GymModePage: React.FC = () => {
     if (!currentExercise) return null
     const history = loadWorkoutHistory()
     return extractPreviousSetPerformance(currentExercise.name, history)
+  }, [currentExercise])
+
+  const exerciseProgression = useMemo(() => {
+    if (!currentExercise) return null
+    const history = loadWorkoutHistory()
+    return calculateExerciseProgression(currentExercise.name, history)
   }, [currentExercise])
 
   const tempoGuidance = useMemo(() => {
@@ -846,11 +854,24 @@ export const GymModePage: React.FC = () => {
 
           {/* Previous Session Reference Ghost Badge */}
           {previousPerformance && (
-            <div className="mt-3 p-3 bg-electric-purple/10 rounded-lg border border-electric-purple/30 text-xs flex items-center justify-between gap-3">
+            <div className="mt-3 p-3 bg-electric-purple/10 rounded-lg border border-electric-purple/30 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <span className="text-[11px] font-poppins font-bold uppercase tracking-wider text-electric-purple block">
-                  Historical Fact
-                </span>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-[11px] font-poppins font-bold uppercase tracking-wider text-electric-purple">
+                    Historical Fact
+                  </span>
+                  {exerciseProgression?.hasHistory && exerciseProgression.previousWorkingWeightKg && (
+                    <span className={`text-[10px] font-mono px-2 py-0.2 rounded font-semibold border ${
+                      exerciseProgression.trajectory === 'increasing_load'
+                        ? 'bg-neon-green/20 text-neon-green border-neon-green/40'
+                        : exerciseProgression.trajectory === 'reducing_load'
+                        ? 'bg-bright-coral/20 text-bright-coral border-bright-coral/40'
+                        : 'bg-gray-800 text-gray-300 border-gray-700'
+                    }`}>
+                      {exerciseProgression.trajectoryLabel}
+                    </span>
+                  )}
+                </div>
                 <span className="text-primary-text font-medium">
                   {previousPerformance.factualSummary}
                 </span>
@@ -1321,6 +1342,10 @@ export const GymModePage: React.FC = () => {
           }))
         }
         const debrief = calculateSessionDebrief(convertedSession)
+        const recoveryHydration = calculateRecoveryHydration(
+          Math.max(1, Math.round(session.elapsedSeconds / 60)),
+          volumeMetrics.totalVolumeKg
+        )
 
         return (
           <WorkoutCompletionModal
@@ -1331,6 +1356,7 @@ export const GymModePage: React.FC = () => {
             totalSetsCompleted={totalSetsCompleted}
             totalVolumeKg={volumeMetrics.totalVolumeKg}
             workloadDensityKgPerMin={debrief.workloadDensityKgPerMin}
+            recoveryHydrationLabel={recoveryHydration.fluidRecommendationLabel}
             comparisonSummary={comparison.summaryText}
             recoveryAdvice={recoveryAdvice}
             onViewPlan={() => {

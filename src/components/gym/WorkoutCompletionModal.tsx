@@ -13,6 +13,7 @@ interface WorkoutCompletionModalProps {
   sessionPRs?: string[]
   comparisonSummary?: string
   recoveryAdvice?: string
+  recoveryHydrationLabel?: string
   onViewPlan: () => void
   onGoToDashboard: () => void
 }
@@ -28,6 +29,7 @@ export const WorkoutCompletionModal: React.FC<WorkoutCompletionModalProps> = ({
   sessionPRs = [],
   comparisonSummary,
   recoveryAdvice,
+  recoveryHydrationLabel,
   onViewPlan,
   onGoToDashboard
 }) => {
@@ -124,6 +126,18 @@ export const WorkoutCompletionModal: React.FC<WorkoutCompletionModalProps> = ({
             {recoveryAdvice && (
               <p className="text-secondary-text leading-relaxed">{recoveryAdvice}</p>
             )}
+          </div>
+        )}
+
+        {/* Post-Workout Recovery Hydration Banner */}
+        {recoveryHydrationLabel && (
+          <div className="p-3 bg-cyan-950/20 rounded-xl border border-cyan-500/30 text-left text-xs space-y-1">
+            <span className="text-[11px] font-poppins font-bold uppercase tracking-wider text-cyan-400 block">
+              💧 Recovery Fluid Planning Target
+            </span>
+            <p className="text-gray-300 font-mono text-[11px]">
+              {recoveryHydrationLabel}
+            </p>
           </div>
         )}
 
