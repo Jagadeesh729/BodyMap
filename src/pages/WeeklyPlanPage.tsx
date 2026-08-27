@@ -36,6 +36,12 @@ import {
   type GroceryCategoryGroup
 } from '@/lib/nutritionAlternatives'
 import { estimateDailyMacros, type DailyMacroEstimate } from '@/lib/macroEstimator'
+import {
+  getTodayHydration,
+  addHydration,
+  resetTodayHydration,
+  calculateHydrationTarget
+} from '@/lib/hydrationTracker'
 
 const WeeklyPlanPage: React.FC = () => {
   const { state, dispatch } = usePlan()
@@ -94,6 +100,19 @@ const WeeklyPlanPage: React.FC = () => {
     setCopied(true)
     toast({ title: 'Copied!', description: 'Plan copied to clipboard.' })
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const [hydrationLogged, setHydrationLogged] = useState<number>(() => getTodayHydration())
+  const hydrationTarget = useMemo(() => calculateHydrationTarget(state.formData.weight), [state.formData.weight])
+
+  const handleAddHydration = (amountMl: number) => {
+    const updated = addHydration(amountMl)
+    setHydrationLogged(updated)
+  }
+
+  const handleResetHydration = () => {
+    resetTodayHydration()
+    setHydrationLogged(0)
   }
 
   const completedCount = state.completedDays.length
@@ -308,6 +327,44 @@ const WeeklyPlanPage: React.FC = () => {
               </div>
             </div>
           )}
+
+          {/* Daily Hydration Tracking Widget */}
+          <div className="mt-3.5 pt-3.5 border-t border-gray-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="text-neon-green font-bold">💧</span>
+              <span className="font-poppins font-semibold text-primary-text">
+                Hydration: {hydrationLogged.toLocaleString()} ml {hydrationTarget ? `/ ~${hydrationTarget.toLocaleString()} ml` : ''}
+              </span>
+              <span className="text-[10px] text-gray-500 hidden sm:inline">
+                (Baseline 35ml/kg heuristic)
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 font-mono text-[11px]">
+              <button
+                onClick={() => handleAddHydration(250)}
+                className="px-2.5 py-1 rounded bg-bodymap-dark hover:bg-gray-800 text-neon-green border border-gray-700 font-semibold transition-colors"
+                title="Add 250ml water"
+              >
+                +250ml
+              </button>
+              <button
+                onClick={() => handleAddHydration(500)}
+                className="px-2.5 py-1 rounded bg-bodymap-dark hover:bg-gray-800 text-neon-green border border-gray-700 font-semibold transition-colors"
+                title="Add 500ml water"
+              >
+                +500ml
+              </button>
+              {hydrationLogged > 0 && (
+                <button
+                  onClick={handleResetHydration}
+                  className="px-2 py-1 rounded text-gray-400 hover:text-red-400 text-[10px] font-sans transition-colors"
+                  title="Reset today's hydration"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Action Buttons Toolbar */}

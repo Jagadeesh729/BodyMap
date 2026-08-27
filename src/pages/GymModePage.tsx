@@ -47,6 +47,7 @@ import {
   saveExerciseNote,
   deleteExerciseNote
 } from '@/lib/exerciseNotesStorage'
+import { generateWarmupProtocol } from '@/lib/warmupProtocol'
 import { playTimerChime, triggerVibration } from '@/lib/audioCues'
 import { RestTimerOverlay } from '@/components/gym/RestTimerOverlay'
 import { ExerciseSubstitutionModal } from '@/components/gym/ExerciseSubstitutionModal'
@@ -249,10 +250,21 @@ export const GymModePage: React.FC = () => {
   // Exercise Personal Cue Note State
   const [isEditingNote, setIsEditingNote] = useState(false)
   const [noteDraft, setNoteDraft] = useState('')
+  const [showWarmupLadder, setShowWarmupLadder] = useState(false)
 
   const currentExerciseNote = useMemo(() => {
     return currentExercise ? getExerciseNote(currentExercise.name) : null
   }, [currentExercise])
+
+  const targetWorkingWeight = useMemo(() => {
+    if (!currentExercise || !Array.isArray(currentExercise.sets)) return null
+    const setWithWeight = currentExercise.sets.find(s => typeof s.weightKg === 'number' && s.weightKg > 0)
+    return setWithWeight && typeof setWithWeight.weightKg === 'number' ? setWithWeight.weightKg : null
+  }, [currentExercise])
+
+  const warmupProtocol = useMemo(() => {
+    return generateWarmupProtocol(targetWorkingWeight)
+  }, [targetWorkingWeight])
 
   const handleStartEditNote = () => {
     setNoteDraft(currentExerciseNote || '')
@@ -833,6 +845,41 @@ export const GymModePage: React.FC = () => {
               </p>
             )}
           </div>
+
+          {/* Progressive Warm-up Set Protocol */}
+          {warmupProtocol.hasProtocol && (
+            <div className="mt-3 pt-3 border-t border-gray-800 text-xs">
+              <button
+                onClick={() => setShowWarmupLadder(!showWarmupLadder)}
+                className="w-full flex items-center justify-between text-[11px] font-poppins font-semibold text-gray-400 hover:text-primary-text transition-colors py-1"
+              >
+                <span className="flex items-center gap-1.5 text-neon-green">
+                  <Flame className="w-3.5 h-3.5" />
+                  Warm-up Preparation Protocol (~{warmupProtocol.workingWeightKg} kg target)
+                </span>
+                <span className="text-[10px] text-gray-500 font-mono">
+                  {showWarmupLadder ? 'Hide Pyramid ▲' : 'Show 4-Step Pyramid ▼'}
+                </span>
+              </button>
+
+              {showWarmupLadder && (
+                <div className="mt-2 p-2.5 bg-bodymap-dark/90 rounded-lg border border-gray-800 space-y-2">
+                  <p className="text-[10px] text-gray-400 italic">
+                    Preparation sets are for neuromuscular warmup and do not count toward your working volume.
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {warmupProtocol.sets.map((wSet) => (
+                      <div key={wSet.setNumber} className="p-2 rounded bg-black/40 border border-gray-800/80 text-center">
+                        <span className="text-[10px] text-gray-400 block font-mono">Set {wSet.setNumber} &bull; {wSet.repsLabel}</span>
+                        <span className="text-xs font-poppins font-bold text-neon-green block mt-0.5">{wSet.calculatedWeightKg} kg</span>
+                        <span className="text-[9px] text-gray-500 block truncate mt-0.5">{wSet.percentageLabel}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </section>
 
         {/* Big Touch-Friendly Set Logger */}

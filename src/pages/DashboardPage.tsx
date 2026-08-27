@@ -48,6 +48,8 @@ import {
 import { calculateMilestones, type Milestone } from '@/lib/milestoneTracker'
 import { extractPersonalRecords, type PersonalRecord } from '@/lib/personalRecords'
 import { calculateVolumeAnalytics, type VolumeAnalyticsResult } from '@/lib/volumeAnalytics'
+import { calculateEstimated1RM } from '@/lib/oneRepMax'
+import { generate28DayAdherenceCalendar, type AdherenceDayCell } from '@/lib/adherenceCalendar'
 
 const DashboardPage: React.FC = () => {
   const { state, dispatch } = usePlan()
@@ -148,6 +150,9 @@ const DashboardPage: React.FC = () => {
   }, [workoutHistory])
   const volumeAnalytics: VolumeAnalyticsResult = useMemo(() => {
     return calculateVolumeAnalytics(workoutHistory)
+  }, [workoutHistory])
+  const adherenceCalendar: AdherenceDayCell[] = useMemo(() => {
+    return generate28DayAdherenceCalendar(workoutHistory)
   }, [workoutHistory])
 
   const handleAddWeight = (e: React.FormEvent) => {
@@ -396,6 +401,41 @@ const DashboardPage: React.FC = () => {
           </div>
         </div>
 
+        {/* 28-Day Training Consistency & Adherence Heatmap */}
+        <div className="card-dark">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-neon-green" />
+              <h2 className="text-base sm:text-lg font-poppins font-semibold text-primary-text">
+                28-Day Training Consistency
+              </h2>
+            </div>
+            <span className="text-xs text-secondary-text">
+              {adherenceCalendar.filter(d => d.isCompleted).length} Active Training Days
+            </span>
+          </div>
+
+          <div className="grid grid-cols-7 sm:grid-cols-14 lg:grid-cols-28 gap-1.5 pt-2">
+            {adherenceCalendar.map((day) => (
+              <div
+                key={day.dateStr}
+                className={`p-2 rounded-lg border text-center flex flex-col items-center justify-center transition-all ${
+                  day.isCompleted
+                    ? 'bg-neon-green/20 border-neon-green/50 text-neon-green font-bold shadow-sm shadow-neon-green/10'
+                    : day.isToday
+                    ? 'bg-electric-purple/20 border-electric-purple/50 text-electric-purple'
+                    : 'bg-bodymap-dark border-gray-800 text-gray-500'
+                }`}
+                title={day.ariaLabel}
+                aria-label={day.ariaLabel}
+              >
+                <span className="text-[9px] uppercase font-mono">{day.dayOfWeek}</span>
+                <span className="text-xs font-poppins font-semibold mt-0.5">{day.dayOfMonth}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Verified Training Milestones Section */}
         <div className="card-dark">
           <div className="flex items-center justify-between mb-4">
@@ -454,23 +494,33 @@ const DashboardPage: React.FC = () => {
 
           {personalRecords.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {personalRecords.slice(0, 8).map((pr) => (
-                <div
-                  key={pr.id}
-                  className="p-3.5 bg-bodymap-dark rounded-xl border border-gray-800 hover:border-gray-700 transition-colors"
-                >
-                  <span className="text-[11px] font-poppins font-bold text-bright-coral block truncate">
-                    {pr.exerciseName}
-                  </span>
-                  <div className="flex items-baseline gap-1 mt-1">
-                    <span className="text-xl font-poppins font-bold text-primary-text">{pr.value}</span>
-                    <span className="text-xs text-secondary-text font-semibold">{pr.unit}</span>
+              {personalRecords.slice(0, 8).map((pr) => {
+                const est1rm = calculateEstimated1RM(pr.value, 10)
+                return (
+                  <div
+                    key={pr.id}
+                    className="p-3.5 bg-bodymap-dark rounded-xl border border-gray-800 hover:border-gray-700 transition-colors flex flex-col justify-between"
+                  >
+                    <div>
+                      <span className="text-[11px] font-poppins font-bold text-bright-coral block truncate">
+                        {pr.exerciseName}
+                      </span>
+                      <div className="flex items-baseline gap-1 mt-1">
+                        <span className="text-xl font-poppins font-bold text-primary-text">{pr.value}</span>
+                        <span className="text-xs text-secondary-text font-semibold">{pr.unit}</span>
+                      </div>
+                      {est1rm.hasValidEstimate && (
+                        <span className="text-[10px] text-neon-green font-mono block mt-0.5">
+                          Est. 1RM: ~{est1rm.estimated1rmKg} kg
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-gray-500 block mt-2 pt-1 border-t border-gray-800/60">
+                      Set on {new Date(pr.achievedAt).toLocaleDateString()}
+                    </span>
                   </div>
-                  <span className="text-[10px] text-gray-500 block mt-1">
-                    Set on {new Date(pr.achievedAt).toLocaleDateString()}
-                  </span>
-                </div>
-              ))}
+                )
+              })}
             </div>
           ) : (
             <p className="text-xs text-secondary-text text-center bg-bodymap-dark/50 p-4 rounded-xl border border-dashed border-gray-800">
