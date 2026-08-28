@@ -3,11 +3,12 @@
 <div align="center">
 
 ![BodyMap Banner](https://img.shields.io/badge/BodyMap-Fitness%20Planner-00FF88?style=for-the-badge&logo=react&logoColor=black)
+[![Production](https://img.shields.io/badge/Production-bodymap--ai.vercel.app-00FF88?style=for-the-badge&logo=vercel&logoColor=white)](https://bodymap-ai.vercel.app/)
 [![Vite](https://img.shields.io/badge/Vite-6.x-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![React](https://img.shields.io/badge/React-18.x-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-3.x-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
-[![Vitest](https://img.shields.io/badge/Vitest-Passed%20372%2F372-00FF88?style=for-the-badge&logo=vitest&logoColor=black)](https://vitest.dev/)
+[![Vitest](https://img.shields.io/badge/Vitest-Passed%20374%2F374-00FF88?style=for-the-badge&logo=vitest&logoColor=black)](https://vitest.dev/)
 
 <p align="center">
   <b>Tailored workouts and nutrition based on your unique biometrics, fitness level, and equipment availability. Powered by Google Gemini AI with secure backend proxying and local-first data sovereignty.</b>
@@ -34,7 +35,7 @@
 
 - 🏋️ **Active Gym Mode (`/gym-mode`)**:
   - Live session tracker with active stopwatch, rest interval countdown timer, and set completion checkboxes.
-  - **Verified Weight & Rep Persistence (V11.0)**: Zero silent data loss write path capturing authentic per-exercise `peakWeightKg` and `avgCompletedReps` into local workout history.
+  - **Verified Weight, Rep & PR Persistence (V12.0)**: Zero confirmed silent data loss write path capturing authentic per-exercise `peakWeightKg`, `avgCompletedReps`, and rep-aware personal records into local workout history.
   - Interactive Olympic plate loading calculator with 20kg/15kg bar support and collar offsets.
   - Real-time tempo pacing cues (eccentric, isometric, concentric) and RPE/RIR intensity logging.
   - Post-session debriefing modal capturing perceived exertion, energy, fatigue, and custom reflection tags.
@@ -46,7 +47,7 @@
   - **Goal Trajectory Engine (`goalTrajectoryEngine.ts`)**: Deterministic 25%, 50%, 75%, and 100% milestone checkpoints.
   - **Exercise Progression Trajectory Engine (`exerciseProgressionTrajectory.ts`)**: Multi-session progressive overload load delta and rep trajectory.
   - **Cross-Session Movement Aggregator (`exerciseCrossSessionEngine.ts`)**: Movement consistency, frequency, and peak load tracking.
-  - **Personal Records (PR) Vault (`personalRecords.ts`)**: All-time peak weight achievements with estimated 1RM calculations.
+  - **Personal Records (PR) Vault (`personalRecords.ts`)**: All-time peak weight achievements with rep-aware dynamic estimated 1RM calculations (Epley formula).
 
 - 📚 **Multi-Plan Library & Comparison (`planComparisonEngine.ts`)**:
   - Save, duplicate, name, and activate multiple routines.
@@ -71,7 +72,7 @@
 - **Validation**: [Zod 3.23.8](https://zod.dev/) runtime contracts for user inputs and AI plan schemas
 - **Data Visualization**: [Recharts 2.13.0](https://recharts.org/)
 - **Routing**: [React Router DOM 7.18.2](https://reactrouter.com/) with lazy loading
-- **Testing**: [Vitest 4.1.11](https://vitest.dev/) + React Testing Library (372 unit tests across 75 suites)
+- **Testing**: [Vitest 4.1.11](https://vitest.dev/) + React Testing Library (374 unit tests across 75 suites)
 - **Icons**: [Lucide React 0.462.0](https://lucide.dev/)
 
 ---
@@ -112,7 +113,7 @@ BodyMap/
 │   │   ├── DownloadPlanPage.tsx  # Data Vault export, backup restore & PDF share hub
 │   │   ├── AboutContactPage.tsx  # Mission, tech stack & contact form
 │   │   └── NotFound.tsx          # Themed 404 handler
-│   ├── __tests__/           # 74 Vitest unit test suites (356 tests)
+│   ├── __tests__/           # 75 Vitest unit test suites (374 tests)
 │   ├── App.tsx              # Root router, Suspense, ErrorBoundary & providers
 │   ├── index.css            # Custom theme variables & responsive styles
 │   └── main.tsx             # Application entry point with StrictMode
@@ -170,7 +171,7 @@ Open [http://localhost:8080](http://localhost:8080) in your browser.
 | `npm run build` | Compiles TypeScript and builds production bundle |
 | `npm run typecheck` | Validates TypeScript types across all files (`tsc --noEmit`) |
 | `npm run lint` | Runs ESLint to check for code quality and syntax rules |
-| `npm run test` | Executes 356 automated Vitest unit tests across 74 test suites |
+| `npm run test` | Executes 374 automated Vitest unit tests across 75 suites |
 | `npm run preview` | Serves production build locally for verification |
 
 ---
