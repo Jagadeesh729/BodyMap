@@ -1,3 +1,5 @@
+import type { CompletedWorkoutLog } from '@/types/workoutSession'
+
 export interface DeloadAdvisoryResult {
   hasData: boolean
   status: 'optimal_training' | 'consider_deload' | 'deload_recommended'
@@ -12,9 +14,10 @@ export interface DeloadAdvisoryResult {
 /**
  * Deterministically calculates a training deload advisory from workout history.
  * Explicitly labeled as an advisory training heuristic, not a physiological diagnosis.
+ * Accepts the canonical CompletedWorkoutLog contract and reads completedAt for date bucketing.
  */
 export function calculateDeloadAdvisory(
-  workoutHistory: Array<{ date: string; volumeKg?: number; sets?: number }> | null | undefined
+  workoutHistory: CompletedWorkoutLog[] | null | undefined
 ): DeloadAdvisoryResult {
   if (!Array.isArray(workoutHistory) || workoutHistory.length === 0) {
     return {
@@ -33,17 +36,17 @@ export function calculateDeloadAdvisory(
   const weekBuckets: number[] = [0, 0, 0, 0] // [Week 0 (most recent 7d), Week 1, Week 2, Week 3]
 
   for (const item of workoutHistory) {
-    if (!item || !item.date) continue
-    const itemDate = new Date(item.date)
+    if (!item || !item.completedAt) continue
+    const itemDate = new Date(item.completedAt)
     if (isNaN(itemDate.getTime())) continue
 
     const diffDays = Math.floor((now.getTime() - itemDate.getTime()) / (1000 * 60 * 60 * 24))
     if (diffDays >= 0 && diffDays < 28) {
       const weekIdx = Math.floor(diffDays / 7)
       if (weekIdx >= 0 && weekIdx < 4) {
-        const vol = typeof item.volumeKg === 'number' && !isNaN(item.volumeKg)
-          ? item.volumeKg
-          : ((item.sets || 0) * 10 * 20) // Heuristic estimate if volume unlogged
+        // Use total sets as a volume proxy when per-exercise weight is not available at this level.
+        // Sets * 10 * 20 is the same heuristic used historically for volume estimation.
+        const vol = (item.totalSetsCompleted || 0) * 10 * 20
         weekBuckets[weekIdx] += vol
       }
     }

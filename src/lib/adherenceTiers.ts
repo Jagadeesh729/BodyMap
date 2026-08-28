@@ -1,3 +1,5 @@
+import type { CompletedWorkoutLog } from '@/types/workoutSession'
+
 export type AdherenceTierName = 'Diamond' | 'Gold' | 'Silver' | 'Bronze' | 'Starter'
 
 export interface AdherenceTierResult {
@@ -14,9 +16,10 @@ export interface AdherenceTierResult {
 /**
  * Deterministically calculates milestone adherence tiers from workout completion history.
  * Strictly uses authentic history without fabricating completion days.
+ * Accepts the canonical CompletedWorkoutLog contract and reads completedAt for date bucketing.
  */
 export function calculateAdherenceTier(
-  workoutHistory: Array<{ date: string }> | null | undefined
+  workoutHistory: CompletedWorkoutLog[] | null | undefined
 ): AdherenceTierResult {
   if (!Array.isArray(workoutHistory) || workoutHistory.length === 0) {
     return {
@@ -36,8 +39,8 @@ export function calculateAdherenceTier(
   const activeWeeks = new Set<number>()
 
   for (const item of workoutHistory) {
-    if (!item || !item.date) continue
-    const d = new Date(item.date)
+    if (!item || !item.completedAt) continue
+    const d = new Date(item.completedAt)
     if (isNaN(d.getTime())) continue
 
     const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24))
@@ -101,3 +104,4 @@ export function calculateAdherenceTier(
     summary: `${consecutiveWeeks} consecutive week${consecutiveWeeks === 1 ? '' : 's'} with verified workout sessions.`
   }
 }
+
