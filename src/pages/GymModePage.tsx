@@ -540,11 +540,34 @@ export const GymModePage: React.FC = () => {
         durationSeconds: prev.elapsedSeconds,
         totalSetsCompleted: totalSets,
         totalExercises: prev.exercises.length,
-        exercisesSummary: prev.exercises.map(e => ({
-          name: e.name,
-          setsCompleted: e.sets.filter(s => s.isCompleted).length,
-          totalSets: e.sets.length
-        }))
+        exercisesSummary: prev.exercises.map(e => {
+          const completedSets = e.sets.filter(s => s.isCompleted)
+
+          // Peak weight: highest valid weight across completed sets only.
+          // Bounds: 0 < w < 600 kg — matches existing engine validation contracts.
+          const validWeights = completedSets
+            .map(s => s.weightKg)
+            .filter((w): w is number => typeof w === 'number' && Number.isFinite(w) && w > 0 && w < 600)
+          const peakWeightKg: number | null = validWeights.length > 0
+            ? Math.max(...validWeights)
+            : null
+
+          // Average completed reps across completed sets only.
+          const validReps = completedSets
+            .map(s => s.completedReps)
+            .filter(r => typeof r === 'number' && Number.isFinite(r) && r > 0)
+          const avgCompletedReps: number | null = validReps.length > 0
+            ? Math.round(validReps.reduce((sum, r) => sum + r, 0) / validReps.length)
+            : null
+
+          return {
+            name: e.name,
+            setsCompleted: completedSets.length,
+            totalSets: e.sets.length,
+            peakWeightKg,
+            avgCompletedReps
+          }
+        })
       }
 
       // Save to permanent local workout history log

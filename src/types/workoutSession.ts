@@ -61,6 +61,21 @@ export interface CompletedWorkoutLog {
     name: string
     setsCompleted: number
     totalSets: number
+    /**
+     * Peak (maximum) working weight logged across completed sets for this exercise, in kg.
+     * Derived deterministically from completed sets only — never from incomplete sets.
+     * null  → V11+ record where all completed sets had no valid weight (e.g. bodyweight).
+     * undefined → Pre-V11 historical record; weight data was not persisted for this session.
+     * Distinguish: undefined ≠ null ≠ 0. Do not coerce undefined to 0.
+     */
+    peakWeightKg?: number | null
+    /**
+     * Average completed repetitions across all completed sets for this exercise.
+     * Rounded to nearest integer. Derived from completed sets only.
+     * null  → V11+ record where no completed sets had valid rep counts.
+     * undefined → Pre-V11 historical record; rep data was not persisted.
+     */
+    avgCompletedReps?: number | null
   }>
   /**
    * Optional post-workout subjective reflection logged by the user at session completion.

@@ -48,7 +48,9 @@ export function aggregateCrossSessionExercises(
       if (!norm) continue
 
       const sets = typeof ex.setsCompleted === 'number' && ex.setsCompleted > 0 ? ex.setsCompleted : 1
-      const weight = (ex as Record<string, unknown>).weightKg as number | undefined
+      const weight = typeof ex.peakWeightKg === 'number' && Number.isFinite(ex.peakWeightKg) && ex.peakWeightKg > 0 && ex.peakWeightKg < 600
+        ? ex.peakWeightKg
+        : (typeof (ex as Record<string, unknown>).weightKg === 'number' ? (ex as Record<string, unknown>).weightKg as number : undefined)
       const validWeight = typeof weight === 'number' && weight > 0 && weight < 600 ? weight : null
 
       const existing = map.get(norm)

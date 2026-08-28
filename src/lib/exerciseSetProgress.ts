@@ -52,15 +52,21 @@ export function extractPreviousSetPerformance(
       const setsCount = typeof matchingEx.setsCompleted === 'number' && matchingEx.setsCompleted > 0
         ? matchingEx.setsCompleted
         : 1
-      const weight = (matchingEx as Record<string, unknown>).weightKg as number | undefined
+      const weight = typeof matchingEx.peakWeightKg === 'number' && Number.isFinite(matchingEx.peakWeightKg) && matchingEx.peakWeightKg > 0 && matchingEx.peakWeightKg < 600
+        ? matchingEx.peakWeightKg
+        : (typeof (matchingEx as Record<string, unknown>).weightKg === 'number' ? (matchingEx as Record<string, unknown>).weightKg as number : undefined)
       const weightKg = typeof weight === 'number' && weight > 0 ? weight : null
+
+      const defaultReps = typeof matchingEx.avgCompletedReps === 'number' && matchingEx.avgCompletedReps > 0
+        ? matchingEx.avgCompletedReps
+        : 10
 
       const sets: PreviousSetPerformance[] = []
       for (let i = 1; i <= setsCount; i++) {
         sets.push({
           setIndex: i,
           weightKg,
-          repsCompleted: 10 // Deterministic baseline if individual set rep logs are collapsed
+          repsCompleted: defaultReps
         })
       }
 

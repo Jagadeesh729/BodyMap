@@ -35,7 +35,9 @@ export function extractPersonalRecords(history: CompletedWorkoutLog[]): Personal
 
     for (const ex of log.exercisesSummary) {
       if (!ex || typeof ex.name !== 'string') continue
-      const weight = (ex as Record<string, unknown>).weightKg as number | undefined
+      const weight = typeof ex.peakWeightKg === 'number' && Number.isFinite(ex.peakWeightKg) && ex.peakWeightKg > 0 && ex.peakWeightKg < 600
+        ? ex.peakWeightKg
+        : (typeof (ex as Record<string, unknown>).weightKg === 'number' ? (ex as Record<string, unknown>).weightKg as number : undefined)
 
       if (typeof weight === 'number' && weight > 0 && weight < 600) {
         const norm = normalizeExerciseName(ex.name)

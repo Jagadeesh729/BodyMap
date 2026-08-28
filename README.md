@@ -7,7 +7,7 @@
 [![React](https://img.shields.io/badge/React-18.x-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-3.x-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
-[![Vitest](https://img.shields.io/badge/Vitest-Passed%20356%2F356-00FF88?style=for-the-badge&logo=vitest&logoColor=black)](https://vitest.dev/)
+[![Vitest](https://img.shields.io/badge/Vitest-Passed%20372%2F372-00FF88?style=for-the-badge&logo=vitest&logoColor=black)](https://vitest.dev/)
 
 <p align="center">
   <b>Tailored workouts and nutrition based on your unique biometrics, fitness level, and equipment availability. Powered by Google Gemini AI with secure backend proxying and local-first data sovereignty.</b>
@@ -34,6 +34,7 @@
 
 - 🏋️ **Active Gym Mode (`/gym-mode`)**:
   - Live session tracker with active stopwatch, rest interval countdown timer, and set completion checkboxes.
+  - **Verified Weight & Rep Persistence (V11.0)**: Zero silent data loss write path capturing authentic per-exercise `peakWeightKg` and `avgCompletedReps` into local workout history.
   - Interactive Olympic plate loading calculator with 20kg/15kg bar support and collar offsets.
   - Real-time tempo pacing cues (eccentric, isometric, concentric) and RPE/RIR intensity logging.
   - Post-session debriefing modal capturing perceived exertion, energy, fatigue, and custom reflection tags.
@@ -43,6 +44,7 @@
   - Multi-window time filtering (7D, 14D, 30D, All Time) with volume distribution and workout streak tracking.
   - **Goal Progress Engine (`goalProgressEngine.ts`)**: Real-time target completion percentage and remaining delta metrics.
   - **Goal Trajectory Engine (`goalTrajectoryEngine.ts`)**: Deterministic 25%, 50%, 75%, and 100% milestone checkpoints.
+  - **Exercise Progression Trajectory Engine (`exerciseProgressionTrajectory.ts`)**: Multi-session progressive overload load delta and rep trajectory.
   - **Cross-Session Movement Aggregator (`exerciseCrossSessionEngine.ts`)**: Movement consistency, frequency, and peak load tracking.
   - **Personal Records (PR) Vault (`personalRecords.ts`)**: All-time peak weight achievements with estimated 1RM calculations.
 
@@ -69,7 +71,7 @@
 - **Validation**: [Zod 3.23.8](https://zod.dev/) runtime contracts for user inputs and AI plan schemas
 - **Data Visualization**: [Recharts 2.13.0](https://recharts.org/)
 - **Routing**: [React Router DOM 7.18.2](https://reactrouter.com/) with lazy loading
-- **Testing**: [Vitest 4.1.11](https://vitest.dev/) + React Testing Library (356 unit tests across 74 suites)
+- **Testing**: [Vitest 4.1.11](https://vitest.dev/) + React Testing Library (372 unit tests across 75 suites)
 - **Icons**: [Lucide React 0.462.0](https://lucide.dev/)
 
 ---

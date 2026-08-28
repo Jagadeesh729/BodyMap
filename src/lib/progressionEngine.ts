@@ -93,11 +93,13 @@ export function findPreviousPerformance(
       const historicalNormalized = normalizeExerciseName(ex.name)
       if (historicalNormalized === targetNormalized) {
         // Look for valid recorded weights and reps
-        const reps = typeof ex.setsCompleted === 'number' && ex.setsCompleted > 0 ? ex.setsCompleted : 10
+        const reps = typeof ex.avgCompletedReps === 'number' && ex.avgCompletedReps > 0
+          ? ex.avgCompletedReps
+          : (typeof ex.setsCompleted === 'number' && ex.setsCompleted > 0 ? ex.setsCompleted : 10)
         // Check if weight was logged in exercisesSummary or session
-        const weightKg = typeof (ex as Record<string, unknown>).weightKg === 'number'
-          ? (ex as Record<string, unknown>).weightKg as number
-          : null
+        const weightKg = typeof ex.peakWeightKg === 'number' && Number.isFinite(ex.peakWeightKg) && ex.peakWeightKg > 0 && ex.peakWeightKg < 600
+          ? ex.peakWeightKg
+          : (typeof (ex as Record<string, unknown>).weightKg === 'number' ? (ex as Record<string, unknown>).weightKg as number : null)
 
         const factualSummary = weightKg !== null && weightKg > 0
           ? `Last session: ${weightKg} kg (${ex.setsCompleted}/${ex.totalSets} sets done)`
