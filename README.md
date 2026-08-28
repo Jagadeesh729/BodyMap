@@ -7,7 +7,7 @@
 [![React](https://img.shields.io/badge/React-18.x-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-3.x-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
-[![Vitest](https://img.shields.io/badge/Vitest-Passed%20353%2F353-00FF88?style=for-the-badge&logo=vitest&logoColor=black)](https://vitest.dev/)
+[![Vitest](https://img.shields.io/badge/Vitest-Passed%20356%2F356-00FF88?style=for-the-badge&logo=vitest&logoColor=black)](https://vitest.dev/)
 
 <p align="center">
   <b>Tailored workouts and nutrition based on your unique biometrics, fitness level, and equipment availability. Powered by Google Gemini AI with secure backend proxying and local-first data sovereignty.</b>
@@ -53,6 +53,7 @@
 - 💾 **Data Vault & Local Sovereignty (`/download-plan`)**:
   - High-resolution printable PDF generation and markdown export (.md).
   - **Data Vault Manifest Engine (`vaultManifestEngine.ts`)**: Partition indexing and storage density health monitoring.
+  - **Data Vault Integrity Engine (`vaultIntegrityEngine.ts`)**: Deep multi-partition health scoring and schema verification.
   - **Unified V1/V2 Backup Integrity Engine (`backupIntegrity.ts` & `backupDiagnostics.ts`)**: Atomic validation and non-destructive restore rollback.
 
 - 🤖 **Secure Google Gemini AI Proxy**: Serverless edge handler (`/api/generate-plan`) isolating API keys server-side with rate limiting, Zod schema validation, and 16 KB payload limits.
@@ -68,7 +69,7 @@
 - **Validation**: [Zod 3.23.8](https://zod.dev/) runtime contracts for user inputs and AI plan schemas
 - **Data Visualization**: [Recharts 2.13.0](https://recharts.org/)
 - **Routing**: [React Router DOM 7.18.2](https://reactrouter.com/) with lazy loading
-- **Testing**: [Vitest 4.1.11](https://vitest.dev/) + React Testing Library (353 unit tests across 73 suites)
+- **Testing**: [Vitest 4.1.11](https://vitest.dev/) + React Testing Library (356 unit tests across 74 suites)
 - **Icons**: [Lucide React 0.462.0](https://lucide.dev/)
 
 ---
@@ -85,6 +86,7 @@ BodyMap/
 │   ├── context/             # State management (PlanContext, planReducer, planStorage)
 │   ├── hooks/               # Custom hooks (use-toast.ts)
 │   ├── lib/                 # Pure domain & calculation engines:
+│   │   ├── vaultIntegrityEngine.ts      # Multi-partition vault health scoring & audit
 │   │   ├── workoutCheckpointEngine.ts   # Crash-safe active session checkpoint manager
 │   │   ├── goalTrajectoryEngine.ts      # Milestone check-in & progression trajectory
 │   │   ├── vaultManifestEngine.ts       # Data Vault partition indexing & health status
@@ -108,7 +110,7 @@ BodyMap/
 │   │   ├── DownloadPlanPage.tsx  # Data Vault export, backup restore & PDF share hub
 │   │   ├── AboutContactPage.tsx  # Mission, tech stack & contact form
 │   │   └── NotFound.tsx          # Themed 404 handler
-│   ├── __tests__/           # 73 Vitest unit test suites (353 tests)
+│   ├── __tests__/           # 74 Vitest unit test suites (356 tests)
 │   ├── App.tsx              # Root router, Suspense, ErrorBoundary & providers
 │   ├── index.css            # Custom theme variables & responsive styles
 │   └── main.tsx             # Application entry point with StrictMode
@@ -166,7 +168,7 @@ Open [http://localhost:8080](http://localhost:8080) in your browser.
 | `npm run build` | Compiles TypeScript and builds production bundle |
 | `npm run typecheck` | Validates TypeScript types across all files (`tsc --noEmit`) |
 | `npm run lint` | Runs ESLint to check for code quality and syntax rules |
-| `npm run test` | Executes 353 automated Vitest unit tests across 73 test suites |
+| `npm run test` | Executes 356 automated Vitest unit tests across 74 test suites |
 | `npm run preview` | Serves production build locally for verification |
 
 ---

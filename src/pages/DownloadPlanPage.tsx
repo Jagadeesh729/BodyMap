@@ -29,6 +29,7 @@ import { exportBackupToFile, validateAndParseBackup, restoreBackupData, generate
 import { validateBackupPayload } from '@/lib/backupIntegrity'
 import { analyzeBackupDiagnostics } from '@/lib/backupDiagnostics'
 import { generateVaultManifest } from '@/lib/vaultManifestEngine'
+import { auditVaultIntegrity } from '@/lib/vaultIntegrityEngine'
 
 const DownloadPlanPage = () => {
   const { state } = usePlan()
@@ -371,6 +372,7 @@ const DownloadPlanPage = () => {
                 const currentPayload = generateBackupPayload()
                 const diag = analyzeBackupDiagnostics(currentPayload)
                 const manifest = generateVaultManifest(currentPayload)
+                const integrity = auditVaultIntegrity(currentPayload)
                 return (
                   <div className="pt-3 border-t border-gray-800/80 flex flex-wrap items-center justify-between gap-2 text-xs text-secondary-text">
                     <div className="flex items-center gap-2">
@@ -387,6 +389,9 @@ const DownloadPlanPage = () => {
                           : 'bg-bright-coral/20 text-bright-coral border border-bright-coral/30'
                       }`}>
                         {manifest.vaultHealthStatus}
+                      </span>
+                      <span className="text-[10px] font-mono px-2 py-0.2 rounded font-semibold bg-gray-900 border border-gray-800 text-gray-300">
+                        Integrity: {integrity.integrityScorePercent}%
                       </span>
                     </div>
                     <div className="flex flex-wrap gap-2 text-[11px] font-mono text-gray-400">
