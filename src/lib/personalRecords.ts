@@ -10,6 +10,7 @@ export interface PersonalRecord {
   metricType: 'max_weight'
   value: number
   unit: 'kg'
+  reps?: number | null
   achievedAt: string
   sessionTitle: string
   factualSummary: string
@@ -43,6 +44,12 @@ export function extractPersonalRecords(history: CompletedWorkoutLog[]): Personal
         const norm = normalizeExerciseName(ex.name)
         if (!norm) continue
 
+        const reps = typeof ex.avgCompletedReps === 'number' && Number.isFinite(ex.avgCompletedReps) && ex.avgCompletedReps > 0
+          ? Math.round(ex.avgCompletedReps)
+          : (typeof (ex as Record<string, unknown>).completedReps === 'number' && Number.isFinite((ex as Record<string, unknown>).completedReps) && ((ex as Record<string, unknown>).completedReps as number) > 0
+              ? Math.round((ex as Record<string, unknown>).completedReps as number)
+              : null)
+
         const existing = recordsByExercise.get(norm)
         if (!existing || weight >= existing.value) {
           recordsByExercise.set(norm, {
@@ -52,9 +59,10 @@ export function extractPersonalRecords(history: CompletedWorkoutLog[]): Personal
             metricType: 'max_weight',
             value: weight,
             unit: 'kg',
+            reps: reps ?? null,
             achievedAt: log.completedAt,
             sessionTitle: log.dayTitle || 'Gym Session',
-            factualSummary: `${weight} kg peak weight recorded on ${new Date(log.completedAt).toLocaleDateString()}`
+            factualSummary: `${weight} kg${reps ? ` × ${reps} reps` : ''} peak weight recorded on ${new Date(log.completedAt).toLocaleDateString()}`
           })
         }
       }

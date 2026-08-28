@@ -96,4 +96,66 @@ describe('Personal Records (PR) Vault Suite', () => {
       }
     ])).toEqual([])
   })
+
+  it('accurately preserves avgCompletedReps and generates enriched factual summary', () => {
+    const historyWithReps: CompletedWorkoutLog[] = [
+      {
+        id: 'log_reps_1',
+        sessionId: 's_reps_1',
+        dayIndex: 0,
+        dayTitle: 'Strength Day',
+        dayType: 'Strength',
+        completedAt: '2026-08-15T10:00:00Z',
+        durationSeconds: 1200,
+        totalSetsCompleted: 3,
+        totalExercises: 1,
+        exercisesSummary: [
+          {
+            name: 'Barbell Squat',
+            setsCompleted: 3,
+            totalSets: 3,
+            peakWeightKg: 140,
+            avgCompletedReps: 5
+          }
+        ]
+      }
+    ]
+
+    const prs = extractPersonalRecords(historyWithReps)
+    expect(prs.length).toBe(1)
+    expect(prs[0].exerciseName).toBe('Barbell Squat')
+    expect(prs[0].value).toBe(140)
+    expect(prs[0].reps).toBe(5)
+    expect(prs[0].factualSummary).toContain('140 kg × 5 reps')
+  })
+
+  it('gracefully handles legacy records without avgCompletedReps by setting reps to null', () => {
+    const legacyHistory: CompletedWorkoutLog[] = [
+      {
+        id: 'log_legacy',
+        sessionId: 's_legacy',
+        dayIndex: 0,
+        dayTitle: 'Old Session',
+        dayType: 'Legacy',
+        completedAt: '2026-07-01T10:00:00Z',
+        durationSeconds: 1500,
+        totalSetsCompleted: 3,
+        totalExercises: 1,
+        exercisesSummary: [
+          {
+            name: 'Deadlift',
+            setsCompleted: 3,
+            totalSets: 3,
+            weightKg: 160
+          } as unknown as CompletedWorkoutLog['exercisesSummary'][number]
+        ]
+      }
+    ]
+
+    const prs = extractPersonalRecords(legacyHistory)
+    expect(prs.length).toBe(1)
+    expect(prs[0].value).toBe(160)
+    expect(prs[0].reps).toBeNull()
+    expect(prs[0].factualSummary).toContain('160 kg peak weight')
+  })
 })

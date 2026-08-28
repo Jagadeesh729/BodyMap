@@ -594,7 +594,10 @@ const DashboardPage: React.FC = () => {
           {personalRecords.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               {personalRecords.slice(0, 8).map((pr) => {
-                const est1rm = calculateEstimated1RM(pr.value, 10)
+                const est1rm = calculateEstimated1RM(
+                  pr.value,
+                  typeof pr.reps === 'number' && pr.reps > 0 ? pr.reps : 10
+                )
                 return (
                   <div
                     key={pr.id}
