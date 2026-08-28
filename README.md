@@ -4,19 +4,13 @@
 
 ![BodyMap Banner](https://img.shields.io/badge/BodyMap-Fitness%20Planner-00FF88?style=for-the-badge&logo=react&logoColor=black)
 [![Vite](https://img.shields.io/badge/Vite-6.x-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
-
 [![React](https://img.shields.io/badge/React-18.x-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-3.x-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
-[![Vitest](https://img.shields.io/badge/Vitest-Passed%2090%2F90-00FF88?style=for-the-badge&logo=vitest&logoColor=black)](https://vitest.dev/)
-
-
-
-
-
+[![Vitest](https://img.shields.io/badge/Vitest-Passed%20353%2F353-00FF88?style=for-the-badge&logo=vitest&logoColor=black)](https://vitest.dev/)
 
 <p align="center">
-  <b>Tailored workouts and nutrition based on your unique biometrics, fitness level, and equipment availability. Powered by Google Gemini AI with secure backend proxying.</b>
+  <b>Tailored workouts and nutrition based on your unique biometrics, fitness level, and equipment availability. Powered by Google Gemini AI with secure backend proxying and local-first data sovereignty.</b>
 </p>
 
 </div>
@@ -25,11 +19,11 @@
 
 ## 🌟 Overview
 
-**BodyMap** is a high-performance React web application that generates hyper-personalized 7-day home workout routines and structured nutritional meal plans using Google Gemini Flash AI. By capturing user biometrics, fitness targets, equipment availability, and dietary preferences through a 5-step wizard, BodyMap creates an adaptable, step-by-step roadmap to help individuals achieve their wellness goals.
+**BodyMap** is a high-performance, local-first React web application that generates hyper-personalized 7-day home and gym workout routines alongside structured nutritional meal plans using Google Gemini Flash AI. By capturing user biometrics, fitness targets, equipment availability, and dietary preferences through a 5-step wizard, BodyMap creates an adaptable, step-by-step roadmap to help individuals achieve their wellness goals.
 
 ---
 
-## ✨ Key Features
+## ✨ Key Features & Domain Engines
 
 - 🎯 **5-Step Custom Plan Wizard**:
   1. **Personal Details**: Age, gender, height, weight, baseline fitness level, and live real-time BMI indicator badge.
@@ -38,34 +32,44 @@
   4. **Diet & Nutrition**: Dietary preferences (omnivore, vegan, keto, etc.), allergies, and special meal requests.
   5. **Recovery & Lifestyle**: Sleep schedule, stress level, and rest day customization.
 
-- 🤖 **Secure Google Gemini Flash AI Integration**: Domain-engineered prompts proxied through `/api/generate-plan` keeping API keys strictly server-side (configurable via `GEMINI_MODEL`, default `gemini-3.7-flash`).
-- 📐 **Strict Zod Runtime Validation**: Dual-layer schema validation for user form inputs (`stepSchemas`) and AI plan outputs (`WeeklyPlanSchema`).
-- 📅 **Interactive 7-Day Plan Viewer**: Collapsible daily routines, workout completion tracking checkmarks with progress bar, and raw AI output view toggle.
-- 📊 **Analytics Dashboard**: Interactive weight logger with dynamic Recharts line chart visualization, customizable profile, and measurement tracker.
-- ✏️ **Plan Editor & Customizer**: Modify goals and preferences on the fly and regenerate plans with AI.
-- 📥 **Export & Sharing Suite**: Download plans as Markdown (.md), native print/PDF formatting, Web Share API, and mailto: email dispatch.
-- 🎨 **Sleek Cyber-Dark UI**: Built with a modern dark theme (#121212) accenting neon-green (#00FF88) and electric-purple (#9B5DE5) highlights.
+- 🏋️ **Active Gym Mode (`/gym-mode`)**:
+  - Live session tracker with active stopwatch, rest interval countdown timer, and set completion checkboxes.
+  - Interactive Olympic plate loading calculator with 20kg/15kg bar support and collar offsets.
+  - Real-time tempo pacing cues (eccentric, isometric, concentric) and RPE/RIR intensity logging.
+  - Post-session debriefing modal capturing perceived exertion, energy, fatigue, and custom reflection tags.
+  - Crash-safe session checkpointing with seamless reload recovery (`workoutCheckpointEngine.ts`).
+
+- 📊 **Athlete Analytics & Trajectory Engine (`/dashboard`)**:
+  - Multi-window time filtering (7D, 14D, 30D, All Time) with volume distribution and workout streak tracking.
+  - **Goal Progress Engine (`goalProgressEngine.ts`)**: Real-time target completion percentage and remaining delta metrics.
+  - **Goal Trajectory Engine (`goalTrajectoryEngine.ts`)**: Deterministic 25%, 50%, 75%, and 100% milestone checkpoints.
+  - **Cross-Session Movement Aggregator (`exerciseCrossSessionEngine.ts`)**: Movement consistency, frequency, and peak load tracking.
+  - **Personal Records (PR) Vault (`personalRecords.ts`)**: All-time peak weight achievements with estimated 1RM calculations.
+
+- 📚 **Multi-Plan Library & Comparison (`planComparisonEngine.ts`)**:
+  - Save, duplicate, name, and activate multiple routines.
+  - Side-by-side comparative analysis detailing daily duration differentials, shared vs unique equipment, and goal alignment.
+
+- 💾 **Data Vault & Local Sovereignty (`/download-plan`)**:
+  - High-resolution printable PDF generation and markdown export (.md).
+  - **Data Vault Manifest Engine (`vaultManifestEngine.ts`)**: Partition indexing and storage density health monitoring.
+  - **Unified V1/V2 Backup Integrity Engine (`backupIntegrity.ts` & `backupDiagnostics.ts`)**: Atomic validation and non-destructive restore rollback.
+
+- 🤖 **Secure Google Gemini AI Proxy**: Serverless edge handler (`/api/generate-plan`) isolating API keys server-side with rate limiting, Zod schema validation, and 16 KB payload limits.
 
 ---
 
-## 🛠️ Tech Stack & Version Architecture
+## 🛠️ Tech Stack & Architecture
 
-BodyMap intentionally pins stable, battle-tested dependency versions that have been verified compatible with its core architecture:
-
-- **Frontend Framework**: [React 18.3.1](https://react.dev/) *(Intentionally pinned stable release)* + [TypeScript (Strict Mode)](https://www.typescriptlang.org/)
-- **Build Tool**: [Vite 6.4.3](https://vitejs.dev/) *(Updated with SWC compiler & 0 dev vulnerabilities)*
-
-- **Styling**: [Tailwind CSS 3.4.17](https://tailwindcss.com/) *(Intentionally pinned)* & `tailwindcss-animate`
-- **AI Backend Proxy**: `/api/generate-plan` (Serverless Edge Handler / Dev Middleware)
-- **AI Model**: [Google Gemini Flash REST API](https://ai.google.dev/) *(Active GA default: `gemini-3.7-flash`, configurable via `GEMINI_MODEL`)*
-- **State Management**: React Context API (`PlanContext`) + pure `planReducer` with automatic `localStorage` synchronization
-- **Validation**: [Zod 3.23.8](https://zod.dev/) *(Intentionally pinned runtime schema validation for forms & AI contracts)*
-- **Data Visualization**: [Recharts 2.13.0](https://recharts.org/) *(Intentionally pinned)*
-- **Routing**: [React Router DOM 7.18.2](https://reactrouter.com/) *(Current release with `React.lazy()` code splitting)*
-- **Testing**: [Vitest 4.1.11](https://vitest.dev/) + React Testing Library + jsdom (39 unit tests)
+- **Frontend Framework**: [React 18.3.1](https://react.dev/) + [TypeScript (Strict Mode)](https://www.typescriptlang.org/)
+- **Build Tool**: [Vite 6.4.3](https://vitejs.dev/) with SWC compiler & SPA routing fallback
+- **Styling**: [Tailwind CSS 3.4.17](https://tailwindcss.com/) & `tailwindcss-animate`
+- **State & Persistence**: React Context API (`PlanContext`) with unified `localStorage` & `sessionStorage` synchronization
+- **Validation**: [Zod 3.23.8](https://zod.dev/) runtime contracts for user inputs and AI plan schemas
+- **Data Visualization**: [Recharts 2.13.0](https://recharts.org/)
+- **Routing**: [React Router DOM 7.18.2](https://reactrouter.com/) with lazy loading
+- **Testing**: [Vitest 4.1.11](https://vitest.dev/) + React Testing Library (353 unit tests across 73 suites)
 - **Icons**: [Lucide React 0.462.0](https://lucide.dev/)
-
-
 
 ---
 
@@ -77,32 +81,41 @@ BodyMap/
 ├── public/                  # Static assets, robots.txt, and favicon
 ├── src/
 │   ├── components/          # Reusable UI components (Navbar, ErrorBoundary, ContactForm)
-│   │   └── ui/              # 10 Active UI primitives (Button, Checkbox, Select, Toast, etc.)
+│   │   └── ui/              # Active UI primitives (Button, Checkbox, Select, Toast, etc.)
 │   ├── context/             # State management (PlanContext, planReducer, planStorage)
 │   ├── hooks/               # Custom hooks (use-toast.ts)
-│   ├── lib/                 # Pure domain utilities:
-│   │   ├── bmi.ts           # Pure BMI formula & classification math
-│   │   ├── gemini.ts        # AI prompt builder & client fetcher
-│   │   ├── planSchema.ts    # Zod AI response schema & parser
-│   │   ├── validation.ts    # 5-step Zod wizard form schemas
-│   │   └── utils.ts         # Tailwind className merger (clsx + tailwind-merge)
+│   ├── lib/                 # Pure domain & calculation engines:
+│   │   ├── workoutCheckpointEngine.ts   # Crash-safe active session checkpoint manager
+│   │   ├── goalTrajectoryEngine.ts      # Milestone check-in & progression trajectory
+│   │   ├── vaultManifestEngine.ts       # Data Vault partition indexing & health status
+│   │   ├── exerciseCrossSessionEngine.ts# Multi-session movement frequency aggregator
+│   │   ├── goalProgressEngine.ts        # Target achievement percentage & remaining delta
+│   │   ├── planComparisonEngine.ts      # Multi-plan comparative analysis
+│   │   ├── analyticsTimeWindow.ts       # Time-window filtered load analytics
+│   │   ├── backupIntegrity.ts           # Unified V1/V2 schema validator & rollback
+│   │   ├── backupDiagnostics.ts         # Local storage partition diagnostics
+│   │   ├── personalRecords.ts           # All-time PR vault & lift extraction
+│   │   ├── oneRepMax.ts                 # Brzycki/Epley 1RM estimation math
+│   │   ├── planSchema.ts                # Zod AI response schema & parser
+│   │   └── validation.ts                # 5-step Zod wizard form schemas
 │   ├── pages/               # Lazy-loaded route views:
 │   │   ├── HomePage.tsx          # Landing page with hero, features & reviews
 │   │   ├── CreatePlanPage.tsx    # 5-step plan creation wizard
 │   │   ├── WeeklyPlanPage.tsx    # 7-day interactive workout & nutrition schedule
+│   │   ├── GymModePage.tsx       # Active workout tracker, timer, and plate calculator
+│   │   ├── DashboardPage.tsx     # Progress analytics, PR vault, and goal trajectory
 │   │   ├── EditPlanPage.tsx      # Interactive plan adjustment & AI regeneration
-│   │   ├── DownloadPlanPage.tsx  # Markdown export, print & share hub
-│   │   ├── DashboardPage.tsx     # Progress dashboard with Recharts weight tracking
+│   │   ├── DownloadPlanPage.tsx  # Data Vault export, backup restore & PDF share hub
 │   │   ├── AboutContactPage.tsx  # Mission, tech stack & contact form
 │   │   └── NotFound.tsx          # Themed 404 handler
-│   ├── __tests__/           # 7 Vitest unit test suites (39 tests)
+│   ├── __tests__/           # 73 Vitest unit test suites (353 tests)
 │   ├── App.tsx              # Root router, Suspense, ErrorBoundary & providers
 │   ├── index.css            # Custom theme variables & responsive styles
 │   └── main.tsx             # Application entry point with StrictMode
 ├── tailwind.config.ts       # Tailwind theme colors & animations
 ├── vite.config.ts           # Vite build configuration with API proxy plugin
 ├── vitest.config.ts         # Vitest test runner configuration
-└── package.json             # 16 clean runtime dependencies
+└── package.json             # Runtime & dev dependencies
 ```
 
 ---
@@ -153,10 +166,8 @@ Open [http://localhost:8080](http://localhost:8080) in your browser.
 | `npm run build` | Compiles TypeScript and builds production bundle |
 | `npm run typecheck` | Validates TypeScript types across all files (`tsc --noEmit`) |
 | `npm run lint` | Runs ESLint to check for code quality and syntax rules |
-| `npm run test` | Executes 90 automated Vitest unit tests across 16 test suites |
+| `npm run test` | Executes 353 automated Vitest unit tests across 73 test suites |
 | `npm run preview` | Serves production build locally for verification |
-
-
 
 ---
 
@@ -166,12 +177,8 @@ Open [http://localhost:8080](http://localhost:8080) in your browser.
 - **Client Secret Isolation**: **0 API keys** in browser code or `dist/` bundle; Google Gemini API calls are strictly routed through the `/api/generate-plan` serverless backend proxy with 16 KB payload limits and sliding-window rate limiting.
 - **Development Tooling**: **0 vulnerabilities** (`npm audit` exits with 0 vulnerabilities after updating to Vite 6 & esbuild 0.25+).
 
-
-
 ---
 
 ## 📄 License
 
 This project is licensed under the [MIT License](LICENSE).
-
-
