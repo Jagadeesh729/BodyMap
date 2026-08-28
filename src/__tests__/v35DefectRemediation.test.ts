@@ -249,40 +249,44 @@ describe('convertedSession field mapping (F-04)', () => {
 
 // ── F-02: History cap disclosure threshold tests ──────────────────────────────
 
-describe('history cap disclosure threshold (F-02)', () => {
-  const HISTORY_CAP = 50
-  const BACKUP_NUDGE_THRESHOLD = 40
+import { MAX_STORED_WORKOUTS, BACKUP_NUDGE_THRESHOLD } from '@/lib/sessionStorage'
+
+describe('history cap disclosure threshold (F-02 / ISS-01)', () => {
+  it('exports correct capacity and nudge thresholds', () => {
+    expect(MAX_STORED_WORKOUTS).toBe(250)
+    expect(BACKUP_NUDGE_THRESHOLD).toBe(220)
+  })
 
   it('no nudge shown at count 0', () => {
     expect(0 >= BACKUP_NUDGE_THRESHOLD).toBe(false)
   })
 
-  it('no nudge shown at count 39', () => {
-    expect(39 >= BACKUP_NUDGE_THRESHOLD).toBe(false)
+  it('no nudge shown at count 219', () => {
+    expect(219 >= BACKUP_NUDGE_THRESHOLD).toBe(false)
   })
 
-  it('nudge shown at count 40', () => {
-    expect(40 >= BACKUP_NUDGE_THRESHOLD).toBe(true)
+  it('nudge shown at count 220 (at threshold)', () => {
+    expect(220 >= BACKUP_NUDGE_THRESHOLD).toBe(true)
   })
 
-  it('nudge shown at count 49', () => {
-    expect(49 >= BACKUP_NUDGE_THRESHOLD).toBe(true)
+  it('nudge shown at count 249', () => {
+    expect(249 >= BACKUP_NUDGE_THRESHOLD).toBe(true)
   })
 
-  it('nudge shown at count 50 (at cap)', () => {
-    expect(50 >= BACKUP_NUDGE_THRESHOLD).toBe(true)
+  it('nudge shown at count 250 (at cap)', () => {
+    expect(250 >= BACKUP_NUDGE_THRESHOLD).toBe(true)
   })
 
-  it('count/50 display is correct for 12 sessions', () => {
+  it('count/250 display is correct for 12 sessions', () => {
     const count = 12
-    const display = `${count} / ${HISTORY_CAP} stored`
-    expect(display).toBe('12 / 50 stored')
+    const display = `${count} / ${MAX_STORED_WORKOUTS} stored`
+    expect(display).toBe('12 / 250 stored')
   })
 
-  it('count/50 display is correct for 50 sessions', () => {
-    const count = 50
-    const display = `${count} / ${HISTORY_CAP} stored`
-    expect(display).toBe('50 / 50 stored')
+  it('count/250 display is correct for 250 sessions', () => {
+    const count = 250
+    const display = `${count} / ${MAX_STORED_WORKOUTS} stored`
+    expect(display).toBe('250 / 250 stored')
   })
 })
 

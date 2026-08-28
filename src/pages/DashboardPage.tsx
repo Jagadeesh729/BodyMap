@@ -34,7 +34,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from '@/hooks/use-toast'
 import { usePlan } from '@/context/PlanContext'
-import { loadWorkoutHistory, loadActiveSession } from '@/lib/sessionStorage'
+import { loadWorkoutHistory, loadActiveSession, MAX_STORED_WORKOUTS, BACKUP_NUDGE_THRESHOLD } from '@/lib/sessionStorage'
 import type { CompletedWorkoutLog, WorkoutSession } from '@/types/workoutSession'
 import { calculateWorkoutStreak } from '@/lib/streakCalculation'
 import type { SavedPlan } from '@/types/savedPlan'
@@ -1248,12 +1248,12 @@ const DashboardPage: React.FC = () => {
                   Your verified training logs recorded in Gym Mode
                   {workoutHistory.length > 0 && (
                     <span className="ml-2 font-mono text-[11px] text-gray-500">
-                      ({workoutHistory.length} / 50 stored)
+                      ({workoutHistory.length} / {MAX_STORED_WORKOUTS} stored)
                     </span>
                   )}
                 </p>
-                {/* F-02: Backup nudge when approaching the 50-session cap */}
-                {workoutHistory.length >= 40 && (
+                {/* F-02: Backup nudge when approaching the storage cap */}
+                {workoutHistory.length >= BACKUP_NUDGE_THRESHOLD && (
                   <p className="text-[11px] text-bright-coral font-semibold mt-0.5">
                     ⚠️ Approaching storage cap — export a backup to preserve older sessions.
                   </p>

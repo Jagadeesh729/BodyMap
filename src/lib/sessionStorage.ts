@@ -2,6 +2,8 @@ import type { WorkoutSession, CompletedWorkoutLog } from '@/types/workoutSession
 
 export const ACTIVE_SESSION_STORAGE_KEY = 'bodymap_active_session'
 export const WORKOUT_HISTORY_STORAGE_KEY = 'bodymap_workout_history'
+export const MAX_STORED_WORKOUTS = 250
+export const BACKUP_NUDGE_THRESHOLD = 220
 
 export function saveActiveSession(session: WorkoutSession): void {
   try {
@@ -48,7 +50,7 @@ export function hasActiveSession(): boolean {
 export function saveCompletedWorkoutLog(log: CompletedWorkoutLog): void {
   try {
     const history = loadWorkoutHistory()
-    const updated = [log, ...history.filter(item => item.id !== log.id)].slice(0, 50) // Preserve latest 50 logs
+    const updated = [log, ...history.filter(item => item.id !== log.id)].slice(0, MAX_STORED_WORKOUTS)
     localStorage.setItem(WORKOUT_HISTORY_STORAGE_KEY, JSON.stringify(updated))
   } catch (err) {
     console.warn('[SessionStorage] Failed to save completed workout log:', err)

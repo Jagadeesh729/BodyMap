@@ -110,4 +110,65 @@ describe('Workout Session Storage & Recovery Layer', () => {
     clearWorkoutHistory()
     expect(loadWorkoutHistory()).toEqual([])
   })
+
+  it('preserves up to MAX_STORED_WORKOUTS (250) and evicts oldest record on 251st save (ISS-01)', () => {
+    // 1. Save 250 sequential sessions
+    for (let i = 1; i <= 250; i++) {
+      saveCompletedWorkoutLog({
+        id: `log_${i}`,
+        sessionId: `sess_${i}`,
+        dayIndex: (i % 7),
+        dayTitle: `Day ${i} - Training`,
+        dayType: 'Hypertrophy',
+        completedAt: new Date(1700000000000 + i * 86400000).toISOString(),
+        durationSeconds: 2400,
+        totalSetsCompleted: 15,
+        totalExercises: 5,
+        exercisesSummary: [{ name: 'Bench Press', setsCompleted: 3, totalSets: 3 }]
+      })
+    }
+
+    let history = loadWorkoutHistory()
+    expect(history.length).toBe(250)
+    expect(history[0].id).toBe('log_250') // Newest at index 0
+    expect(history[249].id).toBe('log_1') // Oldest at index 249
+
+    // 2. Save 251st session -> triggers FIFO eviction of log_1
+    saveCompletedWorkoutLog({
+      id: 'log_251',
+      sessionId: 'sess_251',
+      dayIndex: 1,
+      dayTitle: 'Day 251 - Training',
+      dayType: 'Strength',
+      completedAt: new Date(1700000000000 + 251 * 86400000).toISOString(),
+      durationSeconds: 2700,
+      totalSetsCompleted: 18,
+      totalExercises: 6,
+      exercisesSummary: [{ name: 'Squats', setsCompleted: 4, totalSets: 4 }]
+    })
+
+    history = loadWorkoutHistory()
+    expect(history.length).toBe(250)
+    expect(history[0].id).toBe('log_251') // Newest is 251
+    expect(history[249].id).toBe('log_2') // Oldest is now log_2 (log_1 evicted)
+    expect(history.find(item => item.id === 'log_1')).toBeUndefined()
+
+    // 3. Updating existing session ID deduplicates without growing count
+    saveCompletedWorkoutLog({
+      id: 'log_251',
+      sessionId: 'sess_251',
+      dayIndex: 1,
+      dayTitle: 'Day 251 - Updated Training',
+      dayType: 'Strength',
+      completedAt: new Date(1700000000000 + 251 * 86400000).toISOString(),
+      durationSeconds: 3000,
+      totalSetsCompleted: 20,
+      totalExercises: 6,
+      exercisesSummary: [{ name: 'Squats', setsCompleted: 5, totalSets: 5 }]
+    })
+
+    history = loadWorkoutHistory()
+    expect(history.length).toBe(250)
+    expect(history[0].dayTitle).toBe('Day 251 - Updated Training')
+  })
 })
