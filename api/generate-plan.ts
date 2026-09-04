@@ -790,35 +790,57 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
           prompt,
         ].join('\n')
 
-        for (const modelToTry of candidateModels) {
-          try {
-            const retryRes = await fetch(`${GEMINI_API_BASE}/${modelToTry}:generateContent?key=${apiKey}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                contents: [{ parts: [{ text: retryCorrectionPrompt }] }],
-                generationConfig: { maxOutputTokens: 4096 },
-              }),
-              signal: AbortSignal.timeout(25000),
-            })
+        // BOUNDED SINGLE-MODEL RETRY: use the model that produced the primary output.
+        // This caps total provider calls at N (primary cascade) + 1 (retry) rather than 2N.
+        const retryModel = resolvedModel || candidateModels[0]
 
-            if (!retryRes.ok) continue
+        // Clear the unsafe output immediately; it will only be restored if retry is clean.
+        successfulText = ''
+        resolvedModel = ''
 
+        try {
+          const retryRes = await fetch(`${GEMINI_API_BASE}/${retryModel}:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: retryCorrectionPrompt }] }],
+              generationConfig: { maxOutputTokens: 4096 },
+            }),
+            signal: AbortSignal.timeout(25000),
+          })
+
+          if (retryRes.ok) {
             const retryData = await retryRes.json() as {
               candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
             }
             const retryText = retryData.candidates?.[0]?.content?.parts?.[0]?.text
             if (retryText && retryText.trim().length > 0) {
+              // MANDATORY second scan: retry output is never assumed safe
               const retryScan = scanPlanForAllergens(retryText, declaredAllergies)
               if (!retryScan.hasViolation) {
                 successfulText = retryText
-                resolvedModel = modelToTry
-                break
+                resolvedModel = retryModel
               }
+              // If retryScan.hasViolation: successfulText stays empty → HTTP 422 below
             }
-          } catch {
-            continue
+            // If retryText empty/missing: successfulText stays empty → HTTP 422 below
           }
+          // If retryRes not ok: successfulText stays empty → HTTP 422 below
+        } catch {
+          // Retry network/timeout failure: successfulText stays empty → HTTP 422 below
+        }
+
+        // If successfulText is still empty after retry, return 422 allergen safety rejection.
+        if (!successfulText) {
+          res.statusCode = 422
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({
+            error: 'ALLERGEN_SAFETY_VIOLATION: Generated plan could not be made safe for declared allergies after correction attempt.',
+            allergenCategories: Array.from(new Set(initialScan.violations.map(v => v.label))),
+            requestId,
+            executionSource: 'allergen-safety-rejection',
+          }))
+          return
         }
       }
     }
