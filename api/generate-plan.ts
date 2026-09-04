@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'http'
 import { z } from 'zod'
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
-const DEFAULT_GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash'
+const DEFAULT_GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash'
 const MAX_PAYLOAD_SIZE = 16 * 1024 // 16 KB max request size
 
 // --- Domain Schema & Types (Self-Contained for Zero-Dependency Serverless Execution) ---
@@ -697,9 +697,10 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
 
     const candidateModels = [
       DEFAULT_GEMINI_MODEL,
-      'gemini-2.5-flash',
       'gemini-2.0-flash',
       'gemini-1.5-flash',
+      'gemini-1.5-pro',
+      'gemini-2.5-flash',
     ].filter((m, i, arr) => arr.indexOf(m) === i) // unique
 
     let successfulText = ''

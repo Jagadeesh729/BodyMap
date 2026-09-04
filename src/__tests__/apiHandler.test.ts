@@ -179,7 +179,7 @@ describe('Serverless /api/generate-plan Handler Security, Rate Limiting and Stri
     const body = JSON.parse(res._data)
     expect(body.plan).toContain('## Day 1')
     expect(body.executionSource).toBe('live-gemini')
-    expect(body.model).toBe('gemini-2.5-flash')
+    expect(body.model).toBe('gemini-2.0-flash')
     expect(body.requestId).toBeDefined()
 
     global.fetch = originalFetch
@@ -189,7 +189,7 @@ describe('Serverless /api/generate-plan Handler Security, Rate Limiting and Stri
     process.env.GEMINI_API_KEY = 'test_key'
     const originalFetch = global.fetch
     
-    // First call (gemini-2.5-flash) returns 503, second call (gemini-2.0-flash) returns 200
+    // First call (gemini-2.0-flash) returns 503, second call (gemini-1.5-flash) returns 200
     global.fetch = vi.fn()
       .mockResolvedValueOnce({
         ok: false,
@@ -213,7 +213,7 @@ describe('Serverless /api/generate-plan Handler Security, Rate Limiting and Stri
     const body = JSON.parse(res._data)
     expect(body.plan).toContain('## Day 1')
     expect(body.executionSource).toBe('live-gemini')
-    expect(body.model).toBe('gemini-2.0-flash')
+    expect(body.model).toBe('gemini-1.5-flash')
     expect(global.fetch).toHaveBeenCalledTimes(2)
 
     global.fetch = originalFetch
@@ -265,7 +265,7 @@ describe('Serverless /api/generate-plan Handler Security, Rate Limiting and Stri
     const body = JSON.parse(res._data)
     expect(body.plan).toContain('Recovered Plan')
     expect(body.executionSource).toBe('live-gemini')
-    expect(body.model).toBe('gemini-2.0-flash')
+    expect(body.model).toBe('gemini-1.5-flash')
     expect(global.fetch).toHaveBeenCalledTimes(2)
 
     global.fetch = originalFetch
