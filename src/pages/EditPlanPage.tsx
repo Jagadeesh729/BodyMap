@@ -8,6 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { toast } from '@/hooks/use-toast'
 import { usePlan } from '@/context/PlanContext'
 import { callGeminiWithFormData, AllergenSafetyError, MOCK_PLAN } from '@/lib/gemini'
+import { getActiveAllergenCategories, scanPlanForAllergens } from '@/lib/allergenGuard'
 
 const BODY_FOCUS_AREAS = ['Belly', 'Arms', 'Legs', 'Butt', 'Chest', 'Back', 'Shoulders', 'Full Body']
 
@@ -67,12 +68,12 @@ const EditPlanPage = () => {
     const seq = ++generationSeqRef.current
     setIsRegenerating(true)
     try {
-      setFormData(localForm)
       const merged = { ...state.formData, ...localForm }
       toast({ title: 'Regenerating Your Plan', description: 'AI is creating your new plan...' })
       const plan = await callGeminiWithFormData(merged)
 
       if (seq !== generationSeqRef.current) return
+      setFormData(localForm)
       setGeneratedPlan(plan)
       toast({ title: 'Plan Regenerated!', description: 'Your new personalized plan is ready.' })
       navigate('/weekly-plan')
@@ -90,7 +91,21 @@ const EditPlanPage = () => {
         })
         return
       }
+
+      const activeAllergens = getActiveAllergenCategories(localForm.allergies)
+      const mockScan = scanPlanForAllergens(MOCK_PLAN, localForm.allergies)
+      if (activeAllergens.length > 0 || mockScan.hasViolation) {
+        console.warn('AI regeneration failed and user has declared allergies; blocking allergenic mock plan:', err)
+        toast({
+          title: 'AI Service Temporarily Unavailable',
+          description: 'Live AI generation is unavailable. Because you have declared food allergies, a generic demo plan cannot be safely substituted. Please try again in a few moments.',
+          variant: 'destructive',
+        })
+        return
+      }
+
       console.warn('Gemini API unavailable:', err)
+      setFormData(localForm)
       setGeneratedPlan(MOCK_PLAN)
       toast({ title: 'Demo Plan Loaded', description: 'API unavailable. Showing a sample plan.', variant: 'destructive' })
       navigate('/weekly-plan')

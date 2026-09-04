@@ -10,6 +10,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { toast } from '@/hooks/use-toast'
 import { usePlan } from '@/context/PlanContext'
 import { callGeminiWithFormData, AllergenSafetyError, MOCK_PLAN } from '@/lib/gemini'
+import { getActiveAllergenCategories, scanPlanForAllergens } from '@/lib/allergenGuard'
 
 import { validateStep } from '@/lib/validation'
 import { calculateBMI } from '@/lib/bmi'
@@ -154,6 +155,19 @@ const CreatePlanPage = () => {
           })
           return
         }
+
+        const activeAllergens = getActiveAllergenCategories(formData.allergies)
+        const mockScan = scanPlanForAllergens(MOCK_PLAN, formData.allergies)
+        if (activeAllergens.length > 0 || mockScan.hasViolation) {
+          console.warn('AI generation failed and user has declared allergies; blocking allergenic mock plan:', apiErr)
+          toast({
+            title: 'AI Service Temporarily Unavailable',
+            description: 'Live AI generation is unavailable. Because you have declared food allergies, a generic demo plan cannot be safely substituted. Please try again in a few moments.',
+            variant: 'destructive',
+          })
+          return
+        }
+
         console.warn('Gemini API unavailable, using demo plan:', apiErr)
         generatedPlan = MOCK_PLAN
         toast({

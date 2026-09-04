@@ -19,12 +19,14 @@ import {
   Utensils,
   RefreshCw,
   X,
-  Flame
+  Flame,
+  AlertTriangle
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/hooks/use-toast'
 import { usePlan } from '@/context/PlanContext'
 import { parseAndValidatePlan } from '@/lib/planSchema'
+import { scanPlanForAllergens, scanMealTextForAllergens, getActiveAllergenCategories } from '@/lib/allergenGuard'
 import { DEFAULT_WEEKLY_PLAN, type DayPlan } from '@/types/plan'
 import { loadActiveSession } from '@/lib/sessionStorage'
 import type { WorkoutSession } from '@/types/workoutSession'
@@ -226,9 +228,42 @@ const WeeklyPlanPage: React.FC = () => {
     return calculateHydrationClimateAdjustment(hydrationTarget, 'warm')
   }, [hydrationTarget])
 
+  const allergenScanResult = useMemo(() => {
+    if (!state.formData.allergies || !state.formData.allergies.trim()) return { hasViolation: false, violations: [] }
+    if (state.generatedPlan) {
+      return scanPlanForAllergens(state.generatedPlan, state.formData.allergies)
+    }
+    const activeCats = getActiveAllergenCategories(state.formData.allergies)
+    if (activeCats.length === 0) return { hasViolation: false, violations: [] }
+    for (const text of allMealTexts) {
+      const scan = scanMealTextForAllergens(text, activeCats)
+      if (scan.hasViolation) {
+        return { hasViolation: true, violations: scan.violations }
+      }
+    }
+    return { hasViolation: false, violations: [] }
+  }, [state.generatedPlan, state.formData.allergies, allMealTexts])
+
   return (
     <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8 bg-bodymap-dark text-primary-text">
       <div className="max-w-6xl mx-auto">
+
+        {allergenScanResult.hasViolation && (
+          <div className="mb-8 p-4 sm:p-6 bg-red-500/10 border-2 border-red-500/40 rounded-xl flex items-start gap-4 shadow-lg shadow-red-500/5">
+            <AlertTriangle className="w-8 h-8 text-red-400 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h2 className="font-poppins font-semibold text-red-400 text-base sm:text-lg">
+                Allergen Safety Warning
+              </h2>
+              <p className="text-secondary-text font-open-sans text-xs sm:text-sm mt-1">
+                This plan contains ingredients that conflict with your current declared allergy profile ({Array.from(new Set(allergenScanResult.violations.map(v => v.label))).join(', ')}). Please regenerate your plan before preparing any meals.
+              </p>
+            </div>
+            <Link to="/edit-plan" className="btn-secondary whitespace-nowrap text-xs sm:text-sm py-2 px-4 self-center sm:self-auto shrink-0 border-red-500/40 text-red-400 hover:bg-red-500/20">
+              Update Profile
+            </Link>
+          </div>
+        )}
 
         {!state.isGenerated && (
           <div className="mb-8 p-4 sm:p-6 bg-electric-purple/10 border border-electric-purple/30 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4">
