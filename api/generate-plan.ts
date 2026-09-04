@@ -131,7 +131,7 @@ async function parseRequestBody(req: IncomingMessage & { body?: unknown }): Prom
       try {
         return JSON.parse(req.body)
       } catch {
-        return {}
+        throw new Error('MALFORMED_JSON')
       }
     }
     if (typeof req.body === 'object') {
@@ -149,10 +149,14 @@ async function parseRequestBody(req: IncomingMessage & { body?: unknown }): Prom
       }
     })
     req.on('end', () => {
-      try {
-        resolve(JSON.parse(rawBody || '{}'))
-      } catch {
+      if (!rawBody || rawBody.trim().length === 0) {
         resolve({})
+        return
+      }
+      try {
+        resolve(JSON.parse(rawBody))
+      } catch {
+        reject(new Error('MALFORMED_JSON'))
       }
     })
     req.on('error', (err) => {
@@ -230,28 +234,26 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
       return
     }
 
-    let prompt: string
-    if (parsed.formData && typeof parsed.formData === 'object') {
-      const formValidation = FullFormDataSchema.safeParse(parsed.formData)
-      if (!formValidation.success) {
-        res.statusCode = 400
-        res.setHeader('Content-Type', 'application/json')
-        res.end(JSON.stringify({
-          error: 'Invalid form data fields provided.',
-          details: formValidation.error.issues,
-          requestId,
-        }))
-        return
-      }
-      prompt = generatePlanPrompt(formValidation.data)
-    } else if (typeof parsed.prompt === 'string' && parsed.prompt.trim().length > 0 && parsed.prompt.length < 4000) {
-      prompt = parsed.prompt
-    } else {
+    if (!parsed.formData || typeof parsed.formData !== 'object' || Array.isArray(parsed.formData)) {
       res.statusCode = 400
       res.setHeader('Content-Type', 'application/json')
-      res.end(JSON.stringify({ error: 'A valid formData object or prompt is required.', requestId }))
+      res.end(JSON.stringify({ error: 'A valid formData object is required.', requestId }))
       return
     }
+
+    const formValidation = FullFormDataSchema.safeParse(parsed.formData)
+    if (!formValidation.success) {
+      res.statusCode = 400
+      res.setHeader('Content-Type', 'application/json')
+      res.end(JSON.stringify({
+        error: 'Invalid form data fields provided.',
+        details: formValidation.error.issues,
+        requestId,
+      }))
+      return
+    }
+
+    const prompt = generatePlanPrompt(formValidation.data)
 
     const candidateModels = [
       DEFAULT_GEMINI_MODEL,

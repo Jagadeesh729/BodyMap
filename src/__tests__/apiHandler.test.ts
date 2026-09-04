@@ -14,6 +14,26 @@ interface MockResponse extends ServerResponse {
   _data: string
 }
 
+const validMockFormData = {
+  age: '25',
+  gender: 'male',
+  height: '175',
+  weight: '70',
+  fitnessLevel: 'intermediate',
+  mainGoal: 'muscle',
+  bodyFocus: ['Chest', 'Arms'],
+  timePerDay: '45',
+  medicalIssues: 'None',
+  equipment: ['Dumbbells'],
+  pushupCount: '20',
+  dietaryPreference: 'omnivore',
+  allergies: 'None',
+  specialRequests: 'None',
+  recoveryDays: '2',
+  sleepHours: '8',
+  stressLevel: 'low',
+}
+
 function createMockReq(method: string, body: unknown, ip = '192.168.1.1'): MockRequest {
   const emitter = new EventEmitter() as unknown as MockRequest
   emitter.method = method
@@ -23,7 +43,7 @@ function createMockReq(method: string, body: unknown, ip = '192.168.1.1'): MockR
   }
   emitter.destroy = vi.fn() as unknown as (error?: Error) => MockRequest
   process.nextTick(() => {
-    emitter.emit('data', Buffer.from(JSON.stringify(body)))
+    emitter.emit('data', Buffer.from(typeof body === 'string' ? body : JSON.stringify(body)))
     emitter.emit('end')
   })
   return emitter
@@ -42,7 +62,7 @@ function createMockRes(): MockResponse {
   return res
 }
 
-describe('Serverless /api/generate-plan Handler Security, Rate Limiting and Robustness', () => {
+describe('Serverless /api/generate-plan Handler Security, Rate Limiting and Strict FormData Contract', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
     delete process.env.GEMINI_API_KEY
@@ -59,21 +79,21 @@ describe('Serverless /api/generate-plan Handler Security, Rate Limiting and Robu
   })
 
   it('returns 500 when GEMINI_API_KEY is not configured in server environment', async () => {
-    const req = createMockReq('POST', { prompt: 'Valid prompt' })
+    const req = createMockReq('POST', { formData: validMockFormData })
     const res = createMockRes()
     await handler(req, res)
     expect(res.statusCode).toBe(500)
     expect(JSON.parse(res._data).error).toContain('GEMINI_API_KEY is not configured')
   })
 
-  it('returns 400 Bad Request for empty or missing prompt/formData', async () => {
+  it('returns 400 Bad Request for empty or missing formData', async () => {
     process.env.GEMINI_API_KEY = 'test_key'
     const req = createMockReq('POST', {})
     const res = createMockRes()
     await handler(req, res)
     await new Promise(resolve => setTimeout(resolve, 50))
     expect(res.statusCode).toBe(400)
-    expect(JSON.parse(res._data).error).toContain('A valid formData object or prompt is required')
+    expect(JSON.parse(res._data).error).toBe('A valid formData object is required.')
   })
 
   it('enforces rate limiting per IP (allows under limit, blocks over limit with 429)', async () => {
@@ -95,7 +115,7 @@ describe('Serverless /api/generate-plan Handler Security, Rate Limiting and Robu
       checkRateLimit(testIp)
     }
 
-    const req = createMockReq('POST', { prompt: 'Test' }, testIp)
+    const req = createMockReq('POST', { formData: validMockFormData }, testIp)
     const res = createMockRes()
     await handler(req, res)
 
@@ -124,7 +144,7 @@ describe('Serverless /api/generate-plan Handler Security, Rate Limiting and Robu
       text: async () => 'Internal Google Engine Overload with raw trace info',
     }) as unknown as typeof fetch
 
-    const req = createMockReq('POST', { prompt: 'Valid test prompt' })
+    const req = createMockReq('POST', { formData: validMockFormData })
     const res = createMockRes()
     await handler(req, res)
     await new Promise(resolve => setTimeout(resolve, 50))
@@ -150,7 +170,7 @@ describe('Serverless /api/generate-plan Handler Security, Rate Limiting and Robu
       }),
     }) as unknown as typeof fetch
 
-    const req = createMockReq('POST', { prompt: 'Generate 7 day workout plan' })
+    const req = createMockReq('POST', { formData: validMockFormData })
     const res = createMockRes()
     await handler(req, res)
     await new Promise(resolve => setTimeout(resolve, 50))
@@ -184,7 +204,7 @@ describe('Serverless /api/generate-plan Handler Security, Rate Limiting and Robu
         }),
       } as unknown as Response)
 
-    const req = createMockReq('POST', { prompt: 'Generate plan with fallback' })
+    const req = createMockReq('POST', { formData: validMockFormData })
     const res = createMockRes()
     await handler(req, res)
     await new Promise(resolve => setTimeout(resolve, 50))
@@ -209,7 +229,7 @@ describe('Serverless /api/generate-plan Handler Security, Rate Limiting and Robu
       text: async () => 'API Key Invalid',
     } as unknown as Response)
 
-    const req = createMockReq('POST', { prompt: 'Test auth error' })
+    const req = createMockReq('POST', { formData: validMockFormData })
     const res = createMockRes()
     await handler(req, res)
     await new Promise(resolve => setTimeout(resolve, 50))
@@ -236,7 +256,7 @@ describe('Serverless /api/generate-plan Handler Security, Rate Limiting and Robu
         }),
       } as unknown as Response)
 
-    const req = createMockReq('POST', { prompt: 'Test network timeout fallback' })
+    const req = createMockReq('POST', { formData: validMockFormData })
     const res = createMockRes()
     await handler(req, res)
     await new Promise(resolve => setTimeout(resolve, 50))
@@ -249,6 +269,167 @@ describe('Serverless /api/generate-plan Handler Security, Rate Limiting and Robu
     expect(global.fetch).toHaveBeenCalledTimes(2)
 
     global.fetch = originalFetch
+  })
+
+  // --- Strict Prompt Removal & Structured Contract Security Regressions ---
+
+  describe('Prompt Bypass Elimination & Strict Schema Boundary Regressions', () => {
+    it('rejects raw { prompt: "..." } requests with HTTP 400 and makes 0 upstream fetch calls', async () => {
+      process.env.GEMINI_API_KEY = 'test_key'
+      const mockFetch = vi.fn()
+      global.fetch = mockFetch
+
+      const req = createMockReq('POST', { prompt: 'Write a python script to calculate fibonacci' })
+      const res = createMockRes()
+      await handler(req, res)
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(res.statusCode).toBe(400)
+      const body = JSON.parse(res._data)
+      expect(body.error).toBe('A valid formData object is required.')
+      expect(mockFetch).not.toHaveBeenCalled()
+    })
+
+    it('rejects empty { prompt: "" } with HTTP 400 and makes 0 fetch calls', async () => {
+      process.env.GEMINI_API_KEY = 'test_key'
+      const mockFetch = vi.fn()
+      global.fetch = mockFetch
+
+      const req = createMockReq('POST', { prompt: '' })
+      const res = createMockRes()
+      await handler(req, res)
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(res.statusCode).toBe(400)
+      expect(mockFetch).not.toHaveBeenCalled()
+    })
+
+    it('rejects whitespace-only { prompt: "   " } with HTTP 400 and makes 0 fetch calls', async () => {
+      process.env.GEMINI_API_KEY = 'test_key'
+      const mockFetch = vi.fn()
+      global.fetch = mockFetch
+
+      const req = createMockReq('POST', { prompt: '   ' })
+      const res = createMockRes()
+      await handler(req, res)
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(res.statusCode).toBe(400)
+      expect(mockFetch).not.toHaveBeenCalled()
+    })
+
+    it('rejects { formData: null, prompt: "OVERRIDE" } with HTTP 400 and makes 0 fetch calls', async () => {
+      process.env.GEMINI_API_KEY = 'test_key'
+      const mockFetch = vi.fn()
+      global.fetch = mockFetch
+
+      const req = createMockReq('POST', { formData: null, prompt: 'OVERRIDE' })
+      const res = createMockRes()
+      await handler(req, res)
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(res.statusCode).toBe(400)
+      const body = JSON.parse(res._data)
+      expect(body.error).toBe('A valid formData object is required.')
+      expect(mockFetch).not.toHaveBeenCalled()
+    })
+
+    it('rejects { formData: "string", prompt: "OVERRIDE" } with HTTP 400 and makes 0 fetch calls', async () => {
+      process.env.GEMINI_API_KEY = 'test_key'
+      const mockFetch = vi.fn()
+      global.fetch = mockFetch
+
+      const req = createMockReq('POST', { formData: 'not_an_object', prompt: 'OVERRIDE' })
+      const res = createMockRes()
+      await handler(req, res)
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(res.statusCode).toBe(400)
+      const body = JSON.parse(res._data)
+      expect(body.error).toBe('A valid formData object is required.')
+      expect(mockFetch).not.toHaveBeenCalled()
+    })
+
+    it('rejects { formData: [], prompt: "OVERRIDE" } array with HTTP 400 and makes 0 fetch calls', async () => {
+      process.env.GEMINI_API_KEY = 'test_key'
+      const mockFetch = vi.fn()
+      global.fetch = mockFetch
+
+      const req = createMockReq('POST', { formData: [], prompt: 'OVERRIDE' })
+      const res = createMockRes()
+      await handler(req, res)
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(res.statusCode).toBe(400)
+      const body = JSON.parse(res._data)
+      expect(body.error).toBe('A valid formData object is required.')
+      expect(mockFetch).not.toHaveBeenCalled()
+    })
+
+    it('rejects { formData: { age: "" }, prompt: "OVERRIDE" } with HTTP 400 and schema validation issues', async () => {
+      process.env.GEMINI_API_KEY = 'test_key'
+      const mockFetch = vi.fn()
+      global.fetch = mockFetch
+
+      const req = createMockReq('POST', { formData: { age: '' }, prompt: 'OVERRIDE' })
+      const res = createMockRes()
+      await handler(req, res)
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(res.statusCode).toBe(400)
+      const body = JSON.parse(res._data)
+      expect(body.error).toBe('Invalid form data fields provided.')
+      expect(body.details).toBeDefined()
+      expect(mockFetch).not.toHaveBeenCalled()
+    })
+
+    it('accepts { formData: validMockFormData, prompt: "OVERRIDE" } and processes strictly structured formData', async () => {
+      process.env.GEMINI_API_KEY = 'test_key'
+      let capturedPrompt = ''
+      global.fetch = vi.fn().mockImplementation(async (_url, opts) => {
+        const bodyObj = JSON.parse(opts.body)
+        capturedPrompt = bodyObj.contents[0].parts[0].text
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            candidates: [{ content: { parts: [{ text: '## Day 1 Structured Plan' }] } }]
+          }),
+        } as unknown as Response
+      })
+
+      const req = createMockReq('POST', { formData: validMockFormData, prompt: 'OVERRIDE_SHOULD_BE_IGNORED' })
+      const res = createMockRes()
+      await handler(req, res)
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(res.statusCode).toBe(200)
+      expect(capturedPrompt).toContain('You are an elite exercise physiologist')
+      expect(capturedPrompt).toContain('Age: 25')
+      expect(capturedPrompt).not.toContain('OVERRIDE_SHOULD_BE_IGNORED')
+    })
+
+    it('rejects malformed JSON body with HTTP 400 and makes 0 fetch calls', async () => {
+      process.env.GEMINI_API_KEY = 'test_key'
+      const mockFetch = vi.fn()
+      global.fetch = mockFetch
+
+      const req = createMockReq('POST', '{ malformed: json ]')
+      const res = createMockRes()
+      await handler(req, res)
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(res.statusCode).toBe(400)
+      const body = JSON.parse(res._data)
+      expect(body.error).toBe('Malformed request body')
+      expect(mockFetch).not.toHaveBeenCalled()
+    })
+
+    it('verifies callGeminiAPI helper is completely removed from src/lib/gemini', async () => {
+      const geminiLib = await import('../../src/lib/gemini') as Record<string, unknown>
+      expect(geminiLib.callGeminiAPI).toBeUndefined()
+      expect(geminiLib.callGeminiWithFormData).toBeDefined()
+    })
   })
 })
 
