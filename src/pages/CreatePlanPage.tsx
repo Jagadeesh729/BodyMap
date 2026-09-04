@@ -12,7 +12,7 @@ import { usePlan } from '@/context/PlanContext'
 import { callGeminiWithFormData, AllergenSafetyError, MOCK_PLAN } from '@/lib/gemini'
 import { getActiveAllergenCategories, scanPlanForAllergens } from '@/lib/allergenGuard'
 
-import { validateStep } from '@/lib/validation'
+import { validateStep, hasSafetySensitiveMedicalIssues } from '@/lib/validation'
 import { calculateBMI } from '@/lib/bmi'
 import type { FormData } from '@/context/PlanContext'
 
@@ -158,11 +158,16 @@ const CreatePlanPage = () => {
 
         const activeAllergens = getActiveAllergenCategories(formData.allergies)
         const mockScan = scanPlanForAllergens(MOCK_PLAN, formData.allergies)
-        if (activeAllergens.length > 0 || mockScan.hasViolation) {
-          console.warn('AI generation failed and user has declared allergies; blocking allergenic mock plan:', apiErr)
+        const hasMedical = hasSafetySensitiveMedicalIssues(formData.medicalIssues)
+
+        if (activeAllergens.length > 0 || mockScan.hasViolation || hasMedical) {
+          console.warn('AI generation failed and user has declared safety constraints; blocking generic mock plan:', apiErr)
+          const reasonText = hasMedical
+            ? 'Because you have declared medical conditions or physical limitations'
+            : 'Because you have declared food allergies'
           toast({
             title: 'AI Service Temporarily Unavailable',
-            description: 'Live AI generation is unavailable. Because you have declared food allergies, a generic demo plan cannot be safely substituted. Please try again in a few moments.',
+            description: `Live AI generation is unavailable. ${reasonText}, a generic demo plan cannot be safely substituted. Please try again in a few moments.`,
             variant: 'destructive',
           })
           return

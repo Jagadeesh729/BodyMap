@@ -105,3 +105,24 @@ export function validateStep(step: number, data: Record<string, unknown>) {
   return { success: false, errors }
 }
 
+/**
+ * Determines whether a user's declared medical issues string represents an active,
+ * safety-sensitive medical condition or physical limitation (as opposed to 'None', empty, etc.).
+ */
+export function hasSafetySensitiveMedicalIssues(medicalIssues?: string): boolean {
+  if (!medicalIssues || typeof medicalIssues !== 'string') return false
+  const trimmed = medicalIssues.trim().toLowerCase()
+  if (!trimmed) return false
+  const benignPatterns = [
+    /^none\b/i,
+    /^none\s+stated\b/i,
+    /^no\b/i,
+    /^n\/?a\b/i,
+    /^nil\b/i,
+    /^nothing\b/i,
+    /^healthy\b/i,
+    /^no\s+(?:known\s+)?(?:medical\s+issues?|injuries|limitations|conditions)\b/i,
+  ]
+  return !benignPatterns.some(pattern => pattern.test(trimmed))
+}
+
