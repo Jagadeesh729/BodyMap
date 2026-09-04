@@ -8,23 +8,42 @@ const MAX_PAYLOAD_SIZE = 16 * 1024 // 16 KB max request size
 // --- Domain Schema & Types (Self-Contained for Zero-Dependency Serverless Execution) ---
 
 export const FullFormDataSchema = z.object({
-  age: z.string().min(1, 'Age is required'),
-  gender: z.string().min(1, 'Gender is required'),
-  height: z.string().min(1, 'Height is required'),
-  weight: z.string().min(1, 'Weight is required'),
-  fitnessLevel: z.string().min(1, 'Fitness level is required'),
-  mainGoal: z.string().min(1, 'Main goal is required'),
-  bodyFocus: z.array(z.string()).default([]),
-  timePerDay: z.string().min(1, 'Time per day is required'),
-  medicalIssues: z.string().optional().default(''),
-  equipment: z.array(z.string()).default([]),
-  pushupCount: z.string().optional().default(''),
-  dietaryPreference: z.string().min(1, 'Dietary preference is required'),
-  allergies: z.string().optional().default(''),
-  specialRequests: z.string().optional().default(''),
-  recoveryDays: z.string().min(1, 'Recovery days is required'),
-  sleepHours: z.string().min(1, 'Sleep hours is required'),
-  stressLevel: z.string().min(1, 'Stress level is required'),
+  age: z.string().trim().refine(v => {
+    const n = Number(v)
+    return Number.isInteger(n) && n >= 13 && n <= 100
+  }, 'Age must be an integer between 13 and 100'),
+  gender: z.string().trim().min(1, 'Gender is required').max(50, 'Gender must not exceed 50 characters'),
+  height: z.string().trim().refine(v => {
+    const n = Number(v)
+    return !isNaN(n) && n >= 50 && n <= 300
+  }, 'Height must be between 50 and 300 cm'),
+  weight: z.string().trim().refine(v => {
+    const n = Number(v)
+    return !isNaN(n) && n >= 20 && n <= 500
+  }, 'Weight must be between 20 and 500 kg'),
+  fitnessLevel: z.string().trim().min(1, 'Fitness level is required').max(50, 'Fitness level must not exceed 50 characters'),
+  mainGoal: z.string().trim().min(1, 'Main goal is required').max(50, 'Main goal must not exceed 50 characters'),
+  bodyFocus: z.array(z.string().trim().min(1).max(50)).max(20).default([]),
+  timePerDay: z.string().trim().refine(v => {
+    const n = Number(v)
+    return !isNaN(n) && n >= 10 && n <= 180
+  }, 'Time per day must be between 10 and 180 minutes'),
+  medicalIssues: z.string().trim().max(1000, 'Medical issues must not exceed 1000 characters').optional().default(''),
+  equipment: z.array(z.string().trim().min(1).max(50)).max(20).default([]),
+  pushupCount: z.string().trim().refine(v => {
+    if (!v) return true
+    const n = Number(v)
+    return Number.isInteger(n) && n >= 0 && n <= 200
+  }, 'Push-up count must be an integer between 0 and 200').optional().default(''),
+  dietaryPreference: z.string().trim().min(1, 'Dietary preference is required').max(50, 'Dietary preference must not exceed 50 characters'),
+  allergies: z.string().trim().max(1000, 'Allergies must not exceed 1000 characters').optional().default(''),
+  specialRequests: z.string().trim().max(1000, 'Special requests must not exceed 1000 characters').optional().default(''),
+  recoveryDays: z.string().trim().refine(v => {
+    const n = Number(v)
+    return Number.isInteger(n) && n >= 0 && n <= 6
+  }, 'Recovery days must be an integer between 0 and 6'),
+  sleepHours: z.string().trim().min(1, 'Sleep hours is required').max(50, 'Sleep hours must not exceed 50 characters'),
+  stressLevel: z.string().trim().min(1, 'Stress level is required').max(50, 'Stress level must not exceed 50 characters'),
 })
 
 export type FullFormData = z.infer<typeof FullFormDataSchema>

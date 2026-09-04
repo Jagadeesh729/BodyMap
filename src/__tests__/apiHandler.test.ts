@@ -431,6 +431,151 @@ describe('Serverless /api/generate-plan Handler Security, Rate Limiting and Stri
       expect(geminiLib.callGeminiWithFormData).toBeDefined()
     })
   })
+
+  describe('Strict Semantic & Numeric Boundary Hardening Regressions', () => {
+    it('rejects negative age (-50) with HTTP 400 and makes 0 fetch calls', async () => {
+      process.env.GEMINI_API_KEY = 'test_key'
+      const mockFetch = vi.fn()
+      global.fetch = mockFetch
+
+      const req = createMockReq('POST', { formData: { ...validMockFormData, age: '-50' } })
+      const res = createMockRes()
+      await handler(req, res)
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(res.statusCode).toBe(400)
+      expect(JSON.parse(res._data).error).toBe('Invalid form data fields provided.')
+      expect(mockFetch).not.toHaveBeenCalled()
+    })
+
+    it('rejects extreme age (150) with HTTP 400 and makes 0 fetch calls', async () => {
+      process.env.GEMINI_API_KEY = 'test_key'
+      const mockFetch = vi.fn()
+      global.fetch = mockFetch
+
+      const req = createMockReq('POST', { formData: { ...validMockFormData, age: '150' } })
+      const res = createMockRes()
+      await handler(req, res)
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(res.statusCode).toBe(400)
+      expect(JSON.parse(res._data).error).toBe('Invalid form data fields provided.')
+      expect(mockFetch).not.toHaveBeenCalled()
+    })
+
+    it('rejects non-integer age ("25.5") with HTTP 400 and makes 0 fetch calls', async () => {
+      process.env.GEMINI_API_KEY = 'test_key'
+      const mockFetch = vi.fn()
+      global.fetch = mockFetch
+
+      const req = createMockReq('POST', { formData: { ...validMockFormData, age: '25.5' } })
+      const res = createMockRes()
+      await handler(req, res)
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(res.statusCode).toBe(400)
+      expect(JSON.parse(res._data).error).toBe('Invalid form data fields provided.')
+      expect(mockFetch).not.toHaveBeenCalled()
+    })
+
+    it('rejects out-of-range height (30cm or 400cm) with HTTP 400', async () => {
+      process.env.GEMINI_API_KEY = 'test_key'
+      const mockFetch = vi.fn()
+      global.fetch = mockFetch
+
+      const req = createMockReq('POST', { formData: { ...validMockFormData, height: '400' } })
+      const res = createMockRes()
+      await handler(req, res)
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(res.statusCode).toBe(400)
+      expect(mockFetch).not.toHaveBeenCalled()
+    })
+
+    it('rejects out-of-range weight (10kg or 600kg) with HTTP 400', async () => {
+      process.env.GEMINI_API_KEY = 'test_key'
+      const mockFetch = vi.fn()
+      global.fetch = mockFetch
+
+      const req = createMockReq('POST', { formData: { ...validMockFormData, weight: '5' } })
+      const res = createMockRes()
+      await handler(req, res)
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(res.statusCode).toBe(400)
+      expect(mockFetch).not.toHaveBeenCalled()
+    })
+
+    it('rejects impossible recovery days (100 days/week or negative) with HTTP 400', async () => {
+      process.env.GEMINI_API_KEY = 'test_key'
+      const mockFetch = vi.fn()
+      global.fetch = mockFetch
+
+      const req = createMockReq('POST', { formData: { ...validMockFormData, recoveryDays: '7' } })
+      const res = createMockRes()
+      await handler(req, res)
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(res.statusCode).toBe(400)
+      expect(mockFetch).not.toHaveBeenCalled()
+    })
+
+    it('rejects oversized free-text fields (>1000 characters) with HTTP 400', async () => {
+      process.env.GEMINI_API_KEY = 'test_key'
+      const mockFetch = vi.fn()
+      global.fetch = mockFetch
+
+      const req = createMockReq('POST', { formData: { ...validMockFormData, medicalIssues: 'A'.repeat(1050) } })
+      const res = createMockRes()
+      await handler(req, res)
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(res.statusCode).toBe(400)
+      expect(mockFetch).not.toHaveBeenCalled()
+    })
+
+    it('rejects whitespace-only required fields ("   ") with HTTP 400', async () => {
+      process.env.GEMINI_API_KEY = 'test_key'
+      const mockFetch = vi.fn()
+      global.fetch = mockFetch
+
+      const req = createMockReq('POST', { formData: { ...validMockFormData, gender: '   ' } })
+      const res = createMockRes()
+      await handler(req, res)
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(res.statusCode).toBe(400)
+      expect(mockFetch).not.toHaveBeenCalled()
+    })
+
+    it('accepts legitimate boundary edge values (age 13, age 100, height 50, height 300, weight 20, weight 500)', async () => {
+      process.env.GEMINI_API_KEY = 'test_key'
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          candidates: [{ content: { parts: [{ text: '## Day 1 Edge Plan' }] } }]
+        }),
+      }) as unknown as typeof fetch
+
+      const edgeFormData = {
+        ...validMockFormData,
+        age: '13',
+        height: '50',
+        weight: '20',
+        pushupCount: '0',
+        recoveryDays: '0',
+      }
+
+      const req = createMockReq('POST', { formData: edgeFormData })
+      const res = createMockRes()
+      await handler(req, res)
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(res.statusCode).toBe(200)
+      expect(JSON.parse(res._data).plan).toContain('## Day 1 Edge Plan')
+    })
+  })
 })
 
 
