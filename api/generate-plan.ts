@@ -193,6 +193,11 @@ export const ALLERGEN_TAXONOMY: Record<AllergenCategoryKey, AllergenCategoryConf
     safeExemptions: [
       /\b(?:tree[- ]?nut|nut|almond|walnut|cashew|pistachio|hazelnut|pecan)[- ]free\b/i,
       /\bnut[- ]safe\b/i,
+      /\bbutternut\s+squash\b/i,
+      /\bnutritional\s+yeast\b/i,
+      /\b(?:doughnuts?|donuts?)\b/i,
+      /\bcoconut(?:\s+milk|\s+water|\s+oil|\s+flakes|\s+yogurt|\s+flour)?\b/i,
+      /\bnutmeg\b/i,
     ],
   },
   dairy: {
@@ -237,16 +242,21 @@ export const ALLERGEN_TAXONOMY: Record<AllergenCategoryKey, AllergenCategoryConf
       /\blactose[- ]free\b/i,
       /\bmilk[- ]free\b/i,
       /\bnon[- ]dairy\b/i,
-      /\bplant[- ]based\s+milk\b/i,
+      /\bplant[- ]based\s+(?:milk|cheese|yogurt|butter|cream|protein)\b/i,
       /\balmond\s+milk\b/i,
       /\bsoy\s+milk\b/i,
       /\boat\s+milk\b/i,
       /\bcoconut\s+milk\b/i,
       /\bcoconut\s+yogurt\b/i,
       /\bsoy\s+yogurt\b/i,
-      /\bvegan\s+cheese\b/i,
+      /\bvegan\s+(?:cheese|butter|mayo|sour\s+cream|cream\s+cheese|yogurt)\b/i,
       /\bplant\s+protein\b/i,
       /\bpea\s+protein\b/i,
+      /\b(?:peanut|almond|cashew|sunflower(?:\s+seed)?|seed|apple|pumpkin\s+seed|cocoa|cacao|shea|cookie)\s+butter\b/i,
+      /\bbutter\s+(?:lettuce|beans?|squash)\b/i,
+      /\bbutternut\s+squash\b/i,
+      /\bcream\s+of\s+(?:tartar|wheat|rice)\b/i,
+      /\bcoconut\s+cream\b/i,
     ],
   },
   egg: {
@@ -267,6 +277,7 @@ export const ALLERGEN_TAXONOMY: Record<AllergenCategoryKey, AllergenCategoryConf
       /\begg[- ]free\b/i,
       /\begg\s+substitute\b/i,
       /\bvegan\s+mayo\b/i,
+      /\bplant[- ]based\s+egg\b/i,
     ],
   },
   soy: {
@@ -286,6 +297,7 @@ export const ALLERGEN_TAXONOMY: Record<AllergenCategoryKey, AllergenCategoryConf
     ],
     safeExemptions: [
       /\bsoy[- ]free\b/i,
+      /\bsoy[- ]sauce[- ]free\b/i,
     ],
   },
   gluten_wheat: {
@@ -309,12 +321,16 @@ export const ALLERGEN_TAXONOMY: Record<AllergenCategoryKey, AllergenCategoryConf
       /\brye\b/i,
     ],
     safeExemptions: [
+      /\bgluten[- ]free\s+(?:bread|toast|flour|pasta|spaghetti|bagels?|oats?|pancakes?|waffles?|noodles?|crust|wrap|rolls?|buns?)\b/i,
+      /\bwheat[- ]free\s+(?:bread|toast|flour|pasta|spaghetti|bagels?|oats?|pancakes?|waffles?|noodles?|crust|wrap|rolls?|buns?)\b/i,
       /\bgluten[- ]free\b/i,
       /\bwheat[- ]free\b/i,
       /\bchickpea\s+pasta\b/i,
       /\brice\s+pasta\b/i,
-      /\bgluten[- ]free\s+bread\b/i,
-      /\bgluten[- ]free\s+oats?\b/i,
+      /\blentil\s+pasta\b/i,
+      /\bcoconut\s+flour\b/i,
+      /\balmond\s+flour\b/i,
+      /\boat\s+flour\b/i,
     ],
   },
   fish: {
@@ -346,7 +362,9 @@ export const ALLERGEN_TAXONOMY: Record<AllergenCategoryKey, AllergenCategoryConf
       /\bwhite\s+fish\b/i,
     ],
     safeExemptions: [
-      /\bfish[- ]free\b/i,
+      /\b(?:fish|tuna|salmon|cod)[- ]free\b/i,
+      /\bplant[- ]based\s+(?:fish|tuna|salmon|cod|fillet)\b/i,
+      /\bvegan\s+(?:fish|tuna|salmon|cod|fillet)\b/i,
     ],
   },
   shellfish: {
@@ -381,7 +399,9 @@ export const ALLERGEN_TAXONOMY: Record<AllergenCategoryKey, AllergenCategoryConf
       /\boctopus\b/i,
     ],
     safeExemptions: [
-      /\bshellfish[- ]free\b/i,
+      /\b(?:shellfish|shrimp|crab|lobster)[- ]free\b/i,
+      /\bplant[- ]based\s+(?:shellfish|shrimp|crab|lobster|calamari|scallops?)\b/i,
+      /\bvegan\s+(?:shellfish|shrimp|crab|lobster|calamari|scallops?)\b/i,
     ],
   },
   sesame: {
