@@ -1,4 +1,4 @@
-﻿import { Heart, Target, Users, Zap, Mail, MessageCircle, Globe, Github, Twitter, Youtube } from 'lucide-react'
+import { Heart, Target, Users, Zap, Mail, MessageCircle, Globe, Github, Twitter, Youtube } from 'lucide-react'
 import { ContactForm } from '@/components/ContactForm'
 import { Link } from 'react-router-dom'
 
@@ -80,7 +80,7 @@ const AboutContactPage = () => {
               <ul className="space-y-2.5 text-sm text-secondary-text font-open-sans">
                 <li className="flex items-center">
                   <span className="w-1.5 h-1.5 bg-neon-green rounded-full mr-3" />
-                  Client-side reactive state with zero sensitive health leaks
+                  Local-first architecture: workout history &amp; metrics remain exclusively on your device
                 </li>
                 <li className="flex items-center">
                   <span className="w-1.5 h-1.5 bg-neon-green rounded-full mr-3" />

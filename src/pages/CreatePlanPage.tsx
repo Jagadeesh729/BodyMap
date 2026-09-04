@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, Upload, AlertTriangle, Loader2, CheckCircle, Activity } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Upload, AlertTriangle, Loader2, CheckCircle, Activity, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -690,7 +690,17 @@ const CreatePlanPage = () => {
           </div>
         )}
 
-        <div className="bg-bright-coral/10 border border-bright-coral/30 rounded-lg p-4 mt-8 flex items-start space-x-3">
+        <div className="bg-electric-purple/10 border border-electric-purple/30 rounded-lg p-4 mt-8 flex items-start space-x-3">
+          <ShieldCheck className="w-6 h-6 text-electric-purple flex-shrink-0 mt-0.5" aria-hidden="true" />
+          <div className="text-secondary-text font-open-sans text-xs sm:text-sm">
+            <p className="font-semibold text-primary-text mb-1">Privacy &amp; Data Transparency</p>
+            <p>
+              When you click <strong>Generate My Plan</strong>, your 17 physical and dietary parameters are transmitted securely via TLS to our stateless serverless proxy to invoke Google Gemini AI under applicable provider terms. Your workout logs, personal records, and progress metrics remain 100% on your local device—BodyMap maintains zero remote user databases or advertising trackers.
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-bright-coral/10 border border-bright-coral/30 rounded-lg p-4 mt-4 flex items-start space-x-3">
           <AlertTriangle className="w-6 h-6 text-bright-coral flex-shrink-0 mt-0.5" aria-hidden="true" />
           <p className="text-secondary-text font-open-sans text-xs sm:text-sm">
             <strong className="text-bright-coral">Medical Disclaimer:</strong> Always consult with a qualified healthcare provider or physician before starting any vigorous fitness routine, especially if you have pre-existing medical conditions or recent injuries.
