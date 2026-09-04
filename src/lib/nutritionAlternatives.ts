@@ -1,3 +1,5 @@
+import { getActiveAllergenCategories, scanMealTextForAllergens } from './allergenGuard'
+
 export type DietaryCategory = 'all' | 'vegetarian' | 'vegan' | 'pescatarian' | 'dairy-free' | 'gluten-free'
 
 export interface FoodAlternative {
@@ -112,7 +114,7 @@ export const PROTEIN_SUBSTITUTION_MAP: Record<string, FoodAlternative[]> = {
     },
     {
       id: 'sub_soy_skyr',
-      name: 'Unsweetened Soy Protein Skyr / Yogurt',
+      name: 'Unsweetened Soy Protein Skyr / Plant Yogurt',
       portion: '200g',
       approxProteinGrams: 18,
       approxCalories: 140,
@@ -132,9 +134,14 @@ export const PROTEIN_SUBSTITUTION_MAP: Record<string, FoodAlternative[]> = {
 }
 
 /**
- * Returns deterministic protein alternatives based on keywords in the meal string and user dietary preferences.
+ * Returns deterministic protein alternatives based on keywords in the meal string,
+ * user dietary preferences, and declared allergies.
  */
-export function findMealAlternatives(mealText: string, preference: string = 'all'): FoodAlternative[] {
+export function findMealAlternatives(
+  mealText: string,
+  preference: string = 'all',
+  allergies: string = ''
+): FoodAlternative[] {
   if (!mealText || typeof mealText !== 'string') return []
   const lower = mealText.toLowerCase()
 
@@ -153,17 +160,32 @@ export function findMealAlternatives(mealText: string, preference: string = 'all
   const baseAlternatives = PROTEIN_SUBSTITUTION_MAP[key] || PROTEIN_SUBSTITUTION_MAP.chicken
   const prefLower = preference.toLowerCase()
 
+  let filtered = baseAlternatives
+
   if (prefLower.includes('vegan')) {
-    return baseAlternatives.filter(a => a.dietaryTags.includes('vegan'))
-  }
-  if (prefLower.includes('veg') && !prefLower.includes('non')) {
-    return baseAlternatives.filter(a => a.dietaryTags.includes('vegetarian'))
-  }
-  if (prefLower.includes('pesc')) {
-    return baseAlternatives.filter(a => a.dietaryTags.includes('pescatarian') || a.dietaryTags.includes('vegetarian'))
+    filtered = filtered.filter(a => a.dietaryTags.includes('vegan'))
+  } else if (prefLower.includes('veg') && !prefLower.includes('non')) {
+    filtered = filtered.filter(a => a.dietaryTags.includes('vegetarian'))
+  } else if (prefLower.includes('pesc')) {
+    filtered = filtered.filter(a => a.dietaryTags.includes('pescatarian') || a.dietaryTags.includes('vegetarian'))
   }
 
-  return baseAlternatives
+  const activeCategories = getActiveAllergenCategories(allergies)
+  if (activeCategories.length > 0) {
+    filtered = filtered.filter(alt => {
+      // For dairy allergy, if alternative is tagged 'dairy-free', it is exempt from false positive dairy flags
+      if (activeCategories.includes('dairy') && alt.dietaryTags.includes('dairy-free')) {
+        const remainingCats = activeCategories.filter(c => c !== 'dairy')
+        if (remainingCats.length === 0) return true
+        const scan = scanMealTextForAllergens(`${alt.name} ${alt.notes}`, remainingCats)
+        return !scan.hasViolation
+      }
+      const scan = scanMealTextForAllergens(`${alt.name} ${alt.notes}`, activeCategories)
+      return !scan.hasViolation
+    })
+  }
+
+  return filtered
 }
 
 /**
@@ -334,4 +356,3 @@ export function filterPantryStaples(
     }))
     .filter(group => group.items.length > 0)
 }
-

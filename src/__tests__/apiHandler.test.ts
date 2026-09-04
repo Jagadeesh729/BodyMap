@@ -576,6 +576,116 @@ describe('Serverless /api/generate-plan Handler Security, Rate Limiting and Stri
       expect(JSON.parse(res._data).plan).toContain('## Day 1 Edge Plan')
     })
   })
+
+  describe('Deterministic Allergen Output Guard and Bounded Retry Enforcement', () => {
+    it('detects allergen in initial output and triggers bounded single retry with correction prompt', async () => {
+      process.env.GEMINI_API_KEY = 'test_key'
+
+      const allergenViolatingText = `## Day 1 - Full Body
+**Warm-up:** 5 mins arm swings
+**Main Workout:**
+- Push-ups: 3 sets x 10 reps
+**Meals:**
+- Breakfast: Oatmeal with natural peanut butter
+- Lunch: Grilled chicken salad
+- Dinner: Turkey and rice
+- Snacks: Apple slices`
+
+      const cleanCorrectedText = `## Day 1 - Full Body
+**Warm-up:** 5 mins arm swings
+**Main Workout:**
+- Push-ups: 3 sets x 10 reps
+**Meals:**
+- Breakfast: Oatmeal with sunflower seed butter
+- Lunch: Grilled chicken salad
+- Dinner: Turkey and rice
+- Snacks: Apple slices`
+
+      let callCount = 0
+      let secondCallPrompt = ''
+      global.fetch = vi.fn().mockImplementation(async (_url, opts) => {
+        callCount++
+        const bodyObj = JSON.parse(opts.body)
+        if (callCount === 1) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              candidates: [{ content: { parts: [{ text: allergenViolatingText }] } }]
+            }),
+          } as unknown as Response
+        } else {
+          secondCallPrompt = bodyObj.contents[0].parts[0].text
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              candidates: [{ content: { parts: [{ text: cleanCorrectedText }] } }]
+            }),
+          } as unknown as Response
+        }
+      })
+
+      const req = createMockReq('POST', {
+        formData: {
+          ...validMockFormData,
+          allergies: 'peanuts'
+        }
+      })
+      const res = createMockRes()
+      await handler(req, res)
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(res.statusCode).toBe(200)
+      const resBody = JSON.parse(res._data)
+      expect(callCount).toBe(2) // Exactly 1 initial + 1 bounded retry
+      expect(secondCallPrompt).toContain('CRITICAL ALLERGY SAFETY CORRECTION REQUIRED')
+      expect(secondCallPrompt).toContain('Peanuts')
+      expect(resBody.plan).toContain('sunflower seed butter')
+      expect(resBody.plan).not.toContain('peanut butter')
+    })
+
+    it('does not trigger retry when initial output is clean and free of declared allergens', async () => {
+      process.env.GEMINI_API_KEY = 'test_key'
+
+      const cleanText = `## Day 1 - Full Body
+**Warm-up:** 5 mins arm swings
+**Main Workout:**
+- Push-ups: 3 sets x 10 reps
+**Meals:**
+- Breakfast: Oatmeal with chia seeds and blueberries
+- Lunch: Grilled chicken salad
+- Dinner: Turkey and sweet potato
+- Snacks: Apple slices`
+
+      let callCount = 0
+      global.fetch = vi.fn().mockImplementation(async () => {
+        callCount++
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            candidates: [{ content: { parts: [{ text: cleanText }] } }]
+          }),
+        } as unknown as Response
+      })
+
+      const req = createMockReq('POST', {
+        formData: {
+          ...validMockFormData,
+          allergies: 'peanuts, shellfish'
+        }
+      })
+      const res = createMockRes()
+      await handler(req, res)
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(res.statusCode).toBe(200)
+      expect(callCount).toBe(1) // Only 1 attempt needed
+      const resBody = JSON.parse(res._data)
+      expect(resBody.plan).toContain('chia seeds')
+    })
+  })
 })
 
 

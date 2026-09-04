@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'http'
 import { z } from 'zod'
+import { scanPlanForAllergens, getActiveAllergenCategories } from '../src/lib/allergenGuard'
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
 const DEFAULT_GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash'
@@ -319,6 +320,65 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
       } catch {
         // try next candidate on timeout or network glitch
         continue
+      }
+    }
+
+    // --- Deterministic Allergen Output Guard with Bounded Single-Attempt Retry ---
+    const declaredAllergies = formValidation.data.allergies?.trim() || ''
+    const activeAllergens = getActiveAllergenCategories(declaredAllergies)
+
+    if (successfulText && activeAllergens.length > 0) {
+      const initialScan = scanPlanForAllergens(successfulText, declaredAllergies)
+      if (initialScan.hasViolation) {
+        const uniqueLabels = Array.from(new Set(initialScan.violations.map(v => v.label))).join(', ')
+        const violationDetails = initialScan.violations
+          .slice(0, 5)
+          .map(v => `- [${v.label} violation]: "${v.matchedTerm}" in "${v.rawSnippet.slice(0, 100)}"`)
+          .join('\n')
+
+        const retryCorrectionPrompt = [
+          'CRITICAL ALLERGY SAFETY CORRECTION REQUIRED:',
+          `The client has severe declared allergies to: ${uniqueLabels}.`,
+          'The previously generated plan contained the following violating ingredients:',
+          violationDetails,
+          '',
+          `You MUST regenerate the entire 7-day plan strictly omitting ALL ${uniqueLabels} and any related ingredients or derivatives.`,
+          'Ensure safe alternative ingredients are provided (e.g., sunflower butter instead of peanut butter, pea protein instead of whey, seed butter instead of almond butter, tofu/chickpeas instead of eggs/dairy, etc.).',
+          '',
+          'Here is the original client profile and instructions:',
+          prompt,
+        ].join('\n')
+
+        for (const modelToTry of candidateModels) {
+          try {
+            const retryRes = await fetch(`${GEMINI_API_BASE}/${modelToTry}:generateContent?key=${apiKey}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: retryCorrectionPrompt }] }],
+                generationConfig: { maxOutputTokens: 4096 },
+              }),
+              signal: AbortSignal.timeout(25000),
+            })
+
+            if (!retryRes.ok) continue
+
+            const retryData = await retryRes.json() as {
+              candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
+            }
+            const retryText = retryData.candidates?.[0]?.content?.parts?.[0]?.text
+            if (retryText && retryText.trim().length > 0) {
+              const retryScan = scanPlanForAllergens(retryText, declaredAllergies)
+              if (!retryScan.hasViolation) {
+                successfulText = retryText
+                resolvedModel = modelToTry
+                break
+              }
+            }
+          } catch {
+            continue
+          }
+        }
       }
     }
 

@@ -200,8 +200,12 @@ const WeeklyPlanPage: React.FC = () => {
 
   const mealAlternatives: FoodAlternative[] = useMemo(() => {
     if (!selectedMealForSwap) return []
-    return findMealAlternatives(selectedMealForSwap.text, state.formData.dietaryPreference || 'all')
-  }, [selectedMealForSwap, state.formData.dietaryPreference])
+    return findMealAlternatives(
+      selectedMealForSwap.text,
+      state.formData.dietaryPreference || 'all',
+      state.formData.allergies || ''
+    )
+  }, [selectedMealForSwap, state.formData.dietaryPreference, state.formData.allergies])
 
   const dailyMacros: DailyMacroEstimate = useMemo(() => {
     return estimateDailyMacros(state.formData.weight, state.formData.mainGoal)
