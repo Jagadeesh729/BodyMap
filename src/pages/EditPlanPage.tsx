@@ -60,6 +60,20 @@ const EditPlanPage = () => {
     }))
 
   const handleSave = () => {
+    const medicalChanged = (localForm.medicalIssues || '').trim() !== (state.formData.medicalIssues || '').trim()
+    const allergiesChanged = (localForm.allergies || '').trim() !== (state.formData.allergies || '').trim()
+    const safetyCriticalChange = (medicalChanged && hasSafetySensitiveMedicalIssues(localForm.medicalIssues)) ||
+      (allergiesChanged && getActiveAllergenCategories(localForm.allergies).length > 0)
+
+    if (safetyCriticalChange && state.isGenerated) {
+      toast({
+        title: 'Plan Regeneration Required',
+        description: 'You have updated safety-critical health details (injuries, medical conditions, or allergies). To ensure your plan is safe, please click "Regenerate Plan" instead of saving an unvetted plan.',
+        variant: 'destructive',
+      })
+      return
+    }
+
     setFormData(localForm)
     toast({ title: 'Plan Updated!', description: 'Your fitness preferences have been saved.' })
     navigate('/weekly-plan')

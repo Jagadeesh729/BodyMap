@@ -62,6 +62,14 @@ export const ExitWorkoutDialog: React.FC<ExitWorkoutDialogProps> = ({
           <Button
             onClick={onDiscardAndExit}
             variant="ghost"
+            className="w-full py-2.5 text-amber-400 hover:bg-amber-500/10 text-xs flex items-center justify-center gap-1.5 border border-amber-500/30 rounded-lg"
+          >
+            <AlertCircle className="w-3.5 h-3.5" /> Stop Session (Pain / Dizziness / Discomfort)
+          </Button>
+
+          <Button
+            onClick={onDiscardAndExit}
+            variant="ghost"
             className="w-full py-2.5 text-bright-coral hover:bg-bright-coral/10 text-xs flex items-center justify-center gap-1.5"
           >
             <Trash2 className="w-3.5 h-3.5" /> Discard Session

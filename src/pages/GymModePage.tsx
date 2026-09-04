@@ -23,6 +23,7 @@ import { Input } from '@/components/ui/input'
 import { toast } from '@/hooks/use-toast'
 import { usePlan } from '@/context/PlanContext'
 import { parseAndValidatePlan } from '@/lib/planSchema'
+import { hasSafetySensitiveMedicalIssues } from '@/lib/validation'
 import { DEFAULT_WEEKLY_PLAN } from '@/types/plan'
 import type { WorkoutSession, CompletedWorkoutLog } from '@/types/workoutSession'
 import {
@@ -792,6 +793,25 @@ export const GymModePage: React.FC = () => {
           style={{ width: `${progressPercent}%` }}
         />
       </div>
+
+      {/* Active Medical & Injury Caution Bar */}
+      {hasSafetySensitiveMedicalIssues(state.formData.medicalIssues) && (
+        <div className="bg-amber-500/15 border-b border-amber-500/30 px-4 py-2 flex items-center justify-between text-xs text-amber-300 animate-fade-in">
+          <div className="flex items-center gap-2 truncate">
+            <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+            <span className="truncate">
+              <strong>Medical Note:</strong> {state.formData.medicalIssues}. Discontinue immediately if you feel pain, dizziness, or chest tightness.
+            </span>
+          </div>
+          <button
+            onClick={() => setIsExitDialogOpen(true)}
+            className="ml-3 underline hover:text-amber-200 shrink-0 font-semibold"
+            aria-label="Stop workout due to medical symptoms"
+          >
+            Symptom Stop
+          </button>
+        </div>
+      )}
 
       {/* Main Active Workout View */}
       <main className="max-w-3xl w-full mx-auto px-4 sm:px-6 pt-6 pb-24 flex-1 flex flex-col justify-between">

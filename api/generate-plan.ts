@@ -102,7 +102,11 @@ export function generatePlanPrompt(formData: {
     `2. Allocate ${formData.recoveryDays || '2'} rest/active recovery days across the week.`,
     '3. For each workout day provide: 5-minute dynamic warm-up, main exercise circuit with exact sets/reps/rest, and 5-minute cool-down.',
     '4. For each day provide: Breakfast, Lunch, Dinner, and 1-2 Snacks with realistic ingredient suggestions and approximate calorie targets.',
-    '5. Conclude with an inspiring motivational coaching quote.'
+    '5. Conclude with an inspiring motivational coaching quote.',
+    '',
+    'CRITICAL SAFETY DIRECTIVES:',
+    '1. MEDICAL & INJURY CONTRAINDICATIONS: If the client lists ANY medical condition, injury, pain, surgery, or physical limitation, strictly accommodate it. NEVER prescribe exercises that aggravate declared conditions (e.g., NO jumping, plyometrics, or deep heavy squats for knee/ACL/meniscus injuries; NO overhead pressing for shoulder/rotator cuff injuries; NO heavy spinal loading, deadlifts, or unsupported forward flexion for lumbar disc herniations; NO high-intensity cardio, valsalva straining, or isometric strain for chest pain, heart conditions, or severe hypertension; NO prone or high-impact exercises for pregnancy; NO high-impact bounding for severe osteoarthritis or osteoporosis). Provide safe, low-impact rehabilitative alternatives.',
+    '2. ALLERGY EXCLUSIONS: Strictly omit all declared food allergens, intolerances, and related derivatives.'
   ].join('\n')
 }
 
