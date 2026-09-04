@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { toast } from '@/hooks/use-toast'
 import { usePlan } from '@/context/PlanContext'
-import { callGeminiWithFormData, MOCK_PLAN } from '@/lib/gemini'
+import { callGeminiWithFormData, AllergenSafetyError, MOCK_PLAN } from '@/lib/gemini'
 
 import { validateStep } from '@/lib/validation'
 import { calculateBMI } from '@/lib/bmi'
@@ -142,6 +142,18 @@ const CreatePlanPage = () => {
         setGenerationStage('validating')
       } catch (apiErr) {
         if (seq !== generationSeqRef.current) return
+        if (
+          apiErr instanceof AllergenSafetyError ||
+          (apiErr as { status?: number })?.status === 422 ||
+          (apiErr as Error)?.message?.includes('ALLERGEN_SAFETY_VIOLATION')
+        ) {
+          toast({
+            title: 'Allergen Safety Rejection',
+            description: 'Could not safely generate a plan omitting all declared allergens. Please adjust your request and try again.',
+            variant: 'destructive',
+          })
+          return
+        }
         console.warn('Gemini API unavailable, using demo plan:', apiErr)
         generatedPlan = MOCK_PLAN
         toast({

@@ -51,6 +51,45 @@ describe('generatePlanPrompt', () => {
     expect(validateGeneratedPlan(MOCK_PLAN).hasNutrition).toBe(true)
     expect(validateGeneratedPlan(MOCK_PLAN).dayCount).toBeGreaterThanOrEqual(1)
   })
+
+  it('throws AllergenSafetyError with status 422 when API rejects plan for declared allergies', async () => {
+    const { callGeminiWithFormData, AllergenSafetyError } = await import('../lib/gemini')
+    const originalFetch = global.fetch
+    global.fetch = async () => ({
+      ok: false,
+      status: 422,
+      text: async () => JSON.stringify({
+        error: 'ALLERGEN_SAFETY_VIOLATION: Generated plan could not be made safe for declared allergies after correction attempt.',
+        allergenCategories: ['Peanuts'],
+        requestId: 'req_test_123',
+        executionSource: 'allergen-safety-rejection',
+      }),
+    }) as unknown as Response
+
+    try {
+      await expect(callGeminiWithFormData({
+        age: '28',
+        gender: 'female',
+        height: '165',
+        weight: '60',
+        fitnessLevel: 'intermediate',
+        mainGoal: 'muscle',
+        bodyFocus: ['Full Body'],
+        timePerDay: '45',
+        medicalIssues: '',
+        equipment: ['Dumbbells'],
+        pushupCount: '15',
+        dietaryPreference: 'omnivore',
+        allergies: 'peanuts',
+        specialRequests: '',
+        recoveryDays: '2',
+        sleepHours: '8',
+        stressLevel: 'low',
+      })).rejects.toThrowError(AllergenSafetyError)
+    } finally {
+      global.fetch = originalFetch
+    }
+  })
 })
 
 

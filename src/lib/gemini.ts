@@ -42,6 +42,18 @@ export function generatePlanPrompt(formData: FormData): string {
 }
 
 
+export class AllergenSafetyError extends Error {
+  status: number
+  allergenCategories?: string[]
+
+  constructor(message: string, allergenCategories?: string[]) {
+    super(message)
+    this.name = 'AllergenSafetyError'
+    this.status = 422
+    this.allergenCategories = allergenCategories
+  }
+}
+
 export async function callGeminiWithFormData(formData: FormData): Promise<string> {
   const response = await fetch('/api/generate-plan', {
     method: 'POST',
@@ -52,6 +64,18 @@ export async function callGeminiWithFormData(formData: FormData): Promise<string
 
   if (!response.ok) {
     const errBody = await response.text()
+    if (response.status === 422) {
+      try {
+        const parsed = JSON.parse(errBody)
+        throw new AllergenSafetyError(
+          parsed.error || 'ALLERGEN_SAFETY_VIOLATION: Generated plan could not be made safe for declared allergies.',
+          parsed.allergenCategories
+        )
+      } catch (e) {
+        if (e instanceof AllergenSafetyError) throw e
+        throw new AllergenSafetyError('ALLERGEN_SAFETY_VIOLATION')
+      }
+    }
     throw new Error(`API error (${response.status}): ${errBody}`)
   }
 

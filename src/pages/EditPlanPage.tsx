@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox'
 import { toast } from '@/hooks/use-toast'
 import { usePlan } from '@/context/PlanContext'
-import { callGeminiWithFormData, MOCK_PLAN } from '@/lib/gemini'
+import { callGeminiWithFormData, AllergenSafetyError, MOCK_PLAN } from '@/lib/gemini'
 
 const BODY_FOCUS_AREAS = ['Belly', 'Arms', 'Legs', 'Butt', 'Chest', 'Back', 'Shoulders', 'Full Body']
 
@@ -78,6 +78,18 @@ const EditPlanPage = () => {
       navigate('/weekly-plan')
     } catch (err) {
       if (seq !== generationSeqRef.current) return
+      if (
+        err instanceof AllergenSafetyError ||
+        (err as { status?: number })?.status === 422 ||
+        (err as Error)?.message?.includes('ALLERGEN_SAFETY_VIOLATION')
+      ) {
+        toast({
+          title: 'Allergen Safety Rejection',
+          description: 'Could not safely generate a plan omitting all declared allergens. Please adjust your requests and try again.',
+          variant: 'destructive',
+        })
+        return
+      }
       console.warn('Gemini API unavailable:', err)
       setGeneratedPlan(MOCK_PLAN)
       toast({ title: 'Demo Plan Loaded', description: 'API unavailable. Showing a sample plan.', variant: 'destructive' })
