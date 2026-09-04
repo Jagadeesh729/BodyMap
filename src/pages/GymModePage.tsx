@@ -24,6 +24,7 @@ import { toast } from '@/hooks/use-toast'
 import { usePlan } from '@/context/PlanContext'
 import { parseAndValidatePlan } from '@/lib/planSchema'
 import { hasSafetySensitiveMedicalIssues } from '@/lib/validation'
+import { evaluatePlanProfileBinding } from '@/lib/planBinding'
 import { DEFAULT_WEEKLY_PLAN } from '@/types/plan'
 import type { WorkoutSession, CompletedWorkoutLog } from '@/types/workoutSession'
 import {
@@ -108,14 +109,27 @@ export const GymModePage: React.FC = () => {
     }
   }, [state.generatedPlan, state.formData, targetDayIndex])
 
+  // Plan-Profile binding evaluation
+  const bindingEval = useMemo(() => {
+    return evaluatePlanProfileBinding(state.formData, state.boundProfile)
+  }, [state.formData, state.boundProfile])
+
   // Session state
   const [session, setSession] = useState<WorkoutSession>(() => {
     const saved = loadActiveSession()
     if (saved && saved.dayIndex === targetDayIndex && saved.status === 'in-progress') {
-      return saved
+      const isPlanMatch = !saved.planId || !state.planId || saved.planId === state.planId
+      const isMedicalMatch = !saved.medicalSnapshot || (saved.medicalSnapshot || '').trim().toLowerCase() === (state.formData.medicalIssues || '').trim().toLowerCase()
+      if (isPlanMatch && isMedicalMatch) {
+        return saved
+      }
+      // If plan or medical profile has changed, discard the stale session immediately!
+      clearActiveSession()
     }
     return {
       sessionId: `sess_${Date.now()}`,
+      planId: state.planId,
+      medicalSnapshot: state.formData.medicalIssues,
       dayIndex: targetDayIndex,
       dayTitle: planData.title,
       dayType: planData.type,
@@ -714,6 +728,44 @@ export const GymModePage: React.FC = () => {
   const minsElapsed = Math.floor(session.elapsedSeconds / 60)
   const secsElapsed = session.elapsedSeconds % 60
   const formattedElapsed = `${minsElapsed.toString().padStart(2, '0')}:${secsElapsed.toString().padStart(2, '0')}`
+
+  // Safety Gate: Block execution of unvetted plan if safety profile has diverged since generation
+  if (bindingEval.isSafetyMismatched) {
+    return (
+      <div className="min-h-screen bg-bodymap-dark text-primary-text flex items-center justify-center p-4">
+        <div className="card-dark max-w-lg w-full text-center space-y-6 border-2 border-bright-coral/50 p-8 shadow-2xl animate-fade-in">
+          <div className="w-16 h-16 rounded-full bg-bright-coral/20 flex items-center justify-center mx-auto">
+            <AlertCircle className="w-10 h-10 text-bright-coral" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-poppins font-bold text-primary-text mb-2">
+              Workout Safety Lockout
+            </h1>
+            <p className="text-sm text-secondary-text font-open-sans">
+              Your health profile (injuries, medical conditions, or allergies) has changed since this plan was generated. To prevent injury, this workout is locked until you regenerate your plan to accommodate your current health state.
+            </p>
+          </div>
+          <div className="p-3.5 bg-bright-coral/10 border border-bright-coral/30 rounded-xl text-xs text-bright-coral font-medium text-left">
+            <strong>Safety Conflict:</strong> {bindingEval.reason}
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            <button
+              onClick={() => navigate('/edit-plan')}
+              className="btn-primary w-full py-3 text-xs sm:text-sm flex items-center justify-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" /> Regenerate Plan
+            </button>
+            <button
+              onClick={() => navigate('/weekly-plan')}
+              className="btn-secondary w-full py-3 text-xs sm:text-sm flex items-center justify-center gap-2"
+            >
+              <ArrowLeft className="w-4 h-4" /> Back to My Plan
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-bodymap-dark text-primary-text flex flex-col justify-between pb-12">

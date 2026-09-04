@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { Save, RefreshCw, ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -35,6 +36,8 @@ const EditPlanPage = () => {
     recoveryDays: state.formData.recoveryDays,
     sleepHours: state.formData.sleepHours,
     stressLevel: state.formData.stressLevel,
+    medicalIssues: state.formData.medicalIssues || '',
+    allergies: state.formData.allergies || '',
   })
 
   useEffect(() => {
@@ -45,6 +48,8 @@ const EditPlanPage = () => {
       recoveryDays: state.formData.recoveryDays,
       sleepHours: state.formData.sleepHours,
       stressLevel: state.formData.stressLevel,
+      medicalIssues: state.formData.medicalIssues || '',
+      allergies: state.formData.allergies || '',
     })
   }, [state.formData])
 
@@ -89,7 +94,7 @@ const EditPlanPage = () => {
 
       if (seq !== generationSeqRef.current) return
       setFormData(localForm)
-      setGeneratedPlan(plan)
+      setGeneratedPlan(plan, merged)
       toast({ title: 'Plan Regenerated!', description: 'Your new personalized plan is ready.' })
       navigate('/weekly-plan')
     } catch (err) {
@@ -202,6 +207,29 @@ const EditPlanPage = () => {
                   ))}
                 </div>
               </fieldset>
+            </div>
+
+            <div className="space-y-4 pt-6 border-t border-gray-800 md:col-span-2">
+              <div>
+                <Label htmlFor="edit-medical" className="text-secondary-text">Medical Conditions / Injuries / Limitations</Label>
+                <Input
+                  id="edit-medical"
+                  className="input-dark w-full mt-1.5"
+                  placeholder="e.g. None, knee injury, asthma, lower back pain"
+                  value={localForm.medicalIssues}
+                  onChange={e => handleSelectChange('medicalIssues', e.target.value)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-allergies" className="text-secondary-text">Food Allergies / Dietary Intolerances</Label>
+                <Input
+                  id="edit-allergies"
+                  className="input-dark w-full mt-1.5"
+                  placeholder="e.g. None, peanuts, dairy, shellfish"
+                  value={localForm.allergies}
+                  onChange={e => handleSelectChange('allergies', e.target.value)}
+                />
+              </div>
             </div>
           </div>
 

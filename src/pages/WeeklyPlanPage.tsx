@@ -28,6 +28,7 @@ import { usePlan } from '@/context/PlanContext'
 import { parseAndValidatePlan } from '@/lib/planSchema'
 import { scanPlanForAllergens, scanMealTextForAllergens, getActiveAllergenCategories } from '@/lib/allergenGuard'
 import { hasSafetySensitiveMedicalIssues } from '@/lib/validation'
+import { evaluatePlanProfileBinding } from '@/lib/planBinding'
 import { DEFAULT_WEEKLY_PLAN, type DayPlan } from '@/types/plan'
 import { loadActiveSession } from '@/lib/sessionStorage'
 import type { WorkoutSession } from '@/types/workoutSession'
@@ -249,9 +250,30 @@ const WeeklyPlanPage: React.FC = () => {
     return hasSafetySensitiveMedicalIssues(state.formData.medicalIssues)
   }, [state.formData.medicalIssues])
 
+  const bindingEval = useMemo(() => {
+    return evaluatePlanProfileBinding(state.formData, state.boundProfile)
+  }, [state.formData, state.boundProfile])
+
   return (
     <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8 bg-bodymap-dark text-primary-text">
       <div className="max-w-6xl mx-auto">
+
+        {bindingEval.isSafetyMismatched && (
+          <div className="mb-8 p-4 sm:p-6 bg-bright-coral/10 border-2 border-bright-coral/50 rounded-xl flex items-start gap-4 shadow-lg shadow-bright-coral/10 animate-fade-in">
+            <AlertCircle className="w-8 h-8 text-bright-coral shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h2 className="font-poppins font-semibold text-bright-coral text-base sm:text-lg">
+                Workout Safety Lockout — Profile Mismatch
+              </h2>
+              <p className="text-secondary-text font-open-sans text-xs sm:text-sm mt-1">
+                Your medical conditions or allergies have changed since this plan was generated ({bindingEval.mismatchedSafetyFields.join(', ')}). Workouts are locked to prevent injury until you regenerate your plan to match your current profile.
+              </p>
+            </div>
+            <Link to="/edit-plan" className="btn-primary whitespace-nowrap text-xs sm:text-sm py-2 px-4 self-center sm:self-auto shrink-0">
+              Regenerate Plan
+            </Link>
+          </div>
+        )}
 
         {allergenScanResult.hasViolation && (
           <div className="mb-8 p-4 sm:p-6 bg-red-500/10 border-2 border-red-500/40 rounded-xl flex items-start gap-4 shadow-lg shadow-red-500/5">
@@ -307,7 +329,7 @@ const WeeklyPlanPage: React.FC = () => {
           </div>
         )}
 
-        {activeSession && (
+        {activeSession && !bindingEval.isSafetyMismatched && (
           <div className="mb-6 p-4 sm:p-5 bg-neon-green/10 border-2 border-neon-green/40 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg shadow-neon-green/5">
             <div className="flex items-center gap-3">
               <div className="w-3 h-3 rounded-full bg-neon-green animate-ping shrink-0" />
@@ -373,13 +395,19 @@ const WeeklyPlanPage: React.FC = () => {
                     Next recommended session: <strong className="text-primary-text">{nextDay.day} &bull; {nextDay.title}</strong>
                   </span>
                 </div>
-                <Link
-                  to={`/gym-mode/${nextIdx}`}
-                  className="px-3 py-1.5 rounded-lg bg-electric-purple/20 hover:bg-electric-purple/30 text-electric-purple text-xs font-semibold flex items-center gap-1.5 transition-colors border border-electric-purple/30 shrink-0"
-                >
-                  <Play className="w-3.5 h-3.5" />
-                  Resume Day {nextIdx + 1}
-                </Link>
+                {bindingEval.isSafetyMismatched ? (
+                  <span className="px-3 py-1.5 rounded-lg bg-bright-coral/10 text-bright-coral text-xs font-semibold border border-bright-coral/30 shrink-0">
+                    Locked
+                  </span>
+                ) : (
+                  <Link
+                    to={`/gym-mode/${nextIdx}`}
+                    className="px-3 py-1.5 rounded-lg bg-electric-purple/20 hover:bg-electric-purple/30 text-electric-purple text-xs font-semibold flex items-center gap-1.5 transition-colors border border-electric-purple/30 shrink-0"
+                  >
+                    <Play className="w-3.5 h-3.5" />
+                    Resume Day {nextIdx + 1}
+                  </Link>
+                )}
               </div>
             )
           })()}
@@ -570,13 +598,22 @@ const WeeklyPlanPage: React.FC = () => {
 
                     <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
                       {!day.isRest && (
-                        <Link
-                          to={`/gym-mode/${index}`}
-                          className="btn-primary text-xs py-2 px-3.5 inline-flex items-center gap-1.5 shadow-sm shadow-neon-green/20"
-                        >
-                          <Play className="w-3.5 h-3.5 fill-current" />
-                          Gym Mode
-                        </Link>
+                        bindingEval.isSafetyMismatched ? (
+                          <span
+                            className="px-3 py-1.5 rounded-lg bg-bright-coral/10 border border-bright-coral/30 text-bright-coral text-xs font-semibold"
+                            title="Workouts locked due to health profile changes"
+                          >
+                            Locked
+                          </span>
+                        ) : (
+                          <Link
+                            to={`/gym-mode/${index}`}
+                            className="btn-primary text-xs py-2 px-3.5 inline-flex items-center gap-1.5 shadow-sm shadow-neon-green/20"
+                          >
+                            <Play className="w-3.5 h-3.5 fill-current" />
+                            Gym Mode
+                          </Link>
+                        )
                       )}
 
                       <button

@@ -32,6 +32,9 @@ export interface RestTimerState {
 
 export interface WorkoutSession {
   sessionId: string
+  planId?: string
+  planFingerprint?: string
+  medicalSnapshot?: string
   dayIndex: number
   dayTitle: string
   dayType: string

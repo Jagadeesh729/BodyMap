@@ -19,6 +19,11 @@ export function loadPersistedState(): PlanState {
             ...initialState.formData,
             ...(parsed.formData || {}),
           },
+          planId: typeof parsed.planId === 'string' ? parsed.planId : undefined,
+          planGeneratedAt: typeof parsed.planGeneratedAt === 'number' ? parsed.planGeneratedAt : undefined,
+          boundProfile: parsed.boundProfile && typeof parsed.boundProfile === 'object'
+            ? { ...initialState.formData, ...parsed.boundProfile }
+            : undefined,
           weightLog: Array.isArray(parsed.weightLog)
             ? parsed.weightLog.filter((entry): entry is { date: string; weight: number } =>
                 Boolean(entry && typeof entry === 'object' && typeof (entry as Record<string, unknown>).date === 'string' && typeof (entry as Record<string, unknown>).weight === 'number' && !isNaN((entry as { weight: number }).weight))

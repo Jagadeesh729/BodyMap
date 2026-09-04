@@ -50,7 +50,7 @@ const CreatePlanPage = () => {
   const [stepErrors, setStepErrors] = useState<Record<string, string>>({})
   const [photoName, setPhotoName] = useState<string>('')
   const generationSeqRef = useRef(0)
-  const formData = state.formData
+  const [formData, setFormDataState] = useState<FormData>(() => ({ ...state.formData }))
 
   useEffect(() => {
     try {
@@ -71,7 +71,7 @@ const CreatePlanPage = () => {
   const totalSteps = 5
 
   const handleInputChange = (field: keyof FormData, value: string) => {
-    setFormData({ [field]: value })
+    setFormDataState(prev => ({ ...prev, [field]: value }))
     if (stepErrors[field]) {
       setStepErrors(prev => {
         const next = { ...prev }
@@ -82,11 +82,13 @@ const CreatePlanPage = () => {
   }
 
   const handleArrayToggle = (field: 'bodyFocus' | 'equipment', value: string) => {
-    const current = formData[field] as string[]
-    const updated = current.includes(value)
-      ? current.filter(item => item !== value)
-      : [...current, value]
-    setFormData({ [field]: updated })
+    setFormDataState(prev => {
+      const current = (prev[field] as string[]) || []
+      const updated = current.includes(value)
+        ? current.filter(item => item !== value)
+        : [...current, value]
+      return { ...prev, [field]: updated }
+    })
     if (stepErrors[field]) {
       setStepErrors(prev => {
         const next = { ...prev }
@@ -183,7 +185,8 @@ const CreatePlanPage = () => {
       }
 
       if (seq !== generationSeqRef.current) return
-      setGeneratedPlan(generatedPlan)
+      setFormData(formData)
+      setGeneratedPlan(generatedPlan, formData)
       try {
         localStorage.removeItem(WIZARD_STEP_STORAGE_KEY)
       } catch {
