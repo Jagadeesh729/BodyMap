@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react'
+import React, { createContext, useContext, useReducer, useEffect, useRef, ReactNode } from 'react'
 import type { FormData } from '../types/formData'
 
 // Re-export so existing imports from '@/context/PlanContext' continue to work
@@ -6,11 +6,26 @@ export type { FormData }
 
 // --- Types ---
 
-
-import { clearActiveSession } from '../lib/sessionStorage'
+import { clearActiveSession, ACTIVE_SESSION_STORAGE_KEY } from '../lib/sessionStorage'
+import {
+  loadPersistedState,
+  savePersistedStateWithVersion,
+  parseSafeIncomingState,
+  compareVersions,
+  STORAGE_KEY,
+} from './planStorage'
 
 export interface WeightEntry { date: string; weight: number }
 export interface CompletedDay { date: string; dayIndex: number }
+
+export interface StateVersion {
+  /** Lamport logical counter - strictly advanced on each write */
+  counter: number
+  /** Physical wall-clock timestamp Date.now() - physical tie-breaker */
+  timestamp: number
+  /** Unique per-tab identifier - deterministic tie-breaker for identical counter & timestamp */
+  writerId: string
+}
 
 export interface PlanState {
   formData: FormData
@@ -19,6 +34,7 @@ export interface PlanState {
   planId?: string
   planGeneratedAt?: number
   boundProfile?: FormData
+  stateVersion?: StateVersion
   weightLog: WeightEntry[]
   completedDays: CompletedDay[]
 }
@@ -56,11 +72,6 @@ export function planReducer(state: PlanState, action: PlanAction): PlanState {
       return { ...state, formData: { ...state.formData, ...action.payload } }
     case 'SET_GENERATED_PLAN': {
       const planText = typeof action.payload === 'string' ? action.payload : action.payload.plan
-      // If a profileOverride is provided, it represents the exact profile used for generation.
-      // Update BOTH formData and boundProfile to this snapshot so that:
-      //   1. evaluatePlanProfileBinding immediately returns isSafetyMismatched=false (correct)
-      //   2. No spurious mismatch from minor string differences between UI formData and the
-      //      profile that was actually sent to the AI.
       const profileSnapshot = typeof action.payload === 'object' && action.payload.formData
         ? { ...action.payload.formData }
         : { ...state.formData }
@@ -87,6 +98,7 @@ export function planReducer(state: PlanState, action: PlanAction): PlanState {
         planId: action.payload.planId,
         planGeneratedAt: action.payload.planGeneratedAt,
         boundProfile: action.payload.boundProfile,
+        stateVersion: action.payload.stateVersion,
         weightLog: Array.isArray(action.payload.weightLog) ? action.payload.weightLog : [],
         completedDays: Array.isArray(action.payload.completedDays) ? action.payload.completedDays : []
       }
@@ -127,15 +139,96 @@ interface PlanContextValue {
 }
 
 const PlanContext = createContext<PlanContextValue | null>(null)
-import { loadPersistedState, savePersistedState } from './planStorage'
 
 export function PlanProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(planReducer, initialState, loadPersistedState)
 
+  // Track the current authoritative version and planId across renders
+  const lastKnownVersionRef = useRef<StateVersion | undefined>(state.stateVersion)
+  const currentPlanIdRef = useRef<string | undefined>(state.planId)
+
+  // Remote-write echo guard: prevents re-persisting state received from another tab
+  const isApplyingRemoteRef = useRef(false)
+  // Initial mount guard: prevents overwriting storage with a newly incremented version on mount
+  const isInitialMountRef = useRef(true)
+
+  // Persistence effect: saves ONLY locally-originated state changes
   useEffect(() => {
-    savePersistedState(state)
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false
+      return
+    }
+
+    // If this render was triggered by adopting a remote StorageEvent, skip persistence.
+    // The data is ALREADY in localStorage. Writing it would create an infinite ping-pong loop!
+    if (isApplyingRemoteRef.current) {
+      isApplyingRemoteRef.current = false
+      return
+    }
+
+    const { success, version } = savePersistedStateWithVersion(state)
+    if (success && version) {
+      lastKnownVersionRef.current = version
+    }
+    currentPlanIdRef.current = state.planId
   }, [state])
 
+  // Cross-tab synchronization via StorageEvent.
+  //
+  // StorageEvent fires in OTHER tabs (never in the tab that performed the write),
+  // which naturally avoids same-tab reflection.
+  //
+  // Protocol:
+  //   1. Listen for changes to bodymap_plan_v2.
+  //   2. Parse and validate incoming payload through parseSafeIncomingState.
+  //   3. Compare incoming version against lastKnownVersionRef using total-ordering compareVersions:
+  //      - Primary: Lamport counter
+  //      - Secondary: physical timestamp
+  //      - Tertiary: unique writerId
+  //      Only accept if compareVersions(incoming.stateVersion, lastKnownVersionRef.current) > 0.
+  //   4. If incoming version is older, equal, or unversioned -> drop (idempotent / stale).
+  //   5. If plan changed remotely (incoming.planId !== currentPlanIdRef.current),
+  //      immediately clear the active workout session so it cannot continue running.
+  //   6. Set isApplyingRemoteRef.current = true to prevent echo loop, then dispatch LOAD_SAVED_PLAN.
+  //   7. Also listen for bodymap_active_session: if cleared remotely, clear locally.
+  useEffect(() => {
+    function handleStorageEvent(event: StorageEvent) {
+      if (event.storageArea !== localStorage) return
+
+      if (event.key === STORAGE_KEY) {
+        if (event.newValue === null) return
+
+        const incoming = parseSafeIncomingState(event.newValue)
+        // Fail closed: ignore malformed, unversioned, or unsafe payloads
+        if (!incoming || !incoming.stateVersion) return
+
+        // Total ordering guard: only strictly newer versions can overwrite local state
+        if (compareVersions(incoming.stateVersion, lastKnownVersionRef.current) <= 0) {
+          return
+        }
+
+        // If the plan was regenerated in another tab, immediately invalidate local active session
+        if (incoming.planId && incoming.planId !== currentPlanIdRef.current) {
+          clearActiveSession()
+        }
+
+        // Adopt remote state without re-saving
+        isApplyingRemoteRef.current = true
+        lastKnownVersionRef.current = incoming.stateVersion
+        currentPlanIdRef.current = incoming.planId
+        dispatch({ type: 'LOAD_SAVED_PLAN', payload: incoming })
+      }
+
+      if (event.key === ACTIVE_SESSION_STORAGE_KEY) {
+        if (event.newValue === null) {
+          clearActiveSession()
+        }
+      }
+    }
+
+    window.addEventListener('storage', handleStorageEvent)
+    return () => window.removeEventListener('storage', handleStorageEvent)
+  }, [])
 
   const setFormData = (data: Partial<FormData>) => dispatch({ type: 'SET_FORM_DATA', payload: data })
   const setGeneratedPlan = (plan: string, profileOverride?: FormData) => {

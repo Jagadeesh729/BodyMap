@@ -37,7 +37,8 @@ import {
   clearActiveSession,
   loadWorkoutHistory,
   saveCompletedWorkoutLog,
-  saveReflectionForSession
+  saveReflectionForSession,
+  ACTIVE_SESSION_STORAGE_KEY
 } from '@/lib/sessionStorage'
 import { findPreviousPerformance, type ExerciseHistoryRecord } from '@/lib/progressionEngine'
 import {
@@ -171,12 +172,43 @@ export const GymModePage: React.FC = () => {
   const [isCompletedModalOpen, setIsCompletedModalOpen] = useState(false)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
 
-  // Persist session changes automatically
+  // Persist session changes automatically ONLY if the session is currently in-progress
   useEffect(() => {
     if (session.status === 'in-progress') {
       saveActiveSession(session)
     }
   }, [session])
+
+  // Cross-tab / runtime plan synchronization:
+  // If planId changed, medical profile diverged, or safety binding failed while this session
+  // was active in-memory, immediately invalidate and cancel the session to prevent executing
+  // or persisting obsolete exercises.
+  useEffect(() => {
+    if (session.status === 'in-progress') {
+      const isPlanMismatch = Boolean(state.planId && session.planId && state.planId !== session.planId)
+      const isMedicalDiverged = Boolean(
+        session.medicalSnapshot &&
+        (session.medicalSnapshot || '').trim().toLowerCase() !== (state.formData.medicalIssues || '').trim().toLowerCase()
+      )
+      const isSafetyViolated = bindingEval.isSafetyMismatched
+
+      if (isPlanMismatch || isMedicalDiverged || isSafetyViolated) {
+        clearActiveSession()
+        setSession(prev => prev.status === 'in-progress' ? { ...prev, status: 'cancelled' } : prev)
+      }
+    }
+  }, [state.planId, session.planId, session.medicalSnapshot, session.status, state.formData.medicalIssues, bindingEval.isSafetyMismatched])
+
+  // Listen for active-session removal from another tab
+  useEffect(() => {
+    function handleActiveSessionStorage(e: StorageEvent) {
+      if (e.key === ACTIVE_SESSION_STORAGE_KEY && e.newValue === null) {
+        setSession(prev => prev.status === 'in-progress' ? { ...prev, status: 'cancelled' } : prev)
+      }
+    }
+    window.addEventListener('storage', handleActiveSessionStorage)
+    return () => window.removeEventListener('storage', handleActiveSessionStorage)
+  }, [])
 
   // Active workout stopwatch effect
   useEffect(() => {
@@ -758,6 +790,37 @@ export const GymModePage: React.FC = () => {
             <button
               onClick={() => navigate('/weekly-plan')}
               className="btn-secondary w-full py-3 text-xs sm:text-sm flex items-center justify-center gap-2"
+            >
+              <ArrowLeft className="w-4 h-4" /> Back to My Plan
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Cross-tab Session Invalidation Gate:
+  // If this workout session was cancelled or its plan was regenerated in another tab,
+  // lock out execution and prompt the user to view the updated plan.
+  if (session.status === 'cancelled' || (Boolean(state.planId) && Boolean(session.planId) && state.planId !== session.planId)) {
+    return (
+      <div className="min-h-screen bg-bodymap-dark text-primary-text flex items-center justify-center p-4">
+        <div className="card-dark max-w-lg w-full text-center space-y-6 border-2 border-bright-coral/50 p-8 shadow-2xl animate-fade-in">
+          <div className="w-16 h-16 rounded-full bg-bright-coral/20 flex items-center justify-center mx-auto">
+            <AlertCircle className="w-10 h-10 text-bright-coral" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-poppins font-bold text-primary-text mb-2">
+              Workout Session Terminated
+            </h1>
+            <p className="text-sm text-secondary-text font-open-sans">
+              Your workout plan was modified or regenerated in another tab. This workout session has been safely closed to ensure you do not perform outdated exercises.
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            <button
+              onClick={() => navigate('/weekly-plan')}
+              className="btn-primary w-full py-3 text-xs sm:text-sm flex items-center justify-center gap-2"
             >
               <ArrowLeft className="w-4 h-4" /> Back to My Plan
             </button>
