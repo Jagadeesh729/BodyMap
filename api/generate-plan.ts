@@ -1140,6 +1140,10 @@ const CLINICAL_ENTITIES: EntityPattern[] = [
     category: 'cervical_spine_pathology',
     pattern: /\bpinched\s+nerve\s+in\s+neck\b/i,
   },
+  {
+    category: 'cervical_spine_pathology',
+    pattern: /\b(?:torn|injured|bad|weak|stiff|painful)\s+neck\b/i,
+  },
 
   // --- LUMBAR SPINE / DISC HERNIATION / SCIATICA ---
   {
@@ -1184,6 +1188,11 @@ const CLINICAL_ENTITIES: EntityPattern[] = [
     pattern: /\bdisc\s+surgery\b/i,
     excludeIfContains: /\b(?:cervical|neck)\b/i,
   },
+  {
+    category: 'lumbar_disc_herniation',
+    pattern: /\b(?:torn|injured|bad|weak|stiff|slipped|herniated|painful)\s+(?:lower\s+|low\s+)?back\b/i,
+    excludeIfContains: /\b(?:upper\s+back)\b/i,
+  },
 
   // --- CARDIAC / SYMPTOMATIC CARDIOVASCULAR ---
   {
@@ -1199,7 +1208,7 @@ const CLINICAL_ENTITIES: EntityPattern[] = [
   },
   {
     category: 'cardiac_symptomatic_condition',
-    pattern: /\b(?:atrial\s+fibrillation|a-?fib|arrhythmia|cardiac\s+stent|heart\s+bypass|cabg|recent\s+heart\s+surgery)\b/i,
+    pattern: /\b(?:atrial\s+fibrillation|a-?fib\b|arrhythmia|cardiac\s+stent|heart\s+bypass|cabg|recent\s+heart\s+surgery)\b/i,
     isFormal: true,
     isPermanentStructural: true,
   },
@@ -1302,8 +1311,22 @@ export function splitMedicalClauses(normalizedText: string): string[] {
   const clauses: string[] = []
   for (const rc of rawClauses) {
     if (rc.includes(',')) {
-      const subParts = rc.split(/,\s*(?=(?:no\b|not\b|none\b|never\b|denies\b|history\b|prior\b|past\b|current\b|acute\b|family\b|mother\b|father\b|brother\b|sister\b|doctor\b|i\s+have\b|full\b|zero\b|[A-Za-z]+(?:\s+[A-Za-z]+)?\s+(?:tear|pain|injury|injuries|stenosis|herniation)))/i)
-      clauses.push(...subParts.map(sp => sp.trim()).filter(sp => sp.length > 0))
+      const parts = rc.split(/,\s*/)
+      let currentPart = parts[0]
+      for (let i = 1; i < parts.length; i++) {
+        const nextPart = parts[i]
+        const startsWithConditionPrefix =
+          /^(?:no\b|not\b|none\b|never\b|denies\b|history\b|prior\b|past\b|current\b|acute\b|family\b|mother\b|father\b|brother\b|sister\b|doctor\b|i\s+have\b|full\b|zero\b)/i.test(nextPart)
+        const hasEntityInNext = CLINICAL_ENTITIES.some(e => e.pattern.test(nextPart))
+
+        if (startsWithConditionPrefix || hasEntityInNext) {
+          clauses.push(currentPart)
+          currentPart = nextPart
+        } else {
+          currentPart += ', ' + nextPart
+        }
+      }
+      clauses.push(currentPart)
     } else {
       clauses.push(rc)
     }
@@ -1327,7 +1350,8 @@ const GENERAL_CLINICAL_RISK_PATTERN =
 
 function evaluateClauseEntitySemantics(
   clause: string,
-  entity: EntityPattern
+  entity: EntityPattern,
+  entityMatch: RegExpMatchArray
 ): { state: MedicalSemanticState; qualifier?: string } {
   const lowerClause = clause.toLowerCase()
 
@@ -1351,14 +1375,23 @@ function evaluateClauseEntitySemantics(
     return { state: 'family_history', qualifier: 'family_history_only' }
   }
 
-  // 3. Explicit Negation Checks
-  const negationPrefixRegex =
-    /\b(?:no|not|none|never|denies|ruled\s+out|negative\s+for|free\s+of|without|nil|zero\s+(?:history|injur(?:y|ies)|events?|conditions?|problems?))\b/i
-  const negationSuffixRegex =
-    /\b(?:ruled\s+out|was\s+ruled\s+out|is\s+ruled\s+out|negative|cleared\s+of|none|no)\b/i
+  // 3. NegEx-style Targeted Entity Negation Checks
+  const matchIndex = entityMatch.index || 0
+  const matchLength = entityMatch[0].length
+  const textBefore = lowerClause.slice(0, matchIndex).trim()
+  const textAfter = lowerClause.slice(matchIndex + matchLength).trim()
 
-  const hasNegationPrefix = negationPrefixRegex.test(lowerClause)
-  const hasNegationSuffix = negationSuffixRegex.test(lowerClause)
+  const negationSuffixRegex =
+    /^(?:(?:was|is|has\s+been)\s+)?(?:ruled\s+out|negative|cleared\s+of|none|no)\b/i
+  const hasNegationSuffix = negationSuffixRegex.test(textAfter)
+
+  const negationPrefixRegex =
+    /\b(?:no|not|none|never|denies|ruled\s+out|negative\s+for|free\s+of|without|nil|zero\s+(?:history|injur(?:y|ies)|events?|conditions?|problems?))(?:\s+(?:known|active|current|currently|acute|major|significant|prior|history\s+of|had(?:\s+a)?|any|a|an|ever|reported|personal|(?:[a-z]+\s+)+or|(?:[a-z]+\s+)+nor|[a-z]+\s+and))*$/i
+
+  // Prefix must be in the same immediate segment without intervening punctuation
+  const lastChunkBefore = textBefore.split(/[,;]|\s+but\s+|\s+however\s+/).pop() || ''
+  const hasNegationPrefix = negationPrefixRegex.test(lastChunkBefore.trim())
+
   const hasActiveOverrideInClause = /\b(?:actually|confirmed|diagnosed|active|rupture)\b/i.test(lowerClause)
 
   if ((hasNegationPrefix || hasNegationSuffix) && !hasActiveOverrideInClause) {
@@ -1447,7 +1480,7 @@ export function classifyMedicalIntake(rawInput?: string | null): MedicalIntakeCl
     for (const entity of CLINICAL_ENTITIES) {
       const match = clause.match(entity.pattern)
       if (match) {
-        const { state } = evaluateClauseEntitySemantics(clause, entity)
+        const { state } = evaluateClauseEntitySemantics(clause, entity, match)
         if (state === 'benign') continue
 
         const isActiveRestriction =
