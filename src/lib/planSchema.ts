@@ -49,10 +49,13 @@ export type MealsSection = z.infer<typeof MealsSectionSchema>
 export type DaySchedule = z.infer<typeof DayScheduleSchema>
 export type WeeklyPlan = z.infer<typeof WeeklyPlanSchema>
 
+import { parseCanonicalExerciseLine } from './canonicalExerciseParser'
+
 /**
  * Extracts exercise items from markdown bullet points like:
  * - Push-ups: 3 sets x 12 reps
  * - Overhead Press: 3 sets x 10 reps
+ * Preserves compound exercise decompositions without silent dropping.
  */
 function parseExercises(text: string): Exercise[] {
   const exercises: Exercise[] = []
@@ -62,45 +65,16 @@ function parseExercises(text: string): Exercise[] {
     const isBullet = /^[-*•]/.test(trimmed)
     const isNumbered = /^\d+[.)]\s/.test(trimmed)
     if (isBullet || isNumbered) {
-      let content = trimmed
-        .replace(/^[-*•]+\s*/, '')
-        .replace(/^\d+[.)]\s*/, '')
-        .replace(/\*+/g, '')
-        .trim()
-      const lower = content.toLowerCase()
-      if (lower.startsWith('breakfast') ||
-          lower.startsWith('lunch') ||
-          lower.startsWith('dinner') ||
-          lower.startsWith('snack') ||
-          lower.startsWith('warm-up') ||
-          lower.startsWith('warmup') ||
-          lower.startsWith('cool-down') ||
-          lower.startsWith('cooldown') ||
-          lower.startsWith('main workout') ||
-          lower.startsWith('activities')) {
-        continue
-      }
-      // Clean labeled item prefixes like "Exercise 1:", "Station A:", "Circuit 1:"
-      content = content.replace(/^(?:(?:exercise|station|movement|circuit|superset|item|part)\s+[a-z\d]+)\s*[:\-–—]\s*/i, '').trim()
-
-      if (content.includes(':')) {
-        const parts = content.split(':')
-        const name = parts[0].trim()
-        const details = parts.slice(1).join(':')
-        const setsMatch = details.match(/(\d+)\s*sets?/i)
-        const repsMatch = details.match(/(\d+[\d-]*)\s*reps?/i)
-        const restMatch = details.match(/(\d+s|\d+\s*sec|\d+\s*min)/i)
+      const canonicals = parseCanonicalExerciseLine(trimmed)
+      for (const ce of canonicals) {
         exercises.push({
-          name,
-          sets: setsMatch ? setsMatch[1] : undefined,
-          reps: repsMatch ? repsMatch[1] : undefined,
-          rest: restMatch ? restMatch[1] : undefined,
+          name: ce.name,
+          sets: ce.sets,
+          reps: ce.reps,
+          rest: ce.rest,
         })
-      } else if (content.length > 2) {
-        exercises.push({ name: content.trim() })
       }
     }
-
   }
   return exercises
 }

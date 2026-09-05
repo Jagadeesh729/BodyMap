@@ -1,4 +1,9 @@
 import type { SessionExercise, WorkoutSet } from '@/types/workoutSession'
+import {
+  parseCanonicalExerciseLine,
+  cleanExerciseName,
+  extractPrescriptionDetails,
+} from './canonicalExerciseParser'
 
 export interface ExerciseAlternative {
   name: string
@@ -290,15 +295,8 @@ export function parseExerciseStringToSessionExercise(
   rawStr: string,
   index: number
 ): SessionExercise {
-  let cleanStr = rawStr
-    .replace(/^[-*•\d]+[.)\s]\s*/, '')
-    .replace(/^[-*•]\s*/, '')
-    .trim()
-  
-  // Strip common labeled item prefixes e.g. "Exercise 1:", "Station A:", "Circuit 1:"
-  cleanStr = cleanStr.replace(/^(?:(?:exercise|station|movement|circuit|superset|item|part)\s+[a-z\d]+)\s*[:\-–—]\s*/i, '').trim()
-
-  let name = cleanStr
+  const canonicals = parseCanonicalExerciseLine(rawStr)
+  let name = ''
   let targetSets = 3
   let targetReps = '10-12 reps'
   let restSeconds = 60
@@ -306,26 +304,31 @@ export function parseExerciseStringToSessionExercise(
   let equipment = 'Dumbbells / Bodyweight'
   let formCue = 'Control the eccentric phase (2s down), explode up with intention.'
 
-  if (cleanStr.includes(':')) {
-    const parts = cleanStr.split(':')
-    name = parts[0].trim()
-    const details = parts.slice(1).join(':')
-
-    const setsMatch = details.match(/(\d+)\s*sets?/i)
-    if (setsMatch) targetSets = parseInt(setsMatch[1], 10) || 3
-
-    const repsMatch = details.match(/(\d+[\d-]*)\s*reps?/i)
-    if (repsMatch) targetReps = `${repsMatch[1]} reps`
-
-    const restMatch = details.match(/(\d+)\s*(?:s|sec|seconds)?\s*rest/i) || details.match(/\((\d+)\s*(?:s|sec|seconds)\)/i)
-    if (restMatch) {
-      restSeconds = parseInt(restMatch[1], 10) || 60
-    } else if (/1\s*min/i.test(details)) {
-      restSeconds = 60
-    } else if (/2\s*min/i.test(details)) {
-      restSeconds = 120
-    } else if (/30\s*s\b/i.test(details)) {
-      restSeconds = 30
+  if (canonicals.length > 0) {
+    const first = canonicals[0]
+    name = first.name
+    if (first.sets) targetSets = parseInt(first.sets, 10) || 3
+    if (first.reps) targetReps = `${first.reps} reps`
+    if (first.rest) {
+      const restNum = parseInt(first.rest, 10)
+      if (first.rest.includes('min')) {
+        restSeconds = (restNum || 1) * 60
+      } else if (restNum) {
+        restSeconds = restNum
+      }
+    }
+  } else {
+    name = cleanExerciseName(rawStr) || rawStr.trim()
+    const p = extractPrescriptionDetails(rawStr)
+    if (p.sets) targetSets = parseInt(p.sets, 10) || 3
+    if (p.reps) targetReps = `${p.reps} reps`
+    if (p.rest) {
+      const restNum = parseInt(p.rest, 10)
+      if (p.rest.includes('min')) {
+        restSeconds = (restNum || 1) * 60
+      } else if (restNum) {
+        restSeconds = restNum
+      }
     }
   }
 
@@ -377,3 +380,24 @@ export function parseExerciseStringToSessionExercise(
     substitutionReason: null
   }
 }
+
+/**
+ * Decomposes a raw workout string into all constituent SessionExercise objects,
+ * guaranteeing no representation loss for compound supersets.
+ */
+export function parseExerciseStringToSessionExercises(
+  rawStr: string,
+  startIndex: number = 0
+): SessionExercise[] {
+  const canonicals = parseCanonicalExerciseLine(rawStr)
+  if (canonicals.length <= 1) {
+    return [parseExerciseStringToSessionExercise(rawStr, startIndex)]
+  }
+  return canonicals.map((c, i) =>
+    parseExerciseStringToSessionExercise(
+      `${c.name}${c.sets ? `: ${c.sets} sets` : ''}${c.reps ? ` x ${c.reps} reps` : ''}${c.rest ? ` (${c.rest} rest)` : ''}`,
+      startIndex + i
+    )
+  )
+}
+

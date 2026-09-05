@@ -23,6 +23,7 @@ import { Input } from '@/components/ui/input'
 import { toast } from '@/hooks/use-toast'
 import { usePlan } from '@/context/PlanContext'
 import { parseAndValidatePlan } from '@/lib/planSchema'
+import { parseWorkoutSectionToCanonicalExercises } from '@/lib/canonicalExerciseParser'
 import { scanPlanForContraindications } from '@/lib/contraindicationGuard'
 import { hasSafetySensitiveMedicalIssues } from '@/lib/validation'
 import { evaluatePlanProfileBinding } from '@/lib/planBinding'
@@ -97,7 +98,12 @@ export const GymModePage: React.FC = () => {
                 )
               )
             : day.rawContent
-            ? day.rawContent.split('\n').filter(l => l.trim().length > 3).map((l, idx) => parseExerciseStringToSessionExercise(l, idx))
+            ? parseWorkoutSectionToCanonicalExercises(day.rawContent).map((e, idx) =>
+                parseExerciseStringToSessionExercise(
+                  `${e.name}${e.sets ? `: ${e.sets} sets` : ''}${e.reps ? ` x ${e.reps} reps` : ''}${e.rest ? ` (${e.rest} rest)` : ''}`,
+                  idx
+                )
+              )
             : [parseExerciseStringToSessionExercise('Bodyweight Circuit: 3 sets x 12 reps (60s rest)', 0)]
         }
       }

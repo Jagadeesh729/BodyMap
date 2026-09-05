@@ -8,6 +8,8 @@
  * workouts containing explicitly contraindicated movement patterns for declared medical conditions.
  */
 
+import { parseCanonicalExerciseLine, cleanExerciseName } from './canonicalExerciseParser'
+
 export type ContraindicationCategoryKey =
   | 'knee_high_impact'
   | 'shoulder_impingement_cuff'
@@ -533,56 +535,69 @@ export function scanPlanForContraindications(
       // Culinary dip exemption: ignore food dips in meal descriptions
       if (culinaryDipRegex.test(trimmed)) continue
 
-      totalExercisesScanned++
+      // Canonical exercise decomposition
+      const canonicalExercises = parseCanonicalExerciseLine(trimmed)
 
-      for (const config of activeCategories) {
-        for (const forbiddenPattern of config.forbiddenPatterns) {
-          const evalResult = isPrescriptiveExerciseLine(trimmed, forbiddenPattern)
-          if (evalResult.isPrescription) {
-            // Check if line qualifies under safe exemptions:
-            // A safe exemption must specifically match the prescribed movement where the forbidden pattern triggered.
-            // Split compound lines by superset / compound conjunctions:
-            const segments = trimmed.split(/(?:[;+]|\s+and\s+|\s+superset\s+(?:with\s+)?|\s+combined\s+with\s+|\s*[/]\s*)/i)
-
-            let allViolatingSegmentsExempt = true
-            let hasViolatingSegment = false
-
-            for (const seg of segments) {
-              if (forbiddenPattern.test(seg)) {
-                hasViolatingSegment = true
-                const cleanSegName = seg
-                  .replace(/^[-*•\d.)\s]+/, '')
-                  .replace(/^(?:(?:exercise|station|movement|circuit|superset|item|part)\s+[a-z\d]+)\s*[:\-–—]\s*/i, '')
-                  .split(':')[0]
-                  .replace(/\s*\([^)]*\).*/g, '')
-                  .replace(/\s*\[[^\]]*\].*/g, '')
-                  .replace(/\s+\d+\s*sets?.*/i, '')
-                  .replace(/\s+\d+\s*x\s*\d+.*/i, '')
-                  .trim()
-
-                const isSegExempt = config.safeExemptions.some(ex => ex.test(cleanSegName))
-                if (!isSegExempt) {
-                  allViolatingSegmentsExempt = false
-                  break
-                }
+      if (canonicalExercises.length === 0) {
+        totalExercisesScanned++
+        // Fallback for unstructured / unbulleted exercise lines
+        for (const config of activeCategories) {
+          for (const forbiddenPattern of config.forbiddenPatterns) {
+            const evalResult = isPrescriptiveExerciseLine(trimmed, forbiddenPattern)
+            if (evalResult.isPrescription) {
+              const clean = cleanExerciseName(trimmed)
+              const isExempt = config.safeExemptions.some(ex => ex.test(clean))
+              if (!isExempt) {
+                violations.push({
+                  category: config.key,
+                  conditionLabel: config.conditionLabel,
+                  matchedExercise: evalResult.matchedSnippet,
+                  matchedPattern: forbiddenPattern.source,
+                  dayNumber: day.dayNumber,
+                  dayTitle: day.title,
+                  sourceLine: trimmed,
+                  severity: config.severity,
+                  reason: config.reason,
+                })
+                break
               }
             }
+          }
+        }
+      } else {
+        totalExercisesScanned += canonicalExercises.length
 
-            const isExempt = hasViolatingSegment && allViolatingSegmentsExempt
-            if (!isExempt) {
-              violations.push({
-                category: config.key,
-                conditionLabel: config.conditionLabel,
-                matchedExercise: evalResult.matchedSnippet,
-                matchedPattern: forbiddenPattern.source,
-                dayNumber: day.dayNumber,
-                dayTitle: day.title,
-                sourceLine: trimmed,
-                severity: config.severity,
-                reason: config.reason,
-              })
-              // One violation per category per line is sufficient
-              break
+        // Safety check every canonical exercise independently.
+        // A safe exercise on a compound line can NEVER exempt a separate contraindicated exercise.
+        for (const exercise of canonicalExercises) {
+          for (const config of activeCategories) {
+            for (const forbiddenPattern of config.forbiddenPatterns) {
+              const rawMatches = forbiddenPattern.test(exercise.raw)
+              const nameMatches = forbiddenPattern.test(exercise.name)
+
+              if (rawMatches || nameMatches) {
+                const evalResult = isPrescriptiveExerciseLine(exercise.raw, forbiddenPattern)
+                if (evalResult.isPrescription) {
+                  // A safe exemption must specifically match THIS exercise's clean name,
+                  // never an unrelated exercise on the same line.
+                  const isExerciseExempt = config.safeExemptions.some(ex => ex.test(exercise.name))
+                  if (!isExerciseExempt) {
+                    violations.push({
+                      category: config.key,
+                      conditionLabel: config.conditionLabel,
+                      matchedExercise: evalResult.matchedSnippet,
+                      matchedPattern: forbiddenPattern.source,
+                      dayNumber: day.dayNumber,
+                      dayTitle: day.title,
+                      sourceLine: trimmed,
+                      severity: config.severity,
+                      reason: config.reason,
+                    })
+                    // One violation per category per exercise
+                    break
+                  }
+                }
+              }
             }
           }
         }

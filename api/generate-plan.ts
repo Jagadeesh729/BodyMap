@@ -1023,6 +1023,202 @@ export function isPrescriptiveExerciseLine(
   return { isPrescription: true, matchedSnippet: matchedTerm }
 }
 
+export interface CanonicalExercise {
+  name: string
+  sets?: string
+  reps?: string
+  rest?: string
+  notes?: string
+  raw: string
+}
+
+const PROTECTED_COMPOUND_NAMES: RegExp[] = [
+  /\b(?:(?:barbell|dumbbell|kettlebell|power|hang|squat|split|muscle)\s+)?clean\s*(?:and|&)\s*(?:press|jerk)s?\b/gi,
+  /\b(?:(?:barbell|dumbbell|kettlebell|power|hang)\s+)?clean\s+pull\s*(?:and|&)\s*shrugs?\b/gi,
+  /\b(?:(?:barbell|dumbbell|kettlebell)\s+)?snatch\s*(?:and|&)\s*(?:overhead\s+squat|press)s?\b/gi,
+  /\bc&j\b/gi,
+]
+
+const SUBSTITUTION_CLAUSE_REGEX =
+  /^(?:alternative(?:\s+(?:to|for))?:?|replaces?:?|replacing:?|replacement(?:\s+(?:for|to|of))?:?|instead\s+of:?|in\s+place\s+of:?|substitut(?:e|es|ed|ing)(?:\s+(?:for|to))?:?|swap(?:\s+out)?(?:\s+(?:for|with))?:?)\b/i
+
+export function normalizeWorkoutLineText(text: string): string {
+  if (!text || typeof text !== 'string') return ''
+  return text
+    .replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g, ' ')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .trim()
+}
+
+export function stripLabeledItemPrefix(line: string): string {
+  return line.replace(
+    /^(?:(?:exercise|station|movement|circuit|superset|item|part)\s+[a-z\d]+)\s*[:\-–—]\s*/i,
+    ''
+  ).trim()
+}
+
+export function extractPrescriptionDetails(text: string): {
+  sets?: string
+  reps?: string
+  rest?: string
+} {
+  const setsMatch = text.match(/(\d+)\s*sets?/i)
+  const repsMatch = text.match(/(\d+[\d-]*)\s*reps?/i) || text.match(/\b\d+\s*x\s*(\d+[\d-]*)\b/i)
+  const restMatch =
+    text.match(/(\d+s|\d+\s*sec(?:onds)?|\d+\s*min(?:utes)?)\s*rest/i) ||
+    text.match(/\((\d+s|\d+\s*sec(?:onds)?|\d+\s*min(?:utes)?)\)/i) ||
+    text.match(/rest:?\s*(\d+s|\d+\s*sec(?:onds)?|\d+\s*min(?:utes)?)/i)
+
+  return {
+    sets: setsMatch ? setsMatch[1] : undefined,
+    reps: repsMatch ? repsMatch[1] : undefined,
+    rest: restMatch ? restMatch[1].trim() : undefined,
+  }
+}
+
+export function cleanExerciseName(rawName: string): string {
+  let cleaned = rawName
+    .replace(/^[-*•\d.)\s]+/, '')
+    .replace(/^(?:(?:exercise|station|movement|circuit|superset|item|part)\s+[a-z\d]+)\s*[:\-–—]\s*/i, '')
+    .replace(/\s*\([^)]*\).*/g, '')
+    .replace(/\s*\[[^\]]*\].*/g, '')
+    .replace(/\s*:\s*.*$/, '')
+    .replace(/\s+\d+\s*sets?.*/i, '')
+    .replace(/\s+\d+\s*x\s*\d+.*/i, '')
+    .replace(/\s+\d+[\d-]*\s*reps?.*/i, '')
+    .replace(/\s*;\s*.*$/, '')
+    .replace(/\s*\|\s*.*$/, '')
+    .replace(/\s+--\s+.*$/, '')
+    .replace(/\s*[—–]\s*.*$/, '')
+    .trim()
+
+  cleaned = cleaned.replace(/^\*+|\*+$/g, '').trim()
+  return cleaned
+}
+
+export function parseCanonicalExerciseLine(rawLine: string): CanonicalExercise[] {
+  if (!rawLine || typeof rawLine !== 'string') return []
+
+  const normalized = normalizeWorkoutLineText(rawLine)
+  if (normalized.length < 3) return []
+
+  if (/^#{1,4}\s+/i.test(normalized)) return []
+  if (/^[-*_]{3,}$/.test(normalized)) return []
+  if (/^rest\s+day/i.test(normalized)) return []
+
+  let content = normalized
+    .replace(/^[-*•]+\s*/, '')
+    .replace(/^\d+[.)]\s*/, '')
+    .replace(/\*+/g, '')
+    .trim()
+
+  content = stripLabeledItemPrefix(content)
+  if (content.length < 2) return []
+
+  const lowerContent = content.toLowerCase()
+  if (
+    lowerContent.startsWith('breakfast') ||
+    lowerContent.startsWith('lunch') ||
+    lowerContent.startsWith('dinner') ||
+    lowerContent.startsWith('snack') ||
+    lowerContent.startsWith('morning snack') ||
+    lowerContent.startsWith('afternoon snack') ||
+    lowerContent.startsWith('evening snack') ||
+    lowerContent.startsWith('post-workout') ||
+    lowerContent.startsWith('pre-workout') ||
+    lowerContent.startsWith('hydration') ||
+    lowerContent.startsWith('warm-up') ||
+    lowerContent.startsWith('warmup') ||
+    lowerContent.startsWith('cool-down') ||
+    lowerContent.startsWith('cooldown') ||
+    lowerContent.startsWith('main workout') ||
+    lowerContent.startsWith('activities')
+  ) {
+    if (!/\b(?:\d+\s*sets?|\d+\s*reps?|\d+\s*x\s*\d+)\b/i.test(content)) {
+      return []
+    }
+  }
+
+  const protectedTokens: Array<{ token: string; original: string }> = []
+  let protectedContent = content
+
+  PROTECTED_COMPOUND_NAMES.forEach((pattern, idx) => {
+    protectedContent = protectedContent.replace(pattern, match => {
+      const token = `__BODYMAP_PROTECTED_${idx}_${protectedTokens.length}__`
+      protectedTokens.push({ token, original: match })
+      return token
+    })
+  })
+
+  const compoundSplitRegex =
+    /(?:[;+|]|\s*[—–]\s*|\s+--\s+|\s+and\s+|\s*&\s*|\s*&&\s*|\s*\+\s*|\s+paired\s+with\s+|\s+followed\s+by\s+|\s+then\s+|\s+alternating\s+with\s+|\s+superset(?:\s+with)?\s+|\s+combined\s+with\s+|\s*[/]\s*|,\s*(?=[A-Za-z0-9- ]+:\s*\d))/i
+
+  const rawSegments = protectedContent.split(compoundSplitRegex).map(s => s.trim()).filter(s => s.length > 0)
+
+  const segments = rawSegments.map(seg => {
+    let restored = seg
+    for (const p of protectedTokens) {
+      restored = restored.replace(p.token, p.original)
+    }
+    return restored
+  })
+
+  const normalizedSegments: string[] = []
+  for (const seg of segments) {
+    if ((seg.match(/:/g) || []).length > 1) {
+      const subParts = seg.split(/,\s*(?=[A-Za-z0-9- ]+:)/)
+      if (subParts.length > 1) {
+        normalizedSegments.push(...subParts.map(sp => sp.trim()))
+      } else {
+        normalizedSegments.push(seg)
+      }
+    } else {
+      normalizedSegments.push(seg)
+    }
+  }
+
+  const lastSeg = normalizedSegments[normalizedSegments.length - 1]
+  const lineLevelPrescription = extractPrescriptionDetails(lastSeg)
+
+  const exercises: CanonicalExercise[] = []
+
+  for (let i = 0; i < normalizedSegments.length; i++) {
+    const seg = normalizedSegments[i]
+    if (seg.length < 2) continue
+
+    if (SUBSTITUTION_CLAUSE_REGEX.test(seg) && exercises.length > 0) {
+      const prev = exercises[exercises.length - 1]
+      prev.notes = prev.notes ? `${prev.notes} (${seg})` : `(${seg})`
+      prev.raw = `${prev.raw}; ${seg}`
+      continue
+    }
+
+    const notesMatches = seg.match(/(?:\([^)]*\)|\[[^\]]*\])/g)
+    const notes = notesMatches ? notesMatches.join(' ') : undefined
+    const segPrescription = extractPrescriptionDetails(seg)
+    const cleanName = cleanExerciseName(seg)
+
+    const sets = segPrescription.sets || (normalizedSegments.length > 1 ? lineLevelPrescription.sets : undefined)
+    const reps = segPrescription.reps || (normalizedSegments.length > 1 ? lineLevelPrescription.reps : undefined)
+    const rest = segPrescription.rest || (normalizedSegments.length > 1 ? lineLevelPrescription.rest : undefined)
+
+    if (cleanName.length > 1) {
+      exercises.push({
+        name: cleanName,
+        sets,
+        reps,
+        rest,
+        notes,
+        raw: seg,
+      })
+    }
+  }
+
+  return exercises
+}
+
 export function scanPlanForContraindications(
   planMarkdown: string,
   medicalInput?: string
@@ -1103,56 +1299,69 @@ export function scanPlanForContraindications(
       // Culinary dip exemption: ignore food dips in meal descriptions
       if (culinaryDipRegex.test(trimmed)) continue
 
-      totalExercisesScanned++
+      // Canonical exercise decomposition
+      const canonicalExercises = parseCanonicalExerciseLine(trimmed)
 
-      for (const config of activeCategories) {
-        for (const forbiddenPattern of config.forbiddenPatterns) {
-          const evalResult = isPrescriptiveExerciseLine(trimmed, forbiddenPattern)
-          if (evalResult.isPrescription) {
-            // Check if line qualifies under safe exemptions:
-            // A safe exemption must specifically match the prescribed movement where the forbidden pattern triggered.
-            // Split compound lines by superset / compound conjunctions:
-            const segments = trimmed.split(/(?:[;+]|\s+and\s+|\s+superset\s+(?:with\s+)?|\s+combined\s+with\s+|\s*[/]\s*)/i)
-
-            let allViolatingSegmentsExempt = true
-            let hasViolatingSegment = false
-
-            for (const seg of segments) {
-              if (forbiddenPattern.test(seg)) {
-                hasViolatingSegment = true
-                const cleanSegName = seg
-                  .replace(/^[-*•\d.)\s]+/, '')
-                  .replace(/^(?:(?:exercise|station|movement|circuit|superset|item|part)\s+[a-z\d]+)\s*[:\-–—]\s*/i, '')
-                  .split(':')[0]
-                  .replace(/\s*\([^)]*\).*/g, '')
-                  .replace(/\s*\[[^\]]*\].*/g, '')
-                  .replace(/\s+\d+\s*sets?.*/i, '')
-                  .replace(/\s+\d+\s*x\s*\d+.*/i, '')
-                  .trim()
-
-                const isSegExempt = config.safeExemptions.some(ex => ex.test(cleanSegName))
-                if (!isSegExempt) {
-                  allViolatingSegmentsExempt = false
-                  break
-                }
+      if (canonicalExercises.length === 0) {
+        totalExercisesScanned++
+        // Fallback for unstructured / unbulleted exercise lines
+        for (const config of activeCategories) {
+          for (const forbiddenPattern of config.forbiddenPatterns) {
+            const evalResult = isPrescriptiveExerciseLine(trimmed, forbiddenPattern)
+            if (evalResult.isPrescription) {
+              const clean = cleanExerciseName(trimmed)
+              const isExempt = config.safeExemptions.some(ex => ex.test(clean))
+              if (!isExempt) {
+                violations.push({
+                  category: config.key,
+                  conditionLabel: config.conditionLabel,
+                  matchedExercise: evalResult.matchedSnippet,
+                  matchedPattern: forbiddenPattern.source,
+                  dayNumber: day.dayNumber,
+                  dayTitle: day.title,
+                  sourceLine: trimmed,
+                  severity: config.severity,
+                  reason: config.reason,
+                })
+                break
               }
             }
+          }
+        }
+      } else {
+        totalExercisesScanned += canonicalExercises.length
 
-            const isExempt = hasViolatingSegment && allViolatingSegmentsExempt
-            if (!isExempt) {
-              violations.push({
-                category: config.key,
-                conditionLabel: config.conditionLabel,
-                matchedExercise: evalResult.matchedSnippet,
-                matchedPattern: forbiddenPattern.source,
-                dayNumber: day.dayNumber,
-                dayTitle: day.title,
-                sourceLine: trimmed,
-                severity: config.severity,
-                reason: config.reason,
-              })
-              // One violation per category per line is sufficient
-              break
+        // Safety check every canonical exercise independently.
+        // A safe exercise on a compound line can NEVER exempt a separate contraindicated exercise.
+        for (const exercise of canonicalExercises) {
+          for (const config of activeCategories) {
+            for (const forbiddenPattern of config.forbiddenPatterns) {
+              const rawMatches = forbiddenPattern.test(exercise.raw)
+              const nameMatches = forbiddenPattern.test(exercise.name)
+
+              if (rawMatches || nameMatches) {
+                const evalResult = isPrescriptiveExerciseLine(exercise.raw, forbiddenPattern)
+                if (evalResult.isPrescription) {
+                  // A safe exemption must specifically match THIS exercise's clean name,
+                  // never an unrelated exercise on the same line.
+                  const isExerciseExempt = config.safeExemptions.some(ex => ex.test(exercise.name))
+                  if (!isExerciseExempt) {
+                    violations.push({
+                      category: config.key,
+                      conditionLabel: config.conditionLabel,
+                      matchedExercise: evalResult.matchedSnippet,
+                      matchedPattern: forbiddenPattern.source,
+                      dayNumber: day.dayNumber,
+                      dayTitle: day.title,
+                      sourceLine: trimmed,
+                      severity: config.severity,
+                      reason: config.reason,
+                    })
+                    // One violation per category per exercise
+                    break
+                  }
+                }
+              }
             }
           }
         }
