@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { toast } from '@/hooks/use-toast'
 import { usePlan } from '@/context/PlanContext'
-import { callGeminiWithFormData, AllergenSafetyError, MOCK_PLAN } from '@/lib/gemini'
+import { callGeminiWithFormData, AllergenSafetyError, MedicalContraindicationError, MOCK_PLAN } from '@/lib/gemini'
 import { getActiveAllergenCategories, scanPlanForAllergens } from '@/lib/allergenGuard'
 
 import { validateStep, hasSafetySensitiveMedicalIssues } from '@/lib/validation'
@@ -145,6 +145,17 @@ const CreatePlanPage = () => {
         setGenerationStage('validating')
       } catch (apiErr) {
         if (seq !== generationSeqRef.current) return
+        if (
+          apiErr instanceof MedicalContraindicationError ||
+          (apiErr as Error)?.message?.includes('MEDICAL_CONTRAINDICATION_VIOLATION')
+        ) {
+          toast({
+            title: 'Medical Safety Rejection',
+            description: 'The AI could not safely generate a plan accommodating all declared medical conditions without risk. Please adjust your request or consult a healthcare professional.',
+            variant: 'destructive',
+          })
+          return
+        }
         if (
           apiErr instanceof AllergenSafetyError ||
           (apiErr as { status?: number })?.status === 422 ||

@@ -23,6 +23,7 @@ import { Input } from '@/components/ui/input'
 import { toast } from '@/hooks/use-toast'
 import { usePlan } from '@/context/PlanContext'
 import { parseAndValidatePlan } from '@/lib/planSchema'
+import { scanPlanForContraindications } from '@/lib/contraindicationGuard'
 import { hasSafetySensitiveMedicalIssues } from '@/lib/validation'
 import { evaluatePlanProfileBinding } from '@/lib/planBinding'
 import { DEFAULT_WEEKLY_PLAN } from '@/types/plan'
@@ -114,6 +115,11 @@ export const GymModePage: React.FC = () => {
   const bindingEval = useMemo(() => {
     return evaluatePlanProfileBinding(state.formData, state.boundProfile)
   }, [state.formData, state.boundProfile])
+
+  // Deterministic contraindication evaluation
+  const contraScanResult = useMemo(() => {
+    return scanPlanForContraindications(state.generatedPlan, state.formData.medicalIssues)
+  }, [state.generatedPlan, state.formData.medicalIssues])
 
   // Session state
   const [session, setSession] = useState<WorkoutSession>(() => {
@@ -761,8 +767,17 @@ export const GymModePage: React.FC = () => {
   const secsElapsed = session.elapsedSeconds % 60
   const formattedElapsed = `${minsElapsed.toString().padStart(2, '0')}:${secsElapsed.toString().padStart(2, '0')}`
 
-  // Safety Gate: Block execution of unvetted plan if safety profile has diverged since generation
-  if (bindingEval.isSafetyMismatched) {
+  // Safety Gate: Block execution if safety profile has diverged OR if plan contains contraindicated exercises
+  if (bindingEval.isSafetyMismatched || contraScanResult.hasViolation) {
+    const isContra = contraScanResult.hasViolation
+    const title = isContra ? 'Workout Safety Lockout — Contraindicated Movement' : 'Workout Safety Lockout'
+    const desc = isContra
+      ? 'This plan contains exercises that are contraindicated for your declared medical conditions. Workout execution is locked to prevent injury. Please regenerate your plan to obtain safe alternatives.'
+      : 'Your health profile (injuries, medical conditions, or allergies) has changed since this plan was generated. To prevent injury, this workout is locked until you regenerate your plan to accommodate your current health state.'
+    const reasonText = isContra
+      ? contraScanResult.violations.map(v => `${v.conditionLabel}: "${v.matchedExercise}" (${v.reason})`).join('; ')
+      : bindingEval.reason
+
     return (
       <div className="min-h-screen bg-bodymap-dark text-primary-text flex items-center justify-center p-4">
         <div className="card-dark max-w-lg w-full text-center space-y-6 border-2 border-bright-coral/50 p-8 shadow-2xl animate-fade-in">
@@ -771,14 +786,14 @@ export const GymModePage: React.FC = () => {
           </div>
           <div>
             <h1 className="text-xl sm:text-2xl font-poppins font-bold text-primary-text mb-2">
-              Workout Safety Lockout
+              {title}
             </h1>
             <p className="text-sm text-secondary-text font-open-sans">
-              Your health profile (injuries, medical conditions, or allergies) has changed since this plan was generated. To prevent injury, this workout is locked until you regenerate your plan to accommodate your current health state.
+              {desc}
             </p>
           </div>
           <div className="p-3.5 bg-bright-coral/10 border border-bright-coral/30 rounded-xl text-xs text-bright-coral font-medium text-left">
-            <strong>Safety Conflict:</strong> {bindingEval.reason}
+            <strong>Safety Conflict:</strong> {reasonText}
           </div>
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
             <button

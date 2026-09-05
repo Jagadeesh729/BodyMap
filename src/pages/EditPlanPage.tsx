@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox'
 import { toast } from '@/hooks/use-toast'
 import { usePlan } from '@/context/PlanContext'
-import { callGeminiWithFormData, AllergenSafetyError, MOCK_PLAN } from '@/lib/gemini'
+import { callGeminiWithFormData, AllergenSafetyError, MedicalContraindicationError, MOCK_PLAN } from '@/lib/gemini'
 import { getActiveAllergenCategories, scanPlanForAllergens } from '@/lib/allergenGuard'
 import { hasSafetySensitiveMedicalIssues } from '@/lib/validation'
 
@@ -99,6 +99,17 @@ const EditPlanPage = () => {
       navigate('/weekly-plan')
     } catch (err) {
       if (seq !== generationSeqRef.current) return
+      if (
+        err instanceof MedicalContraindicationError ||
+        (err as Error)?.message?.includes('MEDICAL_CONTRAINDICATION_VIOLATION')
+      ) {
+        toast({
+          title: 'Medical Safety Rejection',
+          description: 'Could not safely generate a plan accommodating all declared medical conditions without risk. Please adjust your requests or consult a physician.',
+          variant: 'destructive',
+        })
+        return
+      }
       if (
         err instanceof AllergenSafetyError ||
         (err as { status?: number })?.status === 422 ||

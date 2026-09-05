@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'http'
 import { z } from 'zod'
+import { scanPlanForContraindications, getActiveContraindicationCategories } from '../src/lib/contraindicationGuard'
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
 const DEFAULT_GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash'
@@ -897,6 +898,93 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
             allergenCategories: Array.from(new Set(initialScan.violations.map(v => v.label))),
             requestId,
             executionSource: 'allergen-safety-rejection',
+          }))
+          return
+        }
+      }
+    }
+
+    // --- Deterministic Medical Contraindication Output Guard with Bounded Single-Attempt Retry ---
+    const declaredMedical = formValidation.data.medicalIssues?.trim() || ''
+    const activeContraindications = getActiveContraindicationCategories(declaredMedical)
+
+    if (successfulText && activeContraindications.length > 0) {
+      const initialContraScan = scanPlanForContraindications(successfulText, declaredMedical)
+      if (initialContraScan.hasViolation) {
+        const uniqueConditionLabels = Array.from(new Set(initialContraScan.violations.map(v => v.conditionLabel))).join(', ')
+        const violationDetails = initialContraScan.violations
+          .slice(0, 5)
+          .map(v => `- [${v.conditionLabel} violation]: "${v.matchedExercise}" in "${v.sourceLine.slice(0, 100)}"`)
+          .join('\n')
+
+        const retryCorrectionPrompt = [
+          'CRITICAL MEDICAL CONTRAINDICATION SAFETY CORRECTION REQUIRED:',
+          `The client has declared the following safety-sensitive conditions: ${uniqueConditionLabels}.`,
+          'The previously generated plan contained the following strictly contraindicated exercises:',
+          violationDetails,
+          '',
+          `You MUST regenerate the entire 7-day plan strictly omitting ALL contraindicated exercises (${uniqueConditionLabels}).`,
+          'Ensure safe, low-impact rehabilitative alternatives are prescribed instead (e.g., straight-leg raises, glute bridges, seated rows below shoulder height, neutral-spine core work like bird-dogs, etc.).',
+          '',
+          'Here is the original client profile and instructions:',
+          prompt,
+        ].join('\n')
+
+        const retryModel = resolvedModel || candidateModels[0]
+        successfulText = ''
+        resolvedModel = ''
+
+        try {
+          const retryRes = await fetch(`${GEMINI_API_BASE}/${retryModel}:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: retryCorrectionPrompt }] }],
+              generationConfig: { maxOutputTokens: 4096 },
+            }),
+            signal: AbortSignal.timeout(25000),
+          })
+
+          if (retryRes.ok) {
+            const retryData = await retryRes.json() as {
+              candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
+            }
+            const retryText = retryData.candidates?.[0]?.content?.parts?.[0]?.text
+            if (retryText && retryText.trim().length > 0) {
+              // MANDATORY second scan: retry output is never assumed safe
+              const retryContraScan = scanPlanForContraindications(retryText, declaredMedical)
+              // Also ensure retry didn't introduce allergen violations if allergies declared
+              const retryAllergenCheck = activeAllergens.length > 0
+                ? scanPlanForAllergens(retryText, declaredAllergies)
+                : { hasViolation: false }
+
+              if (!retryContraScan.hasViolation && !retryAllergenCheck.hasViolation) {
+                successfulText = retryText
+                resolvedModel = retryModel
+              }
+            }
+          }
+        } catch {
+          // Retry failure leaves successfulText empty
+        }
+
+        // If successfulText is still empty after retry, return 422 medical contraindication rejection
+        if (!successfulText) {
+          res.statusCode = 422
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({
+            error: 'MEDICAL_CONTRAINDICATION_VIOLATION: Generated plan could not be made safe for declared medical conditions after correction attempt.',
+            contraindicatedConditions: Array.from(new Set(initialContraScan.violations.map(v => v.conditionLabel))),
+            contraindicatedViolations: initialContraScan.violations.map(v => ({
+              category: v.category,
+              conditionLabel: v.conditionLabel,
+              matchedExercise: v.matchedExercise,
+              dayNumber: v.dayNumber,
+              sourceLine: v.sourceLine,
+              reason: v.reason,
+            })),
+            requestId,
+            executionSource: 'contraindication-safety-rejection',
           }))
           return
         }

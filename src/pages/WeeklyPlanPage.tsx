@@ -27,6 +27,7 @@ import { toast } from '@/hooks/use-toast'
 import { usePlan } from '@/context/PlanContext'
 import { parseAndValidatePlan } from '@/lib/planSchema'
 import { scanPlanForAllergens, scanMealTextForAllergens, getActiveAllergenCategories } from '@/lib/allergenGuard'
+import { scanPlanForContraindications } from '@/lib/contraindicationGuard'
 import { hasSafetySensitiveMedicalIssues } from '@/lib/validation'
 import { evaluatePlanProfileBinding } from '@/lib/planBinding'
 import { DEFAULT_WEEKLY_PLAN, type DayPlan } from '@/types/plan'
@@ -254,9 +255,39 @@ const WeeklyPlanPage: React.FC = () => {
     return evaluatePlanProfileBinding(state.formData, state.boundProfile)
   }, [state.formData, state.boundProfile])
 
+  const contraindicationScanResult = useMemo(() => {
+    return scanPlanForContraindications(state.generatedPlan, state.formData.medicalIssues)
+  }, [state.generatedPlan, state.formData.medicalIssues])
+
+  const isWorkoutLocked = bindingEval.isSafetyMismatched || contraindicationScanResult.hasViolation
+
   return (
     <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8 bg-bodymap-dark text-primary-text">
       <div className="max-w-6xl mx-auto">
+
+        {contraindicationScanResult.hasViolation && (
+          <div className="mb-8 p-4 sm:p-6 bg-bright-coral/10 border-2 border-bright-coral/50 rounded-xl flex items-start gap-4 shadow-lg shadow-bright-coral/10 animate-fade-in">
+            <AlertCircle className="w-8 h-8 text-bright-coral shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h2 className="font-poppins font-semibold text-bright-coral text-base sm:text-lg">
+                Workout Safety Lockout — Contraindicated Movement Detected
+              </h2>
+              <p className="text-secondary-text font-open-sans text-xs sm:text-sm mt-1">
+                This plan contains exercises that conflict with your declared medical conditions ({Array.from(new Set(contraindicationScanResult.violations.map(v => v.conditionLabel))).join(', ')}). Workouts are locked to prevent injury. Please regenerate your plan to receive safe alternatives.
+              </p>
+              <div className="mt-2 space-y-1">
+                {contraindicationScanResult.violations.slice(0, 3).map((v, i) => (
+                  <div key={i} className="text-xs text-bright-coral font-medium">
+                    &bull; Day {v.dayNumber || '?'}: <strong>{v.matchedExercise}</strong> ({v.conditionLabel})
+                  </div>
+                ))}
+              </div>
+            </div>
+            <Link to="/edit-plan" className="btn-primary whitespace-nowrap text-xs sm:text-sm py-2 px-4 self-center sm:self-auto shrink-0">
+              Regenerate Plan
+            </Link>
+          </div>
+        )}
 
         {bindingEval.isSafetyMismatched && (
           <div className="mb-8 p-4 sm:p-6 bg-bright-coral/10 border-2 border-bright-coral/50 rounded-xl flex items-start gap-4 shadow-lg shadow-bright-coral/10 animate-fade-in">
@@ -329,7 +360,7 @@ const WeeklyPlanPage: React.FC = () => {
           </div>
         )}
 
-        {activeSession && !bindingEval.isSafetyMismatched && (
+        {activeSession && !isWorkoutLocked && (
           <div className="mb-6 p-4 sm:p-5 bg-neon-green/10 border-2 border-neon-green/40 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg shadow-neon-green/5">
             <div className="flex items-center gap-3">
               <div className="w-3 h-3 rounded-full bg-neon-green animate-ping shrink-0" />
@@ -395,7 +426,7 @@ const WeeklyPlanPage: React.FC = () => {
                     Next recommended session: <strong className="text-primary-text">{nextDay.day} &bull; {nextDay.title}</strong>
                   </span>
                 </div>
-                {bindingEval.isSafetyMismatched ? (
+                {isWorkoutLocked ? (
                   <span className="px-3 py-1.5 rounded-lg bg-bright-coral/10 text-bright-coral text-xs font-semibold border border-bright-coral/30 shrink-0">
                     Locked
                   </span>
@@ -598,10 +629,10 @@ const WeeklyPlanPage: React.FC = () => {
 
                     <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
                       {!day.isRest && (
-                        bindingEval.isSafetyMismatched ? (
+                        isWorkoutLocked ? (
                           <span
                             className="px-3 py-1.5 rounded-lg bg-bright-coral/10 border border-bright-coral/30 text-bright-coral text-xs font-semibold"
-                            title="Workouts locked due to health profile changes"
+                            title={bindingEval.isSafetyMismatched ? "Workouts locked due to health profile changes" : "Workouts locked due to contraindicated exercises"}
                           >
                             Locked
                           </span>

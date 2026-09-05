@@ -129,6 +129,38 @@ export class AllergenSafetyError extends Error {
   }
 }
 
+export class MedicalContraindicationError extends Error {
+  status: number
+  contraindicatedConditions?: string[]
+  contraindicatedViolations?: Array<{
+    category: string
+    conditionLabel: string
+    matchedExercise: string
+    dayNumber?: number
+    sourceLine: string
+    reason: string
+  }>
+
+  constructor(
+    message: string,
+    contraindicatedConditions?: string[],
+    contraindicatedViolations?: Array<{
+      category: string
+      conditionLabel: string
+      matchedExercise: string
+      dayNumber?: number
+      sourceLine: string
+      reason: string
+    }>
+  ) {
+    super(message)
+    this.name = 'MedicalContraindicationError'
+    this.status = 422
+    this.contraindicatedConditions = contraindicatedConditions
+    this.contraindicatedViolations = contraindicatedViolations
+  }
+}
+
 export async function callGeminiWithFormData(formData: FormData): Promise<string> {
   const response = await fetch('/api/generate-plan', {
     method: 'POST',
@@ -142,12 +174,19 @@ export async function callGeminiWithFormData(formData: FormData): Promise<string
     if (response.status === 422) {
       try {
         const parsed = JSON.parse(errBody)
+        if (parsed.error?.includes('MEDICAL_CONTRAINDICATION_VIOLATION')) {
+          throw new MedicalContraindicationError(
+            parsed.error,
+            parsed.contraindicatedConditions,
+            parsed.contraindicatedViolations
+          )
+        }
         throw new AllergenSafetyError(
           parsed.error || 'ALLERGEN_SAFETY_VIOLATION: Generated plan could not be made safe for declared allergies.',
           parsed.allergenCategories
         )
       } catch (e) {
-        if (e instanceof AllergenSafetyError) throw e
+        if (e instanceof AllergenSafetyError || e instanceof MedicalContraindicationError) throw e
         throw new AllergenSafetyError('ALLERGEN_SAFETY_VIOLATION')
       }
     }
