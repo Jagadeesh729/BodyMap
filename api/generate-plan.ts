@@ -1678,11 +1678,18 @@ export function isPrescriptiveExerciseLine(
       /\b(?:are|is)\s+(?:contraindicated|strictly\s+avoided|not\s+recommended)\b/i.test(cleanClause) ||
       /\bshould\s+be\s+avoided\b/i.test(cleanClause)
 
+    const containsRefusalOrContraindication =
+      /\b(?:cannot|will\s+not)\s+be\s+(?:accommodated|included|prescribed|performed)\b/i.test(cleanClause) ||
+      /\b(?:are|is|being)\s+[^.;\n]*?\b(?:contraindicated|strictly\s+avoided|not\s+recommended)\b/i.test(cleanClause) ||
+      /\b(?:unsafe|not\s+safe)\s+(?:due\s+to|for\s+(?:your|the)|to\s+perform)\b/i.test(cleanClause) ||
+      /\b(?:can\s+aggravate|risks?\s+(?:aggravating|injury))\b/i.test(cleanClause) ||
+      /\brequest\s+to\s+include\b[^.;\n]*?\bcannot\s+be\s+accommodated\b/i.test(cleanClause)
+
     if (hasClausePrescription) {
       hasPrescribedClause = true
       allClausesNegated = false
       break
-    } else if (startsWithExclusion || endsWithExclusion) {
+    } else if (startsWithExclusion || endsWithExclusion || containsRefusalOrContraindication) {
       continue
     } else {
       allClausesNegated = false
