@@ -434,4 +434,144 @@ describe('Semantic & Acronym Hardening Suite (Red-Team Audit)', () => {
       expect(clientResult.violations.length).toBe(serverResult.violations.length)
     })
   })
+
+  describe('T7: Cervical Bridge & Plyometric Bounds Hardening (Phase 4 Audit)', () => {
+    it('catches Wrestler bridge and Wrestler\'s bridge without neck keyword for cervical spine pathology', () => {
+      const plan1 = `## Day 1
+**Main Workout:**
+- Wrestler bridge: 3 sets x 30s
+`
+      const plan2 = `## Day 1
+**Main Workout:**
+- Wrestler's bridge: 3 sets x 30s
+`
+      const plan3 = `## Day 1
+**Main Workout:**
+- Wrestlers bridge: 3 sets x 30s
+`
+      const med = 'cervical disc herniation'
+      expect(scanPlanForContraindications(plan1, med).hasViolation).toBe(true)
+      expect(scanPlanForContraindications(plan2, med).hasViolation).toBe(true)
+      expect(scanPlanForContraindications(plan3, med).hasViolation).toBe(true)
+    })
+
+    it('safely allows glute bridges and hip bridges for cervical conditions', () => {
+      const safePlan = `## Day 1
+**Main Workout:**
+- Glute bridge: 3 sets x 15 reps
+- Hip bridge: 3 sets x 12 reps
+`
+      const med = 'cervical fusion'
+      expect(scanPlanForContraindications(safePlan, med).hasViolation).toBe(false)
+    })
+
+    it('catches lateral bounds, skater bounds, and bounding drills for knee/ACL pathology', () => {
+      const plan1 = `## Day 1
+**Main Workout:**
+- Lateral bounds: 3 sets x 10 reps
+`
+      const plan2 = `## Day 1
+**Main Workout:**
+- Skater bounds: 3 sets x 12 reps
+`
+      const plan3 = `## Day 1
+**Main Workout:**
+- Bounding drills: 3 sets x 30m
+`
+      const plan4 = `## Day 1
+**Main Workout:**
+- Lateral bounding: 3 sets x 10 reps
+`
+      const med = 'ACL reconstruction'
+      expect(scanPlanForContraindications(plan1, med).hasViolation).toBe(true)
+      expect(scanPlanForContraindications(plan2, med).hasViolation).toBe(true)
+      expect(scanPlanForContraindications(plan3, med).hasViolation).toBe(true)
+      expect(scanPlanForContraindications(plan4, med).hasViolation).toBe(true)
+    })
+
+    it('verifies client/server parity for wrestler bridge and lateral bounds', () => {
+      const plan = `## Day 1
+**Main Workout:**
+- Wrestler bridge: 3 sets x 30s
+- Lateral bounds: 3 sets x 10 reps
+`
+      const clientNeck = scanPlanForContraindications(plan, 'cervical disc')
+      const serverNeck = serverScanPlanForContraindications(plan, 'cervical disc')
+      expect(clientNeck.hasViolation).toBe(serverNeck.hasViolation)
+
+      const clientKnee = scanPlanForContraindications(plan, 'acl tear')
+      const serverKnee = serverScanPlanForContraindications(plan, 'acl tear')
+      expect(clientKnee.hasViolation).toBe(serverKnee.hasViolation)
+    })
+  })
+
+  describe('T8: Comprehensive Substitution Engine Invariant Verification (Phase 9 Audit)', () => {
+    it('correctly exempts legitimate rehabilitative substitutions across diverse linguistic markers', () => {
+      const plans = [
+        `## Day 1\n**Main Workout:**\n- Step-ups: 3 sets x 12 reps (replacing box jumps)`,
+        `## Day 1\n**Main Workout:**\n- Bird-dog: 3 sets x 10 reps (replacement for deadlifts)`,
+        `## Day 1\n**Main Workout:**\n- Glute bridges: 3 sets x 15 reps (substituting for back squats)`,
+        `## Day 1\n**Main Workout:**\n- Step-ups: 3 sets x 12 reps (substituted for burpees)`,
+        `## Day 1\n**Main Workout:**\n- Step-ups: 3 sets x 12 reps (in place of box jumps)`,
+        `## Day 1\n**Main Workout:**\n- Bird-dog: 3 sets x 10 reps (swap out for deadlifts)`,
+      ]
+
+      for (const p of plans) {
+        const res = scanPlanForContraindications(p, 'knee reconstruction and lumbar disc herniation')
+        expect(res.hasViolation).toBe(false)
+      }
+    })
+
+    it('strictly catches inverted substitution traps where unsafe exercise is prescribed', () => {
+      const invertedPlans = [
+        `## Day 1\n**Main Workout:**\n- Box jumps: 3 sets x 10 reps (replacing step-ups)`,
+        `## Day 1\n**Main Workout:**\n- Deadlifts: 5 sets x 5 reps (substitute for glute bridges)`,
+        `## Day 1\n**Main Workout:**\n- Overhead press: 3 sets x 10 reps (in place of incline press)`,
+      ]
+
+      const kneeRes = scanPlanForContraindications(invertedPlans[0], 'acl tear')
+      expect(kneeRes.hasViolation).toBe(true)
+
+      const lumbarRes = scanPlanForContraindications(invertedPlans[1], 'sciatica')
+      expect(lumbarRes.hasViolation).toBe(true)
+
+      const shoulderRes = scanPlanForContraindications(invertedPlans[2], 'rotator cuff tear')
+      expect(shoulderRes.hasViolation).toBe(true)
+    })
+
+    it('verifies client and server parity for expanded substitution regex engine', () => {
+      const lineA = '- Step-ups: 3 sets x 12 reps (replacing box jumps)'
+      const lineB = '- Box jumps: 3 sets x 10 reps (replacing step-ups)'
+      const boxPattern = /\b(?:box)[- ]*jumps?\b/i
+
+      const clientResA = isPrescriptiveExerciseLine(lineA, boxPattern)
+      const serverResA = serverIsPrescriptiveExerciseLine(lineA, boxPattern)
+      expect(clientResA.isPrescription).toBe(false)
+      expect(serverResA.isPrescription).toBe(false)
+
+      const clientResB = isPrescriptiveExerciseLine(lineB, boxPattern)
+      const serverResB = serverIsPrescriptiveExerciseLine(lineB, boxPattern)
+      expect(clientResB.isPrescription).toBe(true)
+      expect(serverResB.isPrescription).toBe(true)
+    })
+
+    it('prevents safe exemption words from masking forbidden exercise prescriptions (anti-masking invariant)', () => {
+      const maskedPlans = [
+        { plan: '## Day 1\n**Main Workout:**\n- Box jumps: 3 sets x 10 reps (with step-ups warmup)', med: 'acl tear', cat: 'knee_high_impact' },
+        { plan: '## Day 1\n**Main Workout:**\n- Deadlifts: 5 sets x 5 reps (finish with bird-dog)', med: 'disc herniation', cat: 'lumbar_disc_herniation' },
+        { plan: '## Day 1\n**Main Workout:**\n- Overhead press: 3 sets x 10 reps (superset with push-ups)', med: 'rotator cuff tear', cat: 'shoulder_impingement_cuff' },
+      ]
+
+      for (const mp of maskedPlans) {
+        const clientRes = scanPlanForContraindications(mp.plan, mp.med)
+        expect(clientRes.hasViolation).toBe(true)
+        expect(clientRes.violations[0].category).toBe(mp.cat)
+
+        const serverRes = serverScanPlanForContraindications(mp.plan, mp.med)
+        expect(serverRes.hasViolation).toBe(true)
+        expect(serverRes.violations[0].category).toBe(mp.cat)
+      }
+    })
+  })
 })
+

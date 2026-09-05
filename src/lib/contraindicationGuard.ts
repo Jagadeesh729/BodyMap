@@ -73,7 +73,8 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\bhigh[- ]knee\s+jumps?\b/i,
       /\bpower[- ]+skips?\b/i,
       /\bdepth[- ]+drops?\b/i,
-      /\bplyometric[- ]+bounding\b/i,
+      /\b(?:lateral|skater|single[- ]leg|plyometric|speed)\s+bounds?\b/i,
+      /\b(?:(?:lateral|skater|single[- ]leg|plyometric|speed)\s+)?bounding\b/i,
       /\bhigh[- ]impact\s+(?:plyometrics|jumping|bounding)\b/i,
       /\bdouble[- ]unders?\b/i,
     ],
@@ -176,7 +177,7 @@ export const CONTRAINDICATION_TAXONOMY: Record<
     ],
     forbiddenPatterns: [
       /\bbehind[- ]the[- ]neck\s+(?:(?:shoulder\s+)?press|pulldown|pull[- ]down|barbell)\b/i,
-      /\b(?:wrestler'?s?\s+)?neck\s+bridges?\b/i,
+      /\b(?:(?:wrestler'?s?\s+)?neck|wrestler'?s?)\s+bridges?\b/i,
       /\bheadstands?\b/i,
       /\b(?:handstands?|handstand\s+push[- ]*ups?|shoulder\s*stands?)\b/i,
       /\b(?:strict\s+|deficit\s+|kipping\s+)?hspus?\b/i,
@@ -374,7 +375,7 @@ export function isPrescriptiveExerciseLine(
   // The matched forbidden pattern must be explicitly the TARGET of the substitution clause,
   // AND the forbidden pattern must NOT appear anywhere in the prescribed portion of the line.
   const substitutionRegex =
-    /(?:\(|\[)(?:[^)\]]*?\b)?(?:alternative(?:\s+(?:to|for))?:?|replaces?:?|instead\s+of:?|substitute(?:\s+(?:for|to))?:?)\s+([^()[\]]+)(?:\)|\])|;\s*(?:alternative(?:\s+(?:to|for))?:?|replaces?:?|instead\s+of:?|substitute(?:\s+(?:for|to))?:?)\s+([^;\n]+)/gi
+    /(?:\(|\[)(?:[^)\]]*?\b)?(?:alternative(?:\s+(?:to|for))?:?|replaces?:?|replacing:?|replacement(?:\s+(?:for|to|of))?:?|instead\s+of:?|in\s+place\s+of:?|substitut(?:e|es|ed|ing)(?:\s+(?:for|to))?:?|swap(?:\s+out)?(?:\s+(?:for|with))?:?)\s+([^()[\]]+)(?:\)|\])|;\s*(?:alternative(?:\s+(?:to|for))?:?|replaces?:?|replacing:?|replacement(?:\s+(?:for|to|of))?:?|instead\s+of:?|in\s+place\s+of:?|substitut(?:e|es|ed|ing)(?:\s+(?:for|to))?:?|swap(?:\s+out)?(?:\s+(?:for|with))?:?)\s+([^;\n]+)/gi
   let isExemptSubstitution = false
   let subMatch: RegExpExecArray | null
 
@@ -534,8 +535,20 @@ export function scanPlanForContraindications(
         for (const forbiddenPattern of config.forbiddenPatterns) {
           const evalResult = isPrescriptiveExerciseLine(trimmed, forbiddenPattern)
           if (evalResult.isPrescription) {
-            // Check if line qualifies under safe exemptions
-            const isExempt = config.safeExemptions.some(ex => ex.test(trimmed))
+            // Check if line qualifies under safe exemptions:
+            // Exemption must match the prescribed exercise name, or if matching the line,
+            // the prescribed exercise itself must not be the forbidden entity.
+            const cleanExerciseName = trimmed
+              .replace(/^[-*•\d.)\s]+/, '')
+              .replace(/^(?:(?:exercise|station|movement|circuit|superset|item|part)\s+[a-z\d]+)\s*[:\-–—]\s*/i, '')
+              .trim()
+              .split(':')[0]
+              .trim()
+
+            const isExempt = config.safeExemptions.some(ex => {
+              if (ex.test(cleanExerciseName)) return true
+              return ex.test(trimmed) && !forbiddenPattern.test(cleanExerciseName)
+            })
             if (!isExempt) {
               violations.push({
                 category: config.key,
