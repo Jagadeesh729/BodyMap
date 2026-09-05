@@ -64,10 +64,13 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\b(?:torn|injured)\s+knee\b/i,
     ],
     forbiddenPatterns: [
-      /\b(?:box|depth|tuck|jump|squat|split|broad|hurdle)[- ]+jumps?\b/i,
+      /\b(?:box|depth|tuck|jump|squat|split|broad|hurdle)[- ]*jumps?\b/i,
       /\bjumps?\s+squats?\b/i,
       /\bburpees?\b/i,
       /\b(?:jumping|plyometric|split)[- ]+lunges?\b/i,
+      /\b(?:skater|speed\s+skater)[- ]*jumps?\b/i,
+      /\b(?:jump|skipping)\s+rope\b/i,
+      /\bhigh[- ]knee\s+jumps?\b/i,
       /\bpower[- ]+skips?\b/i,
       /\bdepth[- ]+drops?\b/i,
       /\bplyometric[- ]+bounding\b/i,
@@ -80,6 +83,9 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\bstep[- ]ups?\b/i,
       /\bstraight[- ]leg\s+raises?\b/i,
       /\bglute\s+bridges?\b/i,
+      /\bseated\s+(?:leg\s+extensions?|hamstring\s+curls?)\b/i,
+      /\bstationary\s+cycling\b/i,
+      /\bswimming\b/i,
     ],
     severity: 'critical',
     reason:
@@ -97,12 +103,12 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\bsubacromial\s+impingement\b/i,
     ],
     forbiddenPatterns: [
-      /\b(?:barbell\s+overhead\s+press|overhead\s+(?:barbell\s+|dumbbell\s+)?press(?:ing)?|overhead\s+press\b)/i,
+      /\b(?:(?:barbell|dumbbell|seated|standing|machine|kettlebell)\s+)?(?:overhead|shoulder)\s+press(?:ing|es)?\b/i,
       /\b(?:military\s+press(?:ing)?|arnold\s+press(?:ing)?|push\s+press(?:ing)?)\b/i,
       /\bbehind[- ]the[- ]neck\s+(?:press(?:ing)?|shoulder\s+press|pulldowns?)\b/i,
       /\bhandstand\s+push[- ]ups?\b/i,
       /\bupright\s+(?:barbell\s+|dumbbell\s+)?rows?\b/i,
-      /\b(?:parallel\s+bar\s+dips?|chest\s+dips?|weighted\s+dips?)\b/i,
+      /\b(?:parallel\s+bar\s+dips?|chest\s+dips?|weighted\s+dips?|bench\s+dips?|dips?\b)/i,
     ],
     safeExemptions: [
       /\bbench\s+press\b/i,
@@ -111,6 +117,8 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\blateral\s+raises?\s+(?:below\s+shoulder|light)\b/i,
       /\bexternal\s+rotations?\b/i,
       /\bface\s+pulls?\b/i,
+      /\bbicep\s+curls?\b/i,
+      /\bhammer\s+curls?\b/i,
     ],
     severity: 'critical',
     reason:
@@ -126,13 +134,13 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\b(?:lumbar|lower\s+back)\s+(?:injury|herniation|tear|surgery|severe\s+pain)\b/i,
     ],
     forbiddenPatterns: [
-      /\b(?:heavy\s+(?:barbell\s+)?deadlifts?|conventional\s+(?:barbell\s+)?deadlifts?|maximal\s+deadlifts?)\b/i,
+      /\b(?:(?:barbell|romanian|stiff[- ]leg(?:ged)?|sumo|conventional|heavy|maximal)\s+)?deadlifts?\b/i,
+      /\b(?:(?:barbell|heavy|loaded)\s+)?back\s*squats?\b/i,
       /\bbarbell\s+good[- ]mornings?\b/i,
       /\bgood[- ]mornings?\b/i,
       /\bjefferson\s+curls?\b/i,
       /\bloaded\s+(?:spinal\s+flexion|back\s+extensions?\s+with\s+weight)\b/i,
-      /\bheavy\s+barbell\s+back\s+squats?\b/i,
-      /\bweighted\s+(?:crunches?|sit[- ]ups?|decline\s+sit[- ]ups?)\b/i,
+      /\b(?:weighted\s+|decline\s+)?(?:crunches?|sit[- ]*ups?)\b/i,
       /\b(?:barbell\s+)?(?:clean\s+and\s+jerk|snatch(?:es)?)\b/i,
     ],
     safeExemptions: [
@@ -141,7 +149,8 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\bplanks?\b/i,
       /\bpallof\s+press\b/i,
       /\bglute\s+bridges?\b/i,
-      /\bbodyweight\s+(?:squats?|hip\s+hinge)\b/i,
+      /\bbodyweight\s+(?:squats?|hip\s+hinge|single[- ]leg\s+deadlifts?)\b/i,
+      /\bgoblet\s+squats?\b/i,
     ],
     severity: 'critical',
     reason:
@@ -160,6 +169,7 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\bbehind[- ]the[- ]neck\s+(?:press|pulldown|pull[- ]down|barbell)\b/i,
       /\b(?:wrestler'?s?\s+)?neck\s+bridges?\b/i,
       /\bheadstands?\b/i,
+      /\b(?:handstands?|handstand\s+push[- ]*ups?|shoulder\s*stands?)\b/i,
     ],
     safeExemptions: [
       /\bchin\s+tucks?\b/i,
@@ -178,12 +188,10 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\b(?:angina|coronary\s+artery\s+disease|myocardial\s+infarction|heart\s+attack|heart\s+failure|cardiac\s+stent|recent\s+heart\s+surgery|severe\s+hypertension|uncontrolled\s+hypertension)\b/i,
     ],
     forbiddenPatterns: [
-      /\ball[- ]out\s+sprints?\b/i,
-      /\bsprint\s+intervals?\b/i,
-      /\bmaximal\s+(?:effort\s+)?sprints?\b/i,
+      /\b(?:high[- ]intensity\s+interval\s+training|hiit|tabata)(?:\s+(?:cardio|circuit|intervals?|training|workout|sprints?))?\b/i,
+      /\b(?:all[- ]out\s+|maximal\s+(?:effort\s+)?|sprint\s+|tabata\s+)?sprints?\b/i,
       /\b1rm\s+(?:testing|attempt|lift)\b/i,
       /\bmaximal\s+valsalva\b/i,
-      /\btabata\s+sprints?\b/i,
     ],
     safeExemptions: [
       /\bwalking\b/i,
@@ -206,11 +214,15 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\b(?:2[0-9]|3[0-9]|40)\s*weeks?\s+pregnant\b/i,
     ],
     forbiddenPatterns: [
-      /\bprone\s+(?:superman|hyperextensions?|lying|cobras?|planks?\s+on\s+belly)\b/i,
+      /\b(?:prone\s+)?superman(?:s|\s+holds?)?\b/i,
+      /\bprone\s+(?:hyperextensions?|lying|cobras?|planks?\s+on\s+belly)\b/i,
       /\blying\s+(?:flat\s+)?on\s+(?:stomach|belly)\b/i,
       /\bprolonged\s+supine\b/i,
-      /\bflat\s+supine\s+(?:bench|crunches|leg\s+raises)\b/i,
-      /\b(?:box|depth|tuck)[- ]+jumps?\b/i,
+      /\b(?:flat\s+)?(?:bench\s+press|supine\s+bench)\b/i,
+      /\b(?:supine\s+)?leg\s+raises?\b/i,
+      /\b(?:crunches?|sit[- ]*ups?)\b/i,
+      /\bburpees?\b/i,
+      /\b(?:box|depth|tuck)[- ]*jumps?\b/i,
       /\bhigh[- ]impact\s+(?:plyometrics|jumping|bounding)\b/i,
     ],
     safeExemptions: [
@@ -234,10 +246,13 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\b(?:bone\s+density\s+loss|osteopenia\s+with\s+fracture|compression\s+fracture)\b/i,
     ],
     forbiddenPatterns: [
+      /\brussian\s+twists?\b/i,
       /\bjefferson\s+curls?\b/i,
       /\bloaded\s+spinal\s+flexion\b/i,
-      /\bweighted\s+(?:crunches?|sit[- ]ups?)\b/i,
-      /\bdepth[- ]+jumps?\b/i,
+      /\b(?:weighted\s+)?(?:crunches?|sit[- ]*ups?)\b/i,
+      /\b(?:box|depth|tuck|squat|broad)[- ]*jumps?\b/i,
+      /\bburpees?\b/i,
+      /\b(?:barbell\s+)?deadlifts?\b/i,
       /\bhigh[- ]impact\s+bounding\b/i,
       /\bexplosive\s+twisting\b/i,
     ],
@@ -261,10 +276,11 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\bjoint\s+(?:degeneration|space\s+narrowing)\b/i,
     ],
     forbiddenPatterns: [
-      /\bdepth[- ]+jumps?\b/i,
-      /\bbox[- ]+jumps?\b/i,
-      /\bhigh[- ]impact\s+(?:bounding|jumping|plyometrics)\b/i,
+      /\b(?:box|depth|tuck|squat|split|broad)[- ]*jumps?\b/i,
+      /\bjumps?\s+squats?\b/i,
+      /\bburpees?\b/i,
       /\bjumping[- ]+lunges?\b/i,
+      /\bhigh[- ]impact\s+(?:bounding|jumping|plyometrics)\b/i,
     ],
     safeExemptions: [
       /\bswimming\b/i,
@@ -300,11 +316,14 @@ export function getActiveContraindicationCategories(
 }
 
 /**
- * Normalizes an exercise string by stripping Markdown formatting, normalizing dashes,
- * and collapsing whitespace.
+ * Normalizes an exercise string by decomposing Unicode confusables (NFKC),
+ * stripping invisible / zero-width formatting characters, stripping Markdown,
+ * normalizing hyphens, and collapsing whitespace.
  */
 export function normalizeExerciseString(text: string): string {
   return text
+    .normalize('NFKC')
+    .replace(/[\u200B-\u200D\uFEFF\u00AD\u2060]/g, '')
     .replace(/[*_`#]/g, '')
     .replace(/[\u2010\u2011\u2012\u2013\u2014\u2015]/g, '-')
     .replace(/\s+/g, ' ')

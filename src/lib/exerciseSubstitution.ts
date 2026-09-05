@@ -290,7 +290,10 @@ export function parseExerciseStringToSessionExercise(
   rawStr: string,
   index: number
 ): SessionExercise {
-  const cleanStr = rawStr.replace(/^[-*•]\s*/, '').trim()
+  const cleanStr = rawStr
+    .replace(/^[-*•\d]+[.)\s]\s*/, '')
+    .replace(/^[-*•]\s*/, '')
+    .trim()
   
   let name = cleanStr
   let targetSets = 3

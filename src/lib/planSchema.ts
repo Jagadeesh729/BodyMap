@@ -59,8 +59,14 @@ function parseExercises(text: string): Exercise[] {
   const lines = text.split('\n')
   for (const line of lines) {
     const trimmed = line.trim()
-    if (trimmed.startsWith('-') || trimmed.startsWith('*')) {
-      const content = trimmed.replace(/^[-*]+\s*/, '').replace(/\*+/g, '').trim()
+    const isBullet = /^[-*•]/.test(trimmed)
+    const isNumbered = /^\d+[.)]\s/.test(trimmed)
+    if (isBullet || isNumbered) {
+      const content = trimmed
+        .replace(/^[-*•]+\s*/, '')
+        .replace(/^\d+[.)]\s*/, '')
+        .replace(/\*+/g, '')
+        .trim()
       const lower = content.toLowerCase()
       if (lower.startsWith('breakfast') ||
           lower.startsWith('lunch') ||
