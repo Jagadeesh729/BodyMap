@@ -3,7 +3,7 @@
  *
  * Symmetrical Client-Server Parity Suite for Medical Intake Classification.
  * Verifies that the client-side medical intake engine and the server-side API engine
- * maintain 100% behavioral, categorical, and semantic parity across all 145 oracle scenarios.
+ * maintain 100% behavioral, categorical, and semantic parity across all 150 oracle scenarios.
  */
 
 import { describe, it, expect } from 'vitest'
@@ -11,8 +11,8 @@ import { classifyMedicalIntake as clientClassify } from '../lib/medicalIntakePar
 import { getActiveContraindicationCategories as clientGetActive } from '../lib/contraindicationGuard'
 import { ORACLE_SCENARIOS } from '../lib/medicalIntakeOracleCases'
 
-describe('Client-Server Medical Intake Classification Parity (145 Scenarios)', () => {
-  it('guarantees identical classification between client and server across all 145 scenarios', async () => {
+describe('Client-Server Medical Intake Classification Parity (150 Scenarios)', () => {
+  it('guarantees identical classification between client and server across all 150 scenarios', async () => {
     const serverModule = await import('../../api/generate-plan')
     expect(serverModule.classifyMedicalIntake).toBeDefined()
     expect(serverModule.getActiveContraindicationCategories).toBeDefined()

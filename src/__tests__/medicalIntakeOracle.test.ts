@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { classifyMedicalIntake } from '../lib/medicalIntakeParser'
 import { ORACLE_SCENARIOS } from '../lib/medicalIntakeOracleCases'
 
-describe('Expanded Independent Medical Intake Oracle Suite (145 Scenarios)', () => {
+describe('Expanded Independent Medical Intake Oracle Suite (150 Scenarios)', () => {
   for (const s of ORACLE_SCENARIOS) {
     it(`Scenario #${s.id} [${s.group}]: "${s.input}"`, () => {
       const res = classifyMedicalIntake(s.input)

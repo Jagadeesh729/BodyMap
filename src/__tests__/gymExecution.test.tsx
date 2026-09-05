@@ -120,6 +120,27 @@ describe('Gym Mode Execution System & Micro-Interactions', () => {
     expect(onSelect).toHaveBeenCalled()
   })
 
+  it('proactively filters out contraindicated alternatives when medicalIssues are provided', () => {
+    const onSelect = vi.fn()
+    const onClose = vi.fn()
+
+    render(
+      <ExerciseSubstitutionModal
+        currentExerciseName="Arnold Press"
+        medicalIssues="Right rotator cuff tear and subacromial impingement"
+        isOpen={true}
+        onClose={onClose}
+        onSelectAlternative={onSelect}
+      />
+    )
+
+    // Dumbbell Shoulder Press is contraindicated for rotator cuff tear and should NOT be rendered
+    expect(screen.queryByText(/Dumbbell Shoulder Press/i)).toBeNull()
+    // Safe alternative like Lateral Dumbbell Raises should still be rendered
+    expect(screen.getByText(/Lateral Dumbbell Raises/i)).toBeDefined()
+  })
+
+
   it('renders Workout Completion summary with accurate duration and exercise metrics', () => {
     const onViewPlan = vi.fn()
     const onGoToDashboard = vi.fn()

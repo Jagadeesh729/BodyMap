@@ -1,25 +1,35 @@
-import React from 'react'
+import React, { useMemo } from 'react'
 import { X, RefreshCw, CheckCircle2, Dumbbell, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getExerciseAlternatives, type ExerciseAlternative } from '@/lib/exerciseSubstitution'
 import { getMovementPattern } from '@/lib/movementPatterns'
+import { scanPlanForContraindications } from '@/lib/contraindicationGuard'
 
 interface ExerciseSubstitutionModalProps {
   currentExerciseName: string
   isOpen: boolean
   onClose: () => void
   onSelectAlternative: (alternative: ExerciseAlternative) => void
+  medicalIssues?: string
 }
 
 export const ExerciseSubstitutionModal: React.FC<ExerciseSubstitutionModalProps> = ({
   currentExerciseName,
   isOpen,
   onClose,
-  onSelectAlternative
+  onSelectAlternative,
+  medicalIssues
 }) => {
-  if (!isOpen) return null
+  const rawAlternatives = getExerciseAlternatives(currentExerciseName)
+  const alternatives = useMemo(() => {
+    if (!medicalIssues || !medicalIssues.trim()) return rawAlternatives
+    return rawAlternatives.filter(alt => {
+      const contraScan = scanPlanForContraindications(alt.name, medicalIssues)
+      return !contraScan.hasViolation
+    })
+  }, [rawAlternatives, medicalIssues])
 
-  const alternatives = getExerciseAlternatives(currentExerciseName)
+  if (!isOpen) return null
 
   return (
     <div

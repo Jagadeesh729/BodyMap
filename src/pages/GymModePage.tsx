@@ -1535,6 +1535,7 @@ export const GymModePage: React.FC = () => {
         isOpen={isSubModalOpen}
         onClose={() => setIsSubModalOpen(false)}
         onSelectAlternative={handleSelectAlternative}
+        medicalIssues={state.formData.medicalIssues}
       />
 
       {/* Exit Confirmation Dialog */}

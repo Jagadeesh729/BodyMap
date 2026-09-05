@@ -376,7 +376,7 @@ export function splitMedicalClauses(normalizedText: string): string[] {
       for (let i = 1; i < parts.length; i++) {
         const nextPart = parts[i]
         const startsWithConditionPrefix =
-          /^(?:no\b|not\b|none\b|never\b|denies\b|history\b|prior\b|past\b|current\b|acute\b|family\b|mother\b|father\b|brother\b|sister\b|doctor\b|i\s+have\b|full\b|zero\b)/i.test(nextPart)
+          /^(?:no\b|not\b|none\b|never\b|denies\b|denied\b|neither\b|history\b|prior\b|past\b|current\b|acute\b|family\b|mother\b|father\b|brother\b|sister\b|doctor\b|i\s+have\b|full\b|zero\b)/i.test(nextPart)
         const hasEntityInNext = CLINICAL_ENTITIES.some(e => e.pattern.test(nextPart))
 
         if (startsWithConditionPrefix || hasEntityInNext) {
@@ -442,11 +442,11 @@ function evaluateClauseEntitySemantics(
   const textAfter = lowerClause.slice(matchIndex + matchLength).trim()
 
   const negationSuffixRegex =
-    /^(?:(?:was|is|has\s+been)\s+)?(?:ruled\s+out|negative|cleared\s+of|none|no)\b/i
+    /^(?:(?:was|is|has\s+been)\s+)?(?:ruled\s+out|negative|cleared\s+of|denied|unremarkable|none|no)\b/i
   const hasNegationSuffix = negationSuffixRegex.test(textAfter)
 
   const negationPrefixRegex =
-    /\b(?:no|not|none|never|denies|ruled\s+out|negative\s+for|free\s+of|without|nil|zero\s+(?:history|injur(?:y|ies)|events?|conditions?|problems?))(?:\s+(?:known|active|current|currently|acute|major|significant|prior|history\s+of|had(?:\s+a)?|any|a|an|ever|reported|personal|(?:[a-z]+\s+)+or|(?:[a-z]+\s+)+nor|[a-z]+\s+and))*$/i
+    /\b(?:no|not|none|never|denies|denied|denying|neither|ruled\s+out|negative\s+for|free\s+(?:of|from)|clear\s+of|cleared\s+of|unremarkable\s+for|without|nil|zero\s+(?:history|injur(?:y|ies)|events?|conditions?|problems?))(?:\s+(?:known|active|current|currently|acute|major|significant|prior|history\s+of|had(?:\s+a)?|any|a|an|ever|reported|personal|(?:[a-z]+\s+)+or|(?:[a-z]+\s+)+nor|[a-z]+\s+and))*$/i
 
   // Prefix must be in the same immediate segment without intervening punctuation
   const lastChunkBefore = textBefore.split(/[,;]|\s+but\s+|\s+however\s+/).pop() || ''
