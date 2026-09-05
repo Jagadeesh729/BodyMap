@@ -686,7 +686,56 @@ describe('Serverless /api/generate-plan Handler Security, Rate Limiting and Stri
       expect(resBody.plan).toContain('chia seeds')
     })
   })
+
+  describe('CORS Preflight and Payload Size Defense', () => {
+    it('handles OPTIONS preflight with 204 and CORS headers', async () => {
+      const req = createMockReq('OPTIONS', {})
+      const res = createMockRes()
+      await handler(req, res)
+      expect(res.statusCode).toBe(204)
+      expect(res._headers['Access-Control-Allow-Origin']).toBe('*')
+      expect(res._headers['Access-Control-Allow-Methods']).toContain('POST')
+      expect(res._headers['Access-Control-Allow-Headers']).toContain('Content-Type')
+    })
+
+    it('returns 413 Payload Too Large when pre-parsed request body exceeds 16 KB', async () => {
+      process.env.GEMINI_API_KEY = 'test_key'
+      const oversizedData = {
+        formData: {
+          ...validMockFormData,
+          medicalIssues: 'X'.repeat(17000),
+        },
+      }
+      const req = {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: oversizedData,
+        on: vi.fn(),
+      } as unknown as IncomingMessage & { body?: unknown }
+
+      const res = createMockRes()
+      await handler(req, res)
+      expect(res.statusCode).toBe(413)
+      expect(JSON.parse(res._data).error).toBe('Payload Too Large')
+    })
+
+    it('returns 413 Payload Too Large when streamed request body exceeds 16 KB', async () => {
+      process.env.GEMINI_API_KEY = 'test_key'
+      const req = createMockReq('POST', {
+        formData: {
+          ...validMockFormData,
+          medicalIssues: 'Y'.repeat(17000),
+        },
+      })
+      const res = createMockRes()
+      await handler(req, res)
+      await new Promise(resolve => setTimeout(resolve, 50))
+      expect(res.statusCode).toBe(413)
+      expect(JSON.parse(res._data).error).toBe('Payload Too Large')
+    })
+  })
 })
+
 
 
 

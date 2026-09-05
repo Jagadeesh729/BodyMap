@@ -1,22 +1,6 @@
 import { defineConfig, Plugin } from 'vite'
 import react from '@vitejs/plugin-react-swc'
 import path from 'path'
-import fs from 'fs'
-
-function spaFallbackPlugin(): Plugin {
-  return {
-    name: 'spa-fallback',
-    closeBundle() {
-      const outDir = path.resolve(process.cwd(), 'dist')
-      const indexPath = path.join(outDir, 'index.html')
-      const fallbackPath = path.join(outDir, '404.html')
-      if (fs.existsSync(indexPath)) {
-        fs.copyFileSync(indexPath, fallbackPath)
-        console.log('[spa-fallback] Created dist/404.html for SPA deep-link routing')
-      }
-    }
-  }
-}
 
 function generateDevPrompt(formData: Record<string, unknown>): string {
   return [
@@ -142,7 +126,6 @@ export default defineConfig({
   plugins: [
     react(),
     geminiDevApiPlugin(),
-    spaFallbackPlugin(),
   ],
   build: {
     rollupOptions: {

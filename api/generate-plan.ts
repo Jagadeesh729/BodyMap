@@ -2132,6 +2132,9 @@ export function checkRateLimit(ip: string): { allowed: boolean; remaining: numbe
 async function parseRequestBody(req: IncomingMessage & { body?: unknown }): Promise<Record<string, unknown>> {
   if (req.body !== undefined && req.body !== null) {
     if (typeof req.body === 'string') {
+      if (req.body.length > MAX_PAYLOAD_SIZE) {
+        throw new Error('PAYLOAD_TOO_LARGE')
+      }
       try {
         return JSON.parse(req.body)
       } catch {
@@ -2139,6 +2142,10 @@ async function parseRequestBody(req: IncomingMessage & { body?: unknown }): Prom
       }
     }
     if (typeof req.body === 'object') {
+      const serialized = JSON.stringify(req.body)
+      if (serialized.length > MAX_PAYLOAD_SIZE) {
+        throw new Error('PAYLOAD_TOO_LARGE')
+      }
       return req.body as Record<string, unknown>
     }
   }
