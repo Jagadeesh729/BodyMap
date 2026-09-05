@@ -624,6 +624,7 @@ export interface ContraindicationCategoryConfig {
   declarationTriggers: RegExp[]
   forbiddenPatterns: RegExp[]
   safeExemptions: RegExp[]
+  contextualCautions?: string[]
   severity: 'critical' | 'high'
   reason: string
   action: 'reject'
@@ -673,6 +674,7 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\b(?:(?:lateral|skater|single[- ]leg|plyometric|speed)\s+)?bounding\b/i,
       /\bhigh[- ]impact\s+(?:plyometrics|jumping|bounding)\b/i,
       /\bdouble[- ]unders?\b/i,
+      /\b(?:deep\s+)?pistol\s+squats?\b/i,
     ],
     safeExemptions: [
       /\bbox[- ]+squats?\b/i, // Box squats are controlled sitting back onto box, not jumping
@@ -681,9 +683,15 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\bstep[- ]ups?\b/i,
       /\bstraight[- ]leg\s+raises?\b/i,
       /\bglute\s+bridges?\b/i,
-      /\bseated\s+(?:leg\s+extensions?|hamstring\s+curls?)\b/i,
+      /\bseated\s+hamstring\s+curls?\b/i,
       /\bstationary\s+cycling\b/i,
       /\bswimming\b/i,
+    ],
+    contextualCautions: [
+      'Goblet squats (controlled depth, upright torso)',
+      'Step-ups (low box <= 8 inches, slow eccentric)',
+      'Stationary cycling (low resistance, seated)',
+      'Bodyweight wall sits (pain-free flexion angle)',
     ],
     severity: 'critical',
     reason:
@@ -703,7 +711,7 @@ export const CONTRAINDICATION_TAXONOMY: Record<
     forbiddenPatterns: [
       /\b(?:(?:barbell|dumbbell|seated|standing|machine|kettlebell)\s+)?(?:overhead|shoulder)\s+press(?:ing|es)?\b/i,
       /\b(?:military\s+press(?:ing)?|arnold\s+press(?:ing)?|push\s+press(?:ing)?)\b/i,
-      /\bbehind[- ]the[- ]neck\s+(?:press(?:ing)?|shoulder\s+press|pulldowns?)\b/i,
+      /\bbehind[- ]the[- ]neck\s+(?:press(?:ing)?|shoulder\s+press|(?:lat\s+)?pulldowns?)\b/i,
       /\bhandstand\s+push[- ]ups?\b/i,
       /\bupright\s+(?:barbell\s+|dumbbell\s+)?rows?\b/i,
       /\b(?:parallel\s+bar\s+dips?|chest\s+dips?|weighted\s+dips?|bench\s+dips?|dips?\b)/i,
@@ -717,7 +725,9 @@ export const CONTRAINDICATION_TAXONOMY: Record<
     ],
     safeExemptions: [
       /\bbench\s+press\b/i,
-      /\bpush[- ]ups?\b/i,
+      /(?<!\bhandstand\s+)push[- ]ups?\b/i,
+      /\bfloor\s+press\b/i,
+      /\bchest\s+press\b/i,
       /\bchest\s+flyes?\b/i,
       /\blateral\s+raises?\s+(?:below\s+shoulder|light)\b/i,
       /\bexternal\s+rotations?\b/i,
@@ -726,6 +736,12 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\bhammer\s+curls?\b/i,
       /\bincline\s+(?:dumbbell|barbell|bench)\s+press\b/i,
       /\blandmine\s+(?:press|shoulder\s+press)\b/i,
+    ],
+    contextualCautions: [
+      'Landmine angled press (scapular plane, <= 45 degrees elevation)',
+      'Incline dumbbell press (low incline < 30 degrees, pain-free ROM)',
+      'Dumbbell floor press (humeral extension blocked at floor level)',
+      'Flat bench press (moderate grip, no bottom bounce)',
     ],
     severity: 'critical',
     reason:
@@ -748,6 +764,10 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\bgood[- ]mornings?\b/i,
       /\bjefferson\s+curls?\b/i,
       /\bloaded\s+(?:spinal\s+flexion|back\s+extensions?\s+with\s+weight)\b/i,
+      /\b(?:weighted\s+|loaded\s+)?(?:spinal\s+)?hyperextensions?\b/i,
+      /\bweighted\s+back\s+extensions?\b/i,
+      /\b(?:seated\s+|loaded\s+|cable\s+|machine\s+)?(?:torso|trunk)\s+rotations?\b/i,
+      /\brotary\s+torso\b/i,
       /\b(?:weighted\s+|decline\s+)?(?:crunches?|sit[- ]*ups?)\b/i,
       /\b(?:barbell\s+)?(?:clean\s*(?:and|&)\s*jerk|c&j|snatch(?:es)?)\b/i,
       /\b(?:power|hang|squat|muscle|split)\s+clean(?:s|ing)?\b/i,
@@ -761,6 +781,12 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\bglute\s+bridges?\b/i,
       /\bbodyweight\s+(?:squats?|hip\s+hinge|single[- ]leg\s+deadlifts?)\b/i,
       /\bgoblet\s+squats?\b/i,
+    ],
+    contextualCautions: [
+      'Goblet squats with upright spine',
+      'Bodyweight hip hinge without external load',
+      'Bird-dog and dead-bug core stability progressions',
+      'Pallof press anti-rotation holds',
     ],
     severity: 'critical',
     reason:
@@ -776,15 +802,25 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\bneck\s+(?:disc|herniation|surgery|fusion|fracture|injury)\b/i,
     ],
     forbiddenPatterns: [
-      /\bbehind[- ]the[- ]neck\s+(?:(?:shoulder\s+)?press|pulldown|pull[- ]down|barbell)\b/i,
+      /\bbehind[- ]the[- ]neck\s+(?:(?:shoulder\s+)?press|(?:lat\s+)?pulldown|(?:lat\s+)?pull[- ]down|barbell)\b/i,
       /\b(?:(?:wrestler'?s?\s+)?neck|wrestler'?s?)\s+bridges?\b/i,
       /\bheadstands?\b/i,
       /\b(?:handstands?|handstand\s+push[- ]*ups?|shoulder\s*stands?)\b/i,
       /\b(?:strict\s+|deficit\s+|kipping\s+)?hspus?\b/i,
+      /\b(?:push|split|squat|power|olympic)\s+jerks?\b/i,
+      /\b(?:barbell\s+)?high[- ]bar\s+(?:back\s+)?squats?\b/i,
+      /\bbar(?:bell)?\s+on\s+neck\b/i,
+      /\b(?:weighted\s+)?neck\s+harness\b/i,
+      /\bneck\s+(?:harness|extension\s+machine)\b/i,
     ],
     safeExemptions: [
       /\bchin\s+tucks?\b/i,
       /\bisometric\s+neck\b/i,
+    ],
+    contextualCautions: [
+      'Isometric neck flexion/extension against gentle hand resistance',
+      'Deep cervical flexor chin tucks',
+      'Scapular retractions in upright posture',
     ],
     severity: 'critical',
     reason:
@@ -801,7 +837,10 @@ export const CONTRAINDICATION_TAXONOMY: Record<
     forbiddenPatterns: [
       /\b(?:high[- ]intensity\s+interval\s+training|hiit|tabata)(?:\s+(?:cardio|circuit|intervals?|training|workout|sprints?))?\b/i,
       /\b(?:all[- ]out\s+|maximal\s+(?:effort\s+)?|sprint\s+|tabata\s+)?sprints?\b/i,
-      /\b1rm\s+(?:testing|attempt|lift)\b/i,
+      /\b(?:1[- ]?rm|one[- ]?rep\s+max)\b/i,
+      /\bburpees?\b/i,
+      /\b(?:sets?|reps?)\s+to\s+failure\b/i,
+      /\bto\s+failure\b/i,
       /\bmaximal\s+valsalva\b/i,
     ],
     safeExemptions: [
@@ -810,6 +849,11 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\bstationary\s+cycling\b/i,
       /\bzone\s+2\b/i,
       /\bsteady[- ]state\s+aerobic\b/i,
+    ],
+    contextualCautions: [
+      'Zone 2 steady-state cardiovascular training (RPE 3-4/10)',
+      'Continuous rhythmic walking or cycling (conversational pace)',
+      'Light dynamic calisthenics with continuous breathing (no breath holding)',
     ],
     severity: 'critical',
     reason:
@@ -829,19 +873,26 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\bprone\s+(?:hyperextensions?|lying|cobras?|planks?\s+on\s+belly)\b/i,
       /\blying\s+(?:flat\s+)?on\s+(?:stomach|belly)\b/i,
       /\bprolonged\s+supine\b/i,
-      /\b(?:flat\s+)?(?:bench\s+press|supine\s+bench)\b/i,
+      /(?<!\bincline\s+(?:(?:dumbbell|barbell)\s+)?)\b(?:flat\s+)?(?:bench\s+press|supine\s+bench)\b/i,
       /\b(?:supine\s+)?leg\s+raises?\b/i,
       /\b(?:crunches?|sit[- ]*ups?)\b/i,
       /\bburpees?\b/i,
       /\b(?:box|depth|tuck)[- ]*jumps?\b/i,
       /\bhigh[- ]impact\s+(?:plyometrics|jumping|bounding)\b/i,
+      /\b(?:scuba\s+diving|scuba)\b/i,
+      /\bsissy\s+squats?\b/i,
     ],
     safeExemptions: [
       /\bprenatal\s+yoga\b/i,
       /\bcat[- ]cow\b/i,
-      /\bincline\s+bench\b/i,
+      /\bincline\s+(?:(?:dumbbell|barbell)\s+)?bench(?:\s+press)?\b/i,
       /\bside[- ]lying\b/i,
       /\bpelvic\s+tilts?\b/i,
+    ],
+    contextualCautions: [
+      'Incline bench press (30-45 degree incline to prevent vena cava compression)',
+      'Side-lying or seated resistance exercises',
+      'Prenatal yoga and pelvic floor tilts',
     ],
     severity: 'critical',
     reason:
@@ -867,11 +918,17 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\b(?:(?:dumbbell|barbell|romanian|stiff[- ]leg(?:ged)?|single[- ]leg|b-stance)\s+)?rdls?\b/i,
       /\bhigh[- ]impact\s+bounding\b/i,
       /\bexplosive\s+twisting\b/i,
+      /\b(?:trampoline\s+(?:jumping|rebounding)?|rebounding)\b/i,
     ],
     safeExemptions: [
       /\bweight[- ]bearing\s+walking\b/i,
       /\bresistance\s+bands?\b/i,
       /\bbalance\s+training\b/i,
+    ],
+    contextualCautions: [
+      'Weight-bearing walking (ground reaction stimulates osteogenesis without ballistic shock)',
+      'Resistance band exercises with neutral spinal alignment',
+      'Static balance and fall prevention training',
     ],
     severity: 'high',
     reason:
@@ -893,12 +950,19 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\bburpees?\b/i,
       /\bjumping[- ]+lunges?\b/i,
       /\bhigh[- ]impact\s+(?:bounding|jumping|plyometrics)\b/i,
+      /\b(?:all[- ]out\s+|high[- ]impact\s+)?sprints?\b/i,
+      /\bsprinting\b/i,
     ],
     safeExemptions: [
       /\bswimming\b/i,
       /\bwater\s+aerobics\b/i,
       /\brecumbent\s+bike\b/i,
       /\blow[- ]impact\b/i,
+    ],
+    contextualCautions: [
+      'Non-weight bearing aquatic exercise / swimming',
+      'Low-resistance recumbent cycling',
+      'Low-impact closed-chain leg press with restricted ROM',
     ],
     severity: 'high',
     reason:
@@ -1178,6 +1242,7 @@ const CLINICAL_ENTITIES: EntityPattern[] = [
   {
     category: 'pregnancy_late_stage',
     pattern: /\bpregnant\b/i,
+    excludeIfContains: /\b(?:first\s+trimester|1st\s+trimester|(?:[1-9]|1[0-3])\s*weeks?)\b/i,
   },
 
   // --- SEVERE OSTEOPOROSIS ---

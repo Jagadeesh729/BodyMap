@@ -302,6 +302,7 @@ const CLINICAL_ENTITIES: EntityPattern[] = [
   {
     category: 'pregnancy_late_stage',
     pattern: /\bpregnant\b/i,
+    excludeIfContains: /\b(?:first\s+trimester|1st\s+trimester|(?:[1-9]|1[0-3])\s*weeks?)\b/i,
   },
 
   // --- SEVERE OSTEOPOROSIS ---

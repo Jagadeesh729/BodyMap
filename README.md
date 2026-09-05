@@ -8,7 +8,7 @@
 [![React](https://img.shields.io/badge/React-18.x-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-3.x-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
-[![Vitest](https://img.shields.io/badge/Vitest-Passed%201016%2F1016-00FF88?style=for-the-badge&logo=vitest&logoColor=black)](https://vitest.dev/)
+[![Vitest](https://img.shields.io/badge/Vitest-Passed%201023%2F1023-00FF88?style=for-the-badge&logo=vitest&logoColor=black)](https://vitest.dev/)
 
 <p align="center">
   <b>Tailored workouts and nutrition based on your unique biometrics, fitness level, and equipment availability. Powered by Google Gemini AI with secure backend proxying and local-first data sovereignty.</b>
@@ -72,7 +72,7 @@
 - **Validation**: [Zod 3.23.8](https://zod.dev/) runtime contracts for user inputs and AI plan schemas
 - **Data Visualization**: [Recharts 2.13.0](https://recharts.org/)
 - **Routing**: [React Router DOM 7.18.2](https://reactrouter.com/) with lazy loading
-- **Testing**: [Vitest 4.1.11](https://vitest.dev/) + React Testing Library (374 unit tests across 75 suites)
+- **Testing**: [Vitest 4.1.11](https://vitest.dev/) + React Testing Library (1023 unit tests across 99 suites)
 - **Icons**: [Lucide React 0.462.0](https://lucide.dev/)
 
 ---
@@ -89,6 +89,10 @@ BodyMap/
 │   ├── context/             # State management (PlanContext, planReducer, planStorage)
 │   ├── hooks/               # Custom hooks (use-toast.ts)
 │   ├── lib/                 # Pure domain & calculation engines:
+│   │   ├── contraindicationGuard.ts     # Deterministic contraindication safety firewall
+│   │   ├── clinicalPolicyOracleCases.ts # 170 clinical-policy test scenarios
+│   │   ├── canonicalExerciseParser.ts   # Grammar-based canonical compound exercise parser
+│   │   ├── medicalIntakeParser.ts       # Semantic medical-intake classifier
 │   │   ├── vaultIntegrityEngine.ts      # Multi-partition vault health scoring & audit
 │   │   ├── workoutCheckpointEngine.ts   # Crash-safe active session checkpoint manager
 │   │   ├── goalTrajectoryEngine.ts      # Milestone check-in & progression trajectory
@@ -113,7 +117,7 @@ BodyMap/
 │   │   ├── DownloadPlanPage.tsx  # Data Vault export, backup restore & PDF share hub
 │   │   ├── AboutContactPage.tsx  # Mission, tech stack & contact form
 │   │   └── NotFound.tsx          # Themed 404 handler
-│   ├── __tests__/           # 75 Vitest unit test suites (374 tests)
+│   ├── __tests__/           # 99 Vitest unit test suites (1023 tests)
 │   ├── App.tsx              # Root router, Suspense, ErrorBoundary & providers
 │   ├── index.css            # Custom theme variables & responsive styles
 │   └── main.tsx             # Application entry point with StrictMode
