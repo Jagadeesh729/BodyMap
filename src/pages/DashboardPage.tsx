@@ -34,7 +34,14 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from '@/hooks/use-toast'
 import { usePlan } from '@/context/PlanContext'
-import { loadWorkoutHistory, loadActiveSession, loadAndValidateActiveSession, MAX_STORED_WORKOUTS, BACKUP_NUDGE_THRESHOLD } from '@/lib/sessionStorage'
+import {
+  loadWorkoutHistory,
+  loadActiveSession,
+  loadAndValidateActiveSession,
+  clearActiveSession,
+  MAX_STORED_WORKOUTS,
+  BACKUP_NUDGE_THRESHOLD
+} from '@/lib/sessionStorage'
 import type { CompletedWorkoutLog, WorkoutSession } from '@/types/workoutSession'
 import { calculateWorkoutStreak } from '@/lib/streakCalculation'
 import type { SavedPlan } from '@/types/savedPlan'
@@ -287,6 +294,8 @@ const DashboardPage: React.FC = () => {
   }
 
   const executePlanSwitch = (plan: SavedPlan) => {
+    // Purge any active workout session from prior routine to prevent cross-plan state contamination
+    clearActiveSession()
     dispatch({
       type: 'LOAD_SAVED_PLAN',
       payload: plan.planState

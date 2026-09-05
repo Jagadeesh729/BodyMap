@@ -101,6 +101,69 @@ function parseExercises(text: string): Exercise[] {
 }
 
 /**
+ * Splits day content into workout and nutrition sections in an order-agnostic manner.
+ * Reliably routes content regardless of whether Meals/Nutrition precedes or follows Main Workout.
+ */
+export function extractDaySections(dayContent: string): {
+  workoutText: string
+  nutritionText: string
+} {
+  const lines = dayContent.split('\n')
+  const workoutLines: string[] = []
+  const nutritionLines: string[] = []
+
+  let currentSection: 'workout' | 'nutrition' | 'preamble' = 'preamble'
+
+  const nutritionHeaderRegex = /^(?:#{2,4}\s+|\*{2})(?:Meals|Nutrition|Diet|Meal\s+Plan):?\*{0,2}/i
+  const workoutHeaderRegex = /^(?:#{2,4}\s+|\*{2})(?:Main\s+)?(?:Workout|Exercises?|Training|Routine|Strength|Cardio|Circuit):?\*{0,2}/i
+  const warmupCooldownHeaderRegex = /^(?:#{2,4}\s+|\*{2})(?:Warm[- ]?up|Cool[- ]?down|Mobility|Stretching):?\*{0,2}/i
+
+  for (const rawLine of lines) {
+    const trimmed = rawLine.trim()
+
+    if (nutritionHeaderRegex.test(trimmed)) {
+      currentSection = 'nutrition'
+      nutritionLines.push(rawLine)
+      continue
+    }
+
+    if (workoutHeaderRegex.test(trimmed) || warmupCooldownHeaderRegex.test(trimmed)) {
+      currentSection = 'workout'
+      workoutLines.push(rawLine)
+      continue
+    }
+
+    const isExplicitMeal = /^[-*•\d.)\s]*\**(?:breakfast|lunch|dinner|snacks?|morning\s+snack|afternoon\s+snack|evening\s+snack|post[- ]workout|pre[- ]workout|calories|total\s+calories|macros|protein|carbs|fats?|hydration|water):/i.test(trimmed)
+    const isExplicitExercise = /^[-*•\d.)\s].*:\s*\d+\s*(?:sets?|reps?|x|\bs\b|sec|min)/i.test(trimmed)
+
+    if (currentSection === 'nutrition') {
+      if (isExplicitExercise && !isExplicitMeal) {
+        workoutLines.push(rawLine)
+      } else {
+        nutritionLines.push(rawLine)
+      }
+    } else if (currentSection === 'workout') {
+      if (isExplicitMeal && !isExplicitExercise) {
+        nutritionLines.push(rawLine)
+      } else {
+        workoutLines.push(rawLine)
+      }
+    } else {
+      if (isExplicitMeal) {
+        nutritionLines.push(rawLine)
+      } else {
+        workoutLines.push(rawLine)
+      }
+    }
+  }
+
+  const workoutText = workoutLines.length > 0 ? workoutLines.join('\n') : dayContent
+  const nutritionText = nutritionLines.length > 0 ? nutritionLines.join('\n') : dayContent
+
+  return { workoutText, nutritionText }
+}
+
+/**
  * Parses raw plan markdown into a strictly validated 7-day WeeklyPlan domain model.
  */
 export function parseAndValidatePlan(markdown: string, requireSevenDays = true): {
@@ -119,13 +182,19 @@ export function parseAndValidatePlan(markdown: string, requireSevenDays = true):
     return { success: false, errors: ['No valid Day headers (## Day N or ### Day N) found in plan.'] }
   }
 
+  if (requireSevenDays && dayMatches.length !== 7) {
+    return {
+      success: false,
+      errors: [`Plan must contain exactly 7 days (found ${dayMatches.length}).`],
+    }
+  }
+
   const seenDayNumbers = new Set<number>()
   const days: DaySchedule[] = []
 
   for (let i = 0; i < dayMatches.length; i++) {
     const match = dayMatches[i]
-    const parsedNumber = parseInt(match[1], 10)
-    const dayNumber = isNaN(parsedNumber) ? i + 1 : parsedNumber
+    const dayNumber = parseInt(match[1], 10) || i + 1
 
     if (seenDayNumbers.has(dayNumber)) {
       return { success: false, errors: [`Duplicate Day ${dayNumber} found in plan.`] }
@@ -139,11 +208,8 @@ export function parseAndValidatePlan(markdown: string, requireSevenDays = true):
 
     const isRest = /rest\s+day|active\s+recovery/i.test(title) || /rest\s+day|active\s+recovery/i.test(dayContent)
 
-    // Separate workout section from meals section
-    const mealSplitRegex = /\*\*(?:Meals|Nutrition|Diet):?\*\*|\*\*(?:Meals|Nutrition|Diet)\*\*:?/i
-    const parts = dayContent.split(mealSplitRegex)
-    const workoutText = parts[0] || ''
-    const nutritionText = parts.length > 1 ? parts[1] : dayContent
+    // Separate workout section from meals section in an order-agnostic manner
+    const { workoutText, nutritionText } = extractDaySections(dayContent)
 
 
     // Parse warm-up, cool-down, and exercises from workout section

@@ -760,7 +760,7 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\bneck\s+(?:disc|herniation|surgery|fusion|fracture|injury)\b/i,
     ],
     forbiddenPatterns: [
-      /\bbehind[- ]the[- ]neck\s+(?:press|pulldown|pull[- ]down|barbell)\b/i,
+      /\bbehind[- ]the[- ]neck\s+(?:(?:shoulder\s+)?press|pulldown|pull[- ]down|barbell)\b/i,
       /\b(?:wrestler'?s?\s+)?neck\s+bridges?\b/i,
       /\bheadstands?\b/i,
       /\b(?:handstands?|handstand\s+push[- ]*ups?|shoulder\s*stands?)\b/i,
@@ -1021,19 +1021,55 @@ export function scanPlanForContraindications(
     }
   }
 
-  for (const day of dayChunks) {
-    const mealSplitRegex = /\*\*(?:Meals|Nutrition|Diet):?\*\*|\*\*(?:Meals|Nutrition|Diet)\*\*:?/i
-    const parts = day.content.split(mealSplitRegex)
-    const workoutText = parts[0] || ''
+  const nutritionHeaderRegex = /^(?:#{2,4}\s+|\*{2})(?:Meals|Nutrition|Diet|Meal\s+Plan):?\*{0,2}/i
+  const workoutHeaderRegex = /^(?:#{2,4}\s+|\*{2})(?:Main\s+)?(?:Workout|Exercises?|Training|Routine|Strength|Cardio|Circuit):?\*{0,2}/i
+  const warmupCooldownHeaderRegex = /^(?:#{2,4}\s+|\*{2})(?:Warm[- ]?up|Cool[- ]?down|Mobility|Stretching):?\*{0,2}/i
+  const otherHeaderRegex = /^(?:#{2,4}\s+|\*{2})(?:Notes|Hydration|Tips|Guidance):?\*{0,2}/i
 
-    const lines = workoutText.split('\n')
+  // Robust culinary dip exemption: prevent food dip descriptions (spinach dip, hummus dip, etc.)
+  // from falsely tripping tricep/parallel bar dip patterns
+  const culinaryDipRegex = /\b(?:spinach|hummus|salsa|bean|queso|artichoke|onion|chips?\s+(?:and|&)|veggie|guacamole|cheese|ranch|sour\s+cream|yogurt|pita)\s+dips?\b|\bdips?\s+(?:and|&|with)\s+(?:chips?|veggies?|crackers?|carrots?|celery|pita)\b/i
+
+  for (const day of dayChunks) {
+    const lines = day.content.split('\n')
+    let currentSection: 'workout' | 'nutrition' | 'other' | 'general' = 'general'
+
     for (const rawLine of lines) {
       const trimmed = rawLine.trim()
       if (trimmed.length < 3) continue
 
+      // Track section transitions without discarding content
+      if (nutritionHeaderRegex.test(trimmed)) {
+        currentSection = 'nutrition'
+        continue
+      }
+      if (workoutHeaderRegex.test(trimmed) || warmupCooldownHeaderRegex.test(trimmed)) {
+        currentSection = 'workout'
+        continue
+      }
+      if (otherHeaderRegex.test(trimmed)) {
+        currentSection = 'other'
+        continue
+      }
+
+      // Ignore markdown headers, rest day messages, and pure separators
       if (/^#{1,4}\s+/i.test(trimmed)) continue
       if (/^[-*_]{3,}$/.test(trimmed)) continue
       if (/^rest\s+day/i.test(trimmed)) continue
+
+      // Discriminate meal items vs exercise items
+      const isMealItem = /^[-*•\d.)\s]*\**(?:breakfast|lunch|dinner|snacks?|morning\s+snack|afternoon\s+snack|evening\s+snack|post[- ]workout|pre[- ]workout|calories|total\s+calories|macros|protein|carbs|fats?|hydration|water):/i.test(trimmed)
+      const hasExercisePrescription = /\b(?:\d+\s*sets?|\d+\s*reps?|\d+\s*x\s*\d+|perform\s+\d+|do\s+\d+)\b/i.test(trimmed)
+
+      // Skip lines that are purely culinary / nutritional and not an exercise
+      if (isMealItem && !hasExercisePrescription) continue
+      if (currentSection === 'nutrition' && !hasExercisePrescription && !/^(?:[-*•]|\d+[.)])\s*(?:[A-Z][a-z0-9- ]+:)/.test(trimmed)) {
+        continue
+      }
+      if (currentSection === 'other' && !hasExercisePrescription) continue
+
+      // Culinary dip exemption: ignore food dips in meal descriptions
+      if (culinaryDipRegex.test(trimmed)) continue
 
       totalExercisesScanned++
 
