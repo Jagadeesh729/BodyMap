@@ -573,5 +573,95 @@ describe('Semantic & Acronym Hardening Suite (Red-Team Audit)', () => {
       }
     })
   })
+
+  describe('T9: Rotator Cuff Olympic Overhead Lifts & Compound Superset Anti-Masking (Phase 4 & 5 Audit)', () => {
+    it('strictly catches clean & press, clean & jerk, and C&J for shoulder impingement / rotator cuff tears', () => {
+      const lifts = [
+        'Clean and press: 3 sets x 5 reps',
+        'Clean & press: 3 sets x 5 reps',
+        'Barbell clean and press: 3 sets x 5 reps',
+        'Dumbbell clean and press: 3 sets x 5 reps',
+        'Clean and jerk: 3 sets x 3 reps',
+        'Clean & jerk: 3 sets x 3 reps',
+        'C&J: 3 sets x 3 reps',
+      ]
+      const med = 'rotator cuff tear'
+      for (const lift of lifts) {
+        const plan = `## Day 1\n**Main Workout:**\n- ${lift}`
+        const res = scanPlanForContraindications(plan, med)
+        expect(res.hasViolation).toBe(true)
+        expect(res.violations[0].category).toBe('shoulder_impingement_cuff')
+      }
+    })
+
+    it('strictly catches snatches, jerks, and high pulls for shoulder impingement', () => {
+      const lifts = [
+        'Snatch: 3 sets x 3 reps',
+        'Power snatch: 3 sets x 3 reps',
+        'Hang snatch: 3 sets x 3 reps',
+        'Dumbbell snatch: 3 sets x 5 reps',
+        'Push jerk: 3 sets x 3 reps',
+        'Split jerk: 3 sets x 3 reps',
+        'Clean high pull: 3 sets x 5 reps',
+        'Snatch high pull: 3 sets x 5 reps',
+      ]
+      const med = 'subacromial impingement'
+      for (const lift of lifts) {
+        const plan = `## Day 1\n**Main Workout:**\n- ${lift}`
+        const res = scanPlanForContraindications(plan, med)
+        expect(res.hasViolation).toBe(true)
+        expect(res.violations[0].category).toBe('shoulder_impingement_cuff')
+      }
+    })
+
+    it('strictly catches compound and superset lines combining safe exercises with forbidden movements', () => {
+      const compoundCases = [
+        { plan: '## Day 1\n**Main Workout:**\n- Step-ups: 3 sets x 12 reps and Box jumps: 3 sets x 10 reps', med: 'acl tear', cat: 'knee_high_impact' },
+        { plan: '## Day 1\n**Main Workout:**\n- Bird-dog: 3 sets x 10 reps + Deadlifts: 5 sets x 5 reps', med: 'sciatica', cat: 'lumbar_disc_herniation' },
+        { plan: '## Day 1\n**Main Workout:**\n- Push-ups: 3 sets x 15 reps / Overhead press: 3 sets x 10 reps', med: 'rotator cuff tear', cat: 'shoulder_impingement_cuff' },
+        { plan: '## Day 1\n**Main Workout:**\n- Glute bridges: 3 sets x 15 reps superset with Back squats: 4 sets x 8 reps', med: 'lumbar disc herniation', cat: 'lumbar_disc_herniation' },
+      ]
+
+      for (const cc of compoundCases) {
+        const clientRes = scanPlanForContraindications(cc.plan, cc.med)
+        expect(clientRes.hasViolation).toBe(true)
+        expect(clientRes.violations[0].category).toBe(cc.cat)
+
+        const serverRes = serverScanPlanForContraindications(cc.plan, cc.med)
+        expect(serverRes.hasViolation).toBe(true)
+        expect(serverRes.violations[0].category).toBe(cc.cat)
+      }
+    })
+
+    it('safely allows pure legitimate safe exemptions without over-blocking', () => {
+      const safePlans = [
+        `## Day 1\n**Main Workout:**\n- Incline dumbbell press: 3 sets x 10 reps`,
+        `## Day 1\n**Main Workout:**\n- Bench press: 3 sets x 10 reps`,
+        `## Day 1\n**Main Workout:**\n- Landmine shoulder press: 3 sets x 12 reps`,
+        `## Day 1\n**Main Workout:**\n- Push-ups: 3 sets x 15 reps`,
+      ]
+
+      for (const sp of safePlans) {
+        const res = scanPlanForContraindications(sp, 'rotator cuff tear')
+        expect(res.hasViolation).toBe(false)
+      }
+    })
+
+    it('verifies client and server parity across shoulder Olympic lifts and compound lines', () => {
+      const plan = `## Day 1
+**Main Workout:**
+- Dumbbell clean and press: 3 sets x 5 reps
+- Power snatch: 3 sets x 3 reps
+- Step-ups: 3 sets x 12 reps and Box jumps: 3 sets x 10 reps
+`
+      const cResShoulder = scanPlanForContraindications(plan, 'shoulder impingement')
+      const sResShoulder = serverScanPlanForContraindications(plan, 'shoulder impingement')
+      expect(cResShoulder.hasViolation).toBe(sResShoulder.hasViolation)
+
+      const cResKnee = scanPlanForContraindications(plan, 'acl reconstruction')
+      const sResKnee = serverScanPlanForContraindications(plan, 'acl reconstruction')
+      expect(cResKnee.hasViolation).toBe(sResKnee.hasViolation)
+    })
+  })
 })
 

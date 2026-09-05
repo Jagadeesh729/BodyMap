@@ -114,6 +114,10 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\b(?:(?:barbell|dumbbell|seated|standing|machine|kettlebell)\s+)?ohps?\b/i,
       /\b(?:strict\s+|deficit\s+|kipping\s+)?hspus?\b/i,
       /\b(?:barbell|dumbbell|standing|seated)\s+press(?:ing|es)?\b/i,
+      /\b(?:(?:barbell|dumbbell|kettlebell)\s+)?clean\s*(?:and|&)\s*(?:press|jerk)s?\b|\bc&j\b/i,
+      /\b(?:(?:barbell|dumbbell|kettlebell|power|hang|squat|split|muscle)\s+)?snatch(?:es|ing)?\b/i,
+      /\b(?:push|split|squat|power)\s+jerks?\b/i,
+      /\b(?:(?:clean|snatch|barbell|dumbbell)\s+)?high\s+pulls?\b/i,
     ],
     safeExemptions: [
       /\bbench\s+press\b/i,
@@ -536,19 +540,35 @@ export function scanPlanForContraindications(
           const evalResult = isPrescriptiveExerciseLine(trimmed, forbiddenPattern)
           if (evalResult.isPrescription) {
             // Check if line qualifies under safe exemptions:
-            // Exemption must match the prescribed exercise name, or if matching the line,
-            // the prescribed exercise itself must not be the forbidden entity.
-            const cleanExerciseName = trimmed
-              .replace(/^[-*•\d.)\s]+/, '')
-              .replace(/^(?:(?:exercise|station|movement|circuit|superset|item|part)\s+[a-z\d]+)\s*[:\-–—]\s*/i, '')
-              .trim()
-              .split(':')[0]
-              .trim()
+            // A safe exemption must specifically match the prescribed movement where the forbidden pattern triggered.
+            // Split compound lines by superset / compound conjunctions:
+            const segments = trimmed.split(/(?:[;+]|\s+and\s+|\s+superset\s+(?:with\s+)?|\s+combined\s+with\s+|\s*[/]\s*)/i)
 
-            const isExempt = config.safeExemptions.some(ex => {
-              if (ex.test(cleanExerciseName)) return true
-              return ex.test(trimmed) && !forbiddenPattern.test(cleanExerciseName)
-            })
+            let allViolatingSegmentsExempt = true
+            let hasViolatingSegment = false
+
+            for (const seg of segments) {
+              if (forbiddenPattern.test(seg)) {
+                hasViolatingSegment = true
+                const cleanSegName = seg
+                  .replace(/^[-*•\d.)\s]+/, '')
+                  .replace(/^(?:(?:exercise|station|movement|circuit|superset|item|part)\s+[a-z\d]+)\s*[:\-–—]\s*/i, '')
+                  .split(':')[0]
+                  .replace(/\s*\([^)]*\).*/g, '')
+                  .replace(/\s*\[[^\]]*\].*/g, '')
+                  .replace(/\s+\d+\s*sets?.*/i, '')
+                  .replace(/\s+\d+\s*x\s*\d+.*/i, '')
+                  .trim()
+
+                const isSegExempt = config.safeExemptions.some(ex => ex.test(cleanSegName))
+                if (!isSegExempt) {
+                  allViolatingSegmentsExempt = false
+                  break
+                }
+              }
+            }
+
+            const isExempt = hasViolatingSegment && allViolatingSegmentsExempt
             if (!isExempt) {
               violations.push({
                 category: config.key,
