@@ -388,4 +388,55 @@ describe('Deterministic Post-Generation Exercise Contraindication Guard', () => 
       expect(config.action).toBe('reject')
     }
   })
+
+  it('T27: client and server contraindication engines maintain 100% behavioral parity', async () => {
+    const serverModule = await import('../../api/generate-plan')
+    expect(serverModule.CONTRAINDICATION_TAXONOMY).toBeDefined()
+    expect(serverModule.scanPlanForContraindications).toBeDefined()
+    expect(serverModule.getActiveContraindicationCategories).toBeDefined()
+
+    const testProfiles = [
+      'ACL tear and meniscus repair',
+      'Rotator cuff tear with impingement',
+      'L4-L5 herniated disc and sciatica',
+      'Cervical spine fusion at C5-C6',
+      'Coronary artery disease and angina',
+      '34 weeks pregnant (third trimester)',
+      'Severe osteoporosis with bone loss',
+      'Severe knee osteoarthritis',
+      'None',
+      'Healthy with no issues',
+    ]
+
+    const testPlan = `## Day 1
+**Main Workout:**
+- Box Jumps: 4 sets x 12 reps (60s rest)
+- Barbell Overhead Press: 4 sets x 8 reps (90s rest)
+- Heavy Barbell Deadlift: 5 sets x 5 reps (120s rest)
+- Behind the Neck Pulldown: 3 sets x 10 reps (60s rest)
+- All-out Sprints: 10 sets x 30s (30s rest)
+- Prone Superman Extensions: 4 sets x 12 reps (60s rest)
+- Jefferson Curls: 3 sets x 10 reps (60s rest)
+- Depth Jumps: 3 sets x 8 reps (90s rest)
+**Meals:**
+- Breakfast: Oatmeal (300 kcal)
+`
+
+    for (const profile of testProfiles) {
+      const clientActive = getActiveContraindicationCategories(profile).map(c => c.key).sort()
+      const serverActive = serverModule.getActiveContraindicationCategories(profile).map((c: { key: string }) => c.key).sort()
+      expect(clientActive).toEqual(serverActive)
+
+      const clientScan = scanPlanForContraindications(testPlan, profile)
+      const serverScan = serverModule.scanPlanForContraindications(testPlan, profile)
+
+      expect(clientScan.hasViolation).toBe(serverScan.hasViolation)
+      expect(clientScan.violations.length).toBe(serverScan.violations.length)
+
+      for (let i = 0; i < clientScan.violations.length; i++) {
+        expect(clientScan.violations[i].category).toBe(serverScan.violations[i].category)
+        expect(clientScan.violations[i].matchedExercise).toBe(serverScan.violations[i].matchedExercise)
+      }
+    }
+  })
 })
