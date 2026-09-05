@@ -9,6 +9,7 @@
  */
 
 import { parseCanonicalExerciseLine, cleanExerciseName } from './canonicalExerciseParser'
+import { classifyMedicalIntake } from './medicalIntakeParser'
 
 export type ContraindicationCategoryKey =
   | 'knee_high_impact'
@@ -323,14 +324,10 @@ export function getActiveContraindicationCategories(
   const trimmed = medicalInput.trim()
   if (!trimmed) return []
 
-  const active: ContraindicationCategoryConfig[] = []
-  for (const config of Object.values(CONTRAINDICATION_TAXONOMY)) {
-    const isTriggered = config.declarationTriggers.some(trigger => trigger.test(trimmed))
-    if (isTriggered) {
-      active.push(config)
-    }
-  }
-  return active
+  const classification = classifyMedicalIntake(trimmed)
+  return classification.activeCategories
+    .map(key => CONTRAINDICATION_TAXONOMY[key])
+    .filter(Boolean)
 }
 
 /**

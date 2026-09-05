@@ -1,6 +1,7 @@
 import type { FormData } from '../types/formData'
 import { scanPlanForAllergens } from './allergenGuard'
 import { scanPlanForContraindications } from './contraindicationGuard'
+import { classifyMedicalIntake } from './medicalIntakeParser'
 
 function sanitizePromptInput(val?: string, fallback = 'None'): string {
   if (!val || typeof val !== 'string') return fallback
@@ -50,6 +51,7 @@ export function generatePlanPrompt(formData: {
   const safeTimePerDay = sanitizePromptInput(formData.timePerDay, '45')
   const safeRecoveryDays = sanitizePromptInput(formData.recoveryDays, '2')
   const safeMedicalIssues = sanitizePromptInput(formData.medicalIssues, 'None stated')
+  const medicalClassification = classifyMedicalIntake(formData.medicalIssues)
   const safeEquipment = sanitizePromptInput(formData.equipment?.join(', '), 'Bodyweight only')
   const safeDietary = sanitizePromptInput(formData.dietaryPreference, 'Omnivore')
   const safeAllergies = sanitizePromptInput(formData.allergies, 'None')
@@ -81,6 +83,7 @@ export function generatePlanPrompt(formData: {
     `Daily Workout Duration: ${safeTimePerDay} minutes/day`,
     `Planned Rest / Recovery Days: ${safeRecoveryDays} days/week`,
     `Medical / Injuries / Limitations: ${safeMedicalIssues}`,
+    `Structured Clinical Evaluation: ${medicalClassification.structuredPromptContext}`,
     `Available Equipment: ${safeEquipment}`,
     `Dietary Preference: ${safeDietary}`,
     `Allergies / Intolerances: ${safeAllergies}`,

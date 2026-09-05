@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { classifyMedicalIntake } from './medicalIntakeParser'
 
 // Step 1 - Personal Details
 export const step1Schema = z.object({
@@ -109,39 +110,22 @@ export function validateStep(step: number, data: Record<string, unknown>) {
  * Determines whether a user's declared medical issues string represents an active,
  * safety-sensitive medical condition or physical limitation (as opposed to 'None', empty, etc.).
  */
-// Positive clinical risk patterns: if any of these are present, the profile is ALWAYS safety-sensitive,
-// even if preceded by words like 'no', 'none', or 'doctor said'.
-const CLINICAL_RISK_PATTERN = /\b(pain|injur|tear|torn|sprain|strain|fracture|broken|dislocat|surgery|post[- ]op|rehab|cardiac|heart|chest|angina|hypertension|blood\s+pressure|stroke|aneurysm|palpitation|arrhythmia|asthma|copd|respiratory|dyspnea|breathless|disc\b|herniat|sciatica|spine|spinal|lumbar|cervical|back\s+pain|stenosis|spondyl|knee|acl\b|mcl\b|pcl\b|meniscus|patell|chondromalacia|shoulder|rotator\b|cuff|labr|impingement|tendon|tendin|bursitis|arthritis|osteo|rheumat|osteoporosis|plantar|achilles|pregnant|pregnancy|trimester|postpartum|diabet|neuropathy|seizure|epilep|vertigo|dizz|faint|syncope|glaucoma|hernia)\b/i
-
-// Strict benign declarations: only matches when the ENTIRE input represents a safe, non-injured profile.
-const BENIGN_EXACT_PATTERNS = [
-  /^(none|none\s+stated|nil|nothing|healthy|fine|good|normal|fit|all\s+good|no\s+problems?)$/i,
-  /^n\/?a$/i,
-  /^na$/i,
-  /^no(?:\s+(?:known\s+)?(?:medical\s+issues?|injuries|limitations|conditions|health\s+issues?|problems?))?$/i,
-  /^no(?:\s+(?:major|significant|serious))?\s+(?:medical\s+issues?|injuries|limitations|conditions|problems?)$/i,
-  /^(?:i\s+have\s+)?no(?:ne)?(?:\s+(?:known\s+)?(?:medical\s+issues?|injuries|limitations|conditions))?$/i,
-]
-
 /**
  * Determines whether a user's declared medical issues string represents an active,
  * safety-sensitive medical condition or physical limitation (as opposed to 'None', empty, etc.).
  *
- * Hardened against adversarial instruction conflict (e.g., 'No injuries; however acute ACL tear'
- * or 'None, but I had heart surgery last month').
+ * Utilizes the canonical medical intake semantic classifier to accurately distinguish:
+ * - Active / acute conditions and formal clinical diagnoses (safety-sensitive)
+ * - Explicit negative disclosures like "no knee injury" (non-sensitive)
+ * - Family-history-only declarations like "mother had ACL tear" (non-sensitive)
+ * - Historical resolved conditions like "ACL tear 8 years ago, healed" (non-sensitive)
+ * - Fail-closed behavior on unrecognized, unconfirmed free text
  */
 export function hasSafetySensitiveMedicalIssues(medicalIssues?: string): boolean {
   if (!medicalIssues || typeof medicalIssues !== 'string') return false
-  const trimmed = medicalIssues.trim().toLowerCase()
+  const trimmed = medicalIssues.trim()
   if (!trimmed) return false
 
-  // 1. Positive clinical check: any known clinical indicator is ALWAYS safety-sensitive.
-  if (CLINICAL_RISK_PATTERN.test(trimmed)) return true
-
-  // 2. Exact benign check: only non-sensitive if the full text matches a benign declaration.
-  if (BENIGN_EXACT_PATTERNS.some(pattern => pattern.test(trimmed))) return false
-
-  // 3. Fail-closed: unrecognized or ambiguous free text is treated as potentially safety-sensitive.
-  return true
+  return classifyMedicalIntake(trimmed).isSafetySensitive
 }
 

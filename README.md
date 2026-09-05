@@ -8,7 +8,7 @@
 [![React](https://img.shields.io/badge/React-18.x-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-3.x-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
-[![Vitest](https://img.shields.io/badge/Vitest-Passed%20374%2F374-00FF88?style=for-the-badge&logo=vitest&logoColor=black)](https://vitest.dev/)
+[![Vitest](https://img.shields.io/badge/Vitest-Passed%201016%2F1016-00FF88?style=for-the-badge&logo=vitest&logoColor=black)](https://vitest.dev/)
 
 <p align="center">
   <b>Tailored workouts and nutrition based on your unique biometrics, fitness level, and equipment availability. Powered by Google Gemini AI with secure backend proxying and local-first data sovereignty.</b>
@@ -171,7 +171,7 @@ Open [http://localhost:8080](http://localhost:8080) in your browser.
 | `npm run build` | Compiles TypeScript and builds production bundle |
 | `npm run typecheck` | Validates TypeScript types across all files (`tsc --noEmit`) |
 | `npm run lint` | Runs ESLint to check for code quality and syntax rules |
-| `npm run test` | Executes 374 automated Vitest unit tests across 75 suites |
+| `npm run test` | Executes 1016 automated Vitest unit tests across 98 suites |
 | `npm run preview` | Serves production build locally for verification |
 
 ---
