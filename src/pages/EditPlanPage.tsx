@@ -65,10 +65,23 @@ const EditPlanPage = () => {
     }))
 
   const handleSave = () => {
-    const medicalChanged = (localForm.medicalIssues || '').trim() !== (state.formData.medicalIssues || '').trim()
-    const allergiesChanged = (localForm.allergies || '').trim() !== (state.formData.allergies || '').trim()
-    const safetyCriticalChange = (medicalChanged && hasSafetySensitiveMedicalIssues(localForm.medicalIssues)) ||
-      (allergiesChanged && getActiveAllergenCategories(localForm.allergies).length > 0)
+    const currentMed = state.formData.medicalIssues || ''
+    const newMed = localForm.medicalIssues || ''
+    const medicalChanged = currentMed.trim() !== newMed.trim()
+    const medicalSafetyCritical = medicalChanged && (
+      hasSafetySensitiveMedicalIssues(currentMed) ||
+      hasSafetySensitiveMedicalIssues(newMed)
+    )
+
+    const currentAllergies = state.formData.allergies || ''
+    const newAllergies = localForm.allergies || ''
+    const allergiesChanged = currentAllergies.trim() !== newAllergies.trim()
+    const allergiesSafetyCritical = allergiesChanged && (
+      getActiveAllergenCategories(currentAllergies).length > 0 ||
+      getActiveAllergenCategories(newAllergies).length > 0
+    )
+
+    const safetyCriticalChange = medicalSafetyCritical || allergiesSafetyCritical
 
     if (safetyCriticalChange && state.isGenerated) {
       toast({

@@ -198,8 +198,10 @@ export const GymModePage: React.FC = () => {
   useEffect(() => {
     if (session.status === 'in-progress') {
       const isPlanMismatch = Boolean(state.planId && (!session.planId || state.planId !== session.planId))
-      const isMedicalDiverged = Boolean(
-        (session.medicalSnapshot || '').trim().toLowerCase() !== (state.formData.medicalIssues || '').trim().toLowerCase()
+      const curMed = (state.formData.medicalIssues || '').trim().toLowerCase()
+      const snapMed = (session.medicalSnapshot || '').trim().toLowerCase()
+      const isMedicalDiverged = curMed !== snapMed && (
+        hasSafetySensitiveMedicalIssues(curMed) || hasSafetySensitiveMedicalIssues(snapMed)
       )
       const isSafetyViolated = bindingEval.isSafetyMismatched || contraScanResult.hasViolation
 

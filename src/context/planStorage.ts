@@ -1,6 +1,7 @@
 import { PlanState, initialState, StateVersion } from './PlanContext'
 import { hasSafetySensitiveMedicalIssues } from '../lib/validation'
 import { getActiveAllergenCategories } from '../lib/allergenGuard'
+import { computeProfileFingerprint } from '../lib/planBinding'
 
 export const STORAGE_KEY = 'bodymap_plan_v2'
 
@@ -136,7 +137,7 @@ function buildSafeState(parsed: Partial<PlanState>): PlanState | null {
       ? { ...initialState.formData, ...parsed.boundProfile }
       : undefined
 
-  const safeBoundProfile: typeof rawBoundProfile =
+  let safeBoundProfile: typeof rawBoundProfile =
     rawBoundProfile &&
     isBoundProfileSafetyDiverged(
       restoredFormData.medicalIssues ?? '',
@@ -146,6 +147,23 @@ function buildSafeState(parsed: Partial<PlanState>): PlanState | null {
     )
       ? undefined
       : rawBoundProfile
+
+  // Bound Profile Fingerprint verification:
+  // If boundProfileFingerprint is present in storage, verify integrity.
+  // Tampering with boundProfile fields in localStorage without a matching fingerprint
+  // fails closed by invalidating boundProfile (forcing safety mismatch lockout).
+  if (safeBoundProfile && typeof parsed.boundProfileFingerprint === 'string' && parsed.boundProfileFingerprint.trim().length > 0) {
+    const computed = computeProfileFingerprint(safeBoundProfile)
+    if (computed !== parsed.boundProfileFingerprint.trim()) {
+      safeBoundProfile = undefined
+    }
+  }
+
+  const safeFingerprint = safeBoundProfile
+    ? (typeof parsed.boundProfileFingerprint === 'string' && parsed.boundProfileFingerprint.trim().length > 0
+        ? parsed.boundProfileFingerprint.trim()
+        : computeProfileFingerprint(safeBoundProfile))
+    : undefined
 
   const safeVersion = extractSafeVersion(parsed.stateVersion)
 
@@ -159,6 +177,7 @@ function buildSafeState(parsed: Partial<PlanState>): PlanState | null {
     planGeneratedAt: typeof parsed.planGeneratedAt === 'number' && Number.isFinite(parsed.planGeneratedAt) ? parsed.planGeneratedAt : undefined,
     stateVersion: safeVersion,
     boundProfile: safeBoundProfile,
+    boundProfileFingerprint: safeFingerprint,
     weightLog: Array.isArray(parsed.weightLog)
       ? parsed.weightLog.filter((entry): entry is { date: string; weight: number } =>
           Boolean(entry && typeof entry === 'object' && typeof (entry as Record<string, unknown>).date === 'string' && typeof (entry as Record<string, unknown>).weight === 'number' && !isNaN((entry as { weight: number }).weight))
@@ -251,8 +270,13 @@ export function savePersistedStateWithVersion(
       writerId: customWriterId || getTabWriterId(),
     }
 
+    const boundFingerprint = state.boundProfile
+      ? (state.boundProfileFingerprint || computeProfileFingerprint(state.boundProfile))
+      : undefined
+
     const payload: PlanState = {
       ...state,
+      boundProfileFingerprint: boundFingerprint,
       stateVersion: nextVersion,
     }
 

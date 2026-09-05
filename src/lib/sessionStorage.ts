@@ -1,5 +1,6 @@
 import type { WorkoutSession, CompletedWorkoutLog } from '@/types/workoutSession'
 import { scanPlanForContraindications } from '@/lib/contraindicationGuard'
+import { hasSafetySensitiveMedicalIssues } from '@/lib/validation'
 
 export const ACTIVE_SESSION_STORAGE_KEY = 'bodymap_active_session'
 export const WORKOUT_HISTORY_STORAGE_KEY = 'bodymap_workout_history'
@@ -84,16 +85,20 @@ export function loadAndValidateActiveSession(
     }
   }
 
-  // 2. Medical Profile check (fail closed: no wildcards)
-  if (currentMedicalIssues && currentMedicalIssues.trim().length > 0) {
-    const curMed = currentMedicalIssues.trim().toLowerCase()
-    const snapMed = (session.medicalSnapshot || '').trim().toLowerCase()
-    if (curMed !== snapMed) {
+  // 2. Medical Profile check (fail closed: no wildcards or asymmetric skips)
+  const curMed = (currentMedicalIssues || '').trim().toLowerCase()
+  const snapMed = (session.medicalSnapshot || '').trim().toLowerCase()
+  if (curMed !== snapMed) {
+    const curHasIssues = hasSafetySensitiveMedicalIssues(curMed)
+    const snapHasIssues = hasSafetySensitiveMedicalIssues(snapMed)
+    if (curHasIssues || snapHasIssues) {
       clearActiveSession()
       return null
     }
+  }
 
-    // 3. Exercise Contraindication scan on runtime session exercises
+  // 3. Exercise Contraindication scan on runtime session exercises
+  if (curMed.length > 0) {
     const exerciseNames = session.exercises.map(e => e.name).join('\n')
     const scan = scanPlanForContraindications(exerciseNames, currentMedicalIssues)
     if (scan.hasViolation) {

@@ -7,6 +7,9 @@ export type { FormData }
 // --- Types ---
 
 import { clearActiveSession, ACTIVE_SESSION_STORAGE_KEY } from '../lib/sessionStorage'
+import { computeProfileFingerprint } from '../lib/planBinding'
+import { hasSafetySensitiveMedicalIssues } from '../lib/validation'
+import { getActiveAllergenCategories } from '../lib/allergenGuard'
 import {
   loadPersistedState,
   savePersistedStateWithVersion,
@@ -34,6 +37,7 @@ export interface PlanState {
   planId?: string
   planGeneratedAt?: number
   boundProfile?: FormData
+  boundProfileFingerprint?: string
   stateVersion?: StateVersion
   weightLog: WeightEntry[]
   completedDays: CompletedDay[]
@@ -76,6 +80,7 @@ export function planReducer(state: PlanState, action: PlanAction): PlanState {
         ? { ...action.payload.formData }
         : { ...state.formData }
       const planId = `plan_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+      const boundProfileFingerprint = computeProfileFingerprint(profileSnapshot)
       return {
         ...state,
         generatedPlan: planText,
@@ -84,6 +89,7 @@ export function planReducer(state: PlanState, action: PlanAction): PlanState {
         planGeneratedAt: Date.now(),
         formData: profileSnapshot,   // keep formData in sync with what was generated
         boundProfile: profileSnapshot,
+        boundProfileFingerprint,
       }
     }
     case 'RESET_PLAN':
@@ -98,6 +104,7 @@ export function planReducer(state: PlanState, action: PlanAction): PlanState {
         planId: action.payload.planId,
         planGeneratedAt: action.payload.planGeneratedAt,
         boundProfile: action.payload.boundProfile,
+        boundProfileFingerprint: action.payload.boundProfileFingerprint,
         stateVersion: action.payload.stateVersion,
         weightLog: Array.isArray(action.payload.weightLog) ? action.payload.weightLog : [],
         completedDays: Array.isArray(action.payload.completedDays) ? action.payload.completedDays : []
@@ -146,6 +153,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
   // Track the current authoritative version and planId across renders
   const lastKnownVersionRef = useRef<StateVersion | undefined>(state.stateVersion)
   const currentPlanIdRef = useRef<string | undefined>(state.planId)
+  const currentProfileRef = useRef<FormData>(state.formData)
 
   // Remote-write echo guard: prevents re-persisting state received from another tab
   const isApplyingRemoteRef = useRef(false)
@@ -171,6 +179,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
       lastKnownVersionRef.current = version
     }
     currentPlanIdRef.current = state.planId
+    currentProfileRef.current = state.formData
   }, [state])
 
   // Cross-tab synchronization via StorageEvent.
@@ -187,8 +196,9 @@ export function PlanProvider({ children }: { children: ReactNode }) {
   //      - Tertiary: unique writerId
   //      Only accept if compareVersions(incoming.stateVersion, lastKnownVersionRef.current) > 0.
   //   4. If incoming version is older, equal, or unversioned -> drop (idempotent / stale).
-  //   5. If plan changed remotely (incoming.planId !== currentPlanIdRef.current),
-  //      immediately clear the active workout session so it cannot continue running.
+  //   5. If plan changed remotely (incoming.planId !== currentPlanIdRef.current) OR
+  //      if medical issues / allergies changed remotely, immediately clear the active
+  //      workout session so it cannot continue running with stale constraints.
   //   6. Set isApplyingRemoteRef.current = true to prevent echo loop, then dispatch LOAD_SAVED_PLAN.
   //   7. Also listen for bodymap_active_session: if cleared remotely, clear locally.
   useEffect(() => {
@@ -207,8 +217,19 @@ export function PlanProvider({ children }: { children: ReactNode }) {
           return
         }
 
-        // If the plan was regenerated in another tab, immediately invalidate local active session
-        if (incoming.planId && incoming.planId !== currentPlanIdRef.current) {
+        // If the plan was regenerated in another tab OR medical/allergy safety profile changed remotely,
+        // immediately invalidate local active workout session
+        const remotePlanChanged = Boolean(incoming.planId && incoming.planId !== currentPlanIdRef.current)
+        const curMed = (currentProfileRef.current.medicalIssues || '').trim().toLowerCase()
+        const remoteMed = (incoming.formData?.medicalIssues || '').trim().toLowerCase()
+        const curAllergens = getActiveAllergenCategories(currentProfileRef.current.allergies).sort().join(',')
+        const remoteAllergens = getActiveAllergenCategories(incoming.formData?.allergies).sort().join(',')
+        const medicalSafetyDiverged = curMed !== remoteMed && (
+          hasSafetySensitiveMedicalIssues(curMed) || hasSafetySensitiveMedicalIssues(remoteMed)
+        )
+        const allergensDiverged = curAllergens !== remoteAllergens
+
+        if (remotePlanChanged || medicalSafetyDiverged || allergensDiverged) {
           clearActiveSession()
         }
 
@@ -216,6 +237,9 @@ export function PlanProvider({ children }: { children: ReactNode }) {
         isApplyingRemoteRef.current = true
         lastKnownVersionRef.current = incoming.stateVersion
         currentPlanIdRef.current = incoming.planId
+        if (incoming.formData) {
+          currentProfileRef.current = incoming.formData
+        }
         dispatch({ type: 'LOAD_SAVED_PLAN', payload: incoming })
       }
 
@@ -230,7 +254,26 @@ export function PlanProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('storage', handleStorageEvent)
   }, [])
 
-  const setFormData = (data: Partial<FormData>) => dispatch({ type: 'SET_FORM_DATA', payload: data })
+  const setFormData = (data: Partial<FormData>) => {
+    if (data.medicalIssues !== undefined || data.allergies !== undefined) {
+      const curMed = (currentProfileRef.current.medicalIssues || '').trim().toLowerCase()
+      const nextMed = (data.medicalIssues ?? currentProfileRef.current.medicalIssues ?? '').trim().toLowerCase()
+      const curAllergens = getActiveAllergenCategories(currentProfileRef.current.allergies).sort().join(',')
+      const nextAllergens = getActiveAllergenCategories(data.allergies ?? currentProfileRef.current.allergies).sort().join(',')
+
+      const medicalSafetyDiverged = curMed !== nextMed && (
+        hasSafetySensitiveMedicalIssues(curMed) || hasSafetySensitiveMedicalIssues(nextMed)
+      )
+      const allergensDiverged = curAllergens !== nextAllergens
+
+      if (medicalSafetyDiverged || allergensDiverged) {
+        clearActiveSession()
+      }
+    }
+    currentProfileRef.current = { ...currentProfileRef.current, ...data }
+    dispatch({ type: 'SET_FORM_DATA', payload: data })
+  }
+
   const setGeneratedPlan = (plan: string, profileOverride?: FormData) => {
     clearActiveSession()
     dispatch({ type: 'SET_GENERATED_PLAN', payload: { plan, formData: profileOverride } })
