@@ -56,6 +56,11 @@ export function planReducer(state: PlanState, action: PlanAction): PlanState {
       return { ...state, formData: { ...state.formData, ...action.payload } }
     case 'SET_GENERATED_PLAN': {
       const planText = typeof action.payload === 'string' ? action.payload : action.payload.plan
+      // If a profileOverride is provided, it represents the exact profile used for generation.
+      // Update BOTH formData and boundProfile to this snapshot so that:
+      //   1. evaluatePlanProfileBinding immediately returns isSafetyMismatched=false (correct)
+      //   2. No spurious mismatch from minor string differences between UI formData and the
+      //      profile that was actually sent to the AI.
       const profileSnapshot = typeof action.payload === 'object' && action.payload.formData
         ? { ...action.payload.formData }
         : { ...state.formData }
@@ -66,6 +71,7 @@ export function planReducer(state: PlanState, action: PlanAction): PlanState {
         isGenerated: true,
         planId,
         planGeneratedAt: Date.now(),
+        formData: profileSnapshot,   // keep formData in sync with what was generated
         boundProfile: profileSnapshot,
       }
     }
