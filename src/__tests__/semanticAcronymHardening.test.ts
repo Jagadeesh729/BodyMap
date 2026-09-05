@@ -279,4 +279,159 @@ describe('Semantic & Acronym Hardening Suite (Red-Team Audit)', () => {
       expect(clientRes.matchedSnippet).toBe(serverRes.matchedSnippet)
     })
   })
+  describe('T5: Olympic Clean Family Bypass Regression (Phase 3 Audit)', () => {
+    it('catches power clean, hang clean, squat clean for lumbar disc herniation', () => {
+      const powerCleanPlan = `## Day 1
+**Main Workout:**
+- Power clean: 4 sets x 3 reps
+`
+      const hangCleanPlan = `## Day 1
+**Main Workout:**
+- Hang clean: 4 sets x 5 reps
+`
+      const sqatCleanPlan = `## Day 1
+**Main Workout:**
+- Squat clean: 4 sets x 2 reps
+`
+      const med = 'L5-S1 disc herniation'
+      const scan1 = scanPlanForContraindications(powerCleanPlan, med)
+      expect(scan1.hasViolation).toBe(true)
+      expect(scan1.violations[0].category).toBe('lumbar_disc_herniation')
+
+      const scan2 = scanPlanForContraindications(hangCleanPlan, med)
+      expect(scan2.hasViolation).toBe(true)
+      expect(scan2.violations[0].category).toBe('lumbar_disc_herniation')
+
+      const scan3 = scanPlanForContraindications(sqatCleanPlan, med)
+      expect(scan3.hasViolation).toBe(true)
+      expect(scan3.violations[0].category).toBe('lumbar_disc_herniation')
+    })
+
+    it('catches clean pull, clean and press for lumbar disc herniation', () => {
+      const cleanPullPlan = `## Day 1
+**Main Workout:**
+- Clean pull: 4 sets x 3 reps
+`
+      const cleanPressPlan = `## Day 1
+**Main Workout:**
+- Clean and press: 3 sets x 5 reps
+`
+      const med = 'sciatica'
+      const scan1 = scanPlanForContraindications(cleanPullPlan, med)
+      expect(scan1.hasViolation).toBe(true)
+      expect(scan1.violations[0].category).toBe('lumbar_disc_herniation')
+
+      const scan2 = scanPlanForContraindications(cleanPressPlan, med)
+      expect(scan2.hasViolation).toBe(true)
+      expect(scan2.violations[0].category).toBe('lumbar_disc_herniation')
+    })
+
+    it('does NOT falsely catch clean eating or non-exercise clean references in nutrition sections', () => {
+      const nutritionPlan = `## Day 1
+**Main Workout:**
+- Bird-Dog: 3 sets x 10 reps
+- Dead bugs: 3 sets x 10 reps
+**Meals:**
+- Breakfast: Clean eating oatmeal with protein
+- Lunch: Clean sources of protein like chicken and vegetables
+`
+      const scan = scanPlanForContraindications(nutritionPlan, 'lumbar radiculopathy')
+      expect(scan.hasViolation).toBe(false)
+    })
+
+    it('client/server parity for power clean and hang clean', () => {
+      const plan = `## Day 1
+**Main Workout:**
+- Power clean: 4 sets x 3 reps
+- Hang clean: 4 sets x 5 reps
+`
+      const med = 'disc herniation'
+      const clientResult = scanPlanForContraindications(plan, med)
+      const serverResult = serverScanPlanForContraindications(plan, med)
+      expect(clientResult.hasViolation).toBe(serverResult.hasViolation)
+      expect(clientResult.violations.length).toBe(serverResult.violations.length)
+    })
+  })
+
+  describe('T6: Unqualified Equipment-Prefixed Press Bypass Regression (Phase 3 Audit)', () => {
+    it('catches dumbbell press and seated dumbbell press for rotator cuff / shoulder impingement', () => {
+      const dbPressPlan = `## Day 1
+**Main Workout:**
+- Dumbbell press: 3 sets x 10 reps
+`
+      const seatedDbPressPlan = `## Day 1
+**Main Workout:**
+- Seated dumbbell press: 3 sets x 10 reps
+`
+      const med = 'rotator cuff tear'
+      const scan1 = scanPlanForContraindications(dbPressPlan, med)
+      expect(scan1.hasViolation).toBe(true)
+      expect(scan1.violations[0].category).toBe('shoulder_impingement_cuff')
+
+      const scan2 = scanPlanForContraindications(seatedDbPressPlan, med)
+      expect(scan2.hasViolation).toBe(true)
+      expect(scan2.violations[0].category).toBe('shoulder_impingement_cuff')
+    })
+
+    it('catches barbell press and standing press for shoulder impingement', () => {
+      const bbPressPlan = `## Day 1
+**Main Workout:**
+- Barbell press: 5 sets x 5 reps
+`
+      const standingPressPlan = `## Day 1
+**Main Workout:**
+- Standing dumbbell press: 3 sets x 10 reps
+`
+      const med = 'shoulder impingement'
+      const scan1 = scanPlanForContraindications(bbPressPlan, med)
+      expect(scan1.hasViolation).toBe(true)
+      expect(scan1.violations[0].category).toBe('shoulder_impingement_cuff')
+
+      const scan2 = scanPlanForContraindications(standingPressPlan, med)
+      expect(scan2.hasViolation).toBe(true)
+      expect(scan2.violations[0].category).toBe('shoulder_impingement_cuff')
+    })
+
+    it('does NOT catch incline dumbbell press or landmine press (safe exemptions)', () => {
+      const inclinePlan = `## Day 1
+**Main Workout:**
+- Incline dumbbell press: 3 sets x 10 reps
+- External rotations: 3 sets x 15 reps
+`
+      const landminePlan = `## Day 1
+**Main Workout:**
+- Landmine press: 3 sets x 12 reps
+- Face pulls: 3 sets x 15 reps
+`
+      const med = 'rotator cuff tear'
+      const scan1 = scanPlanForContraindications(inclinePlan, med)
+      expect(scan1.hasViolation).toBe(false)
+
+      const scan2 = scanPlanForContraindications(landminePlan, med)
+      expect(scan2.hasViolation).toBe(false)
+    })
+
+    it('bench press remains unaffected (not blocked for shoulder impingement)', () => {
+      const benchPlan = `## Day 1
+**Main Workout:**
+- Bench press: 3 sets x 10 reps
+- Push-ups: 3 sets x 15 reps
+`
+      const scan = scanPlanForContraindications(benchPlan, 'shoulder impingement')
+      expect(scan.hasViolation).toBe(false)
+    })
+
+    it('client/server parity for dumbbell press and seated press', () => {
+      const plan = `## Day 1
+**Main Workout:**
+- Dumbbell press: 3 sets x 10 reps
+- Seated dumbbell press: 3 sets x 10 reps
+`
+      const med = 'subacromial impingement'
+      const clientResult = scanPlanForContraindications(plan, med)
+      const serverResult = serverScanPlanForContraindications(plan, med)
+      expect(clientResult.hasViolation).toBe(serverResult.hasViolation)
+      expect(clientResult.violations.length).toBe(serverResult.violations.length)
+    })
+  })
 })

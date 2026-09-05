@@ -706,6 +706,7 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\b(?:parallel\s+bar\s+dips?|chest\s+dips?|weighted\s+dips?|bench\s+dips?|dips?\b)/i,
       /\b(?:(?:barbell|dumbbell|seated|standing|machine|kettlebell)\s+)?ohps?\b/i,
       /\b(?:strict\s+|deficit\s+|kipping\s+)?hspus?\b/i,
+      /\b(?:barbell|dumbbell|standing|seated)\s+press(?:ing|es)?\b/i,
     ],
     safeExemptions: [
       /\bbench\s+press\b/i,
@@ -716,6 +717,8 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\bface\s+pulls?\b/i,
       /\bbicep\s+curls?\b/i,
       /\bhammer\s+curls?\b/i,
+      /\bincline\s+(?:dumbbell|barbell|bench)\s+press\b/i,
+      /\blandmine\s+(?:press|shoulder\s+press)\b/i,
     ],
     severity: 'critical',
     reason:
@@ -740,6 +743,8 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\bloaded\s+(?:spinal\s+flexion|back\s+extensions?\s+with\s+weight)\b/i,
       /\b(?:weighted\s+|decline\s+)?(?:crunches?|sit[- ]*ups?)\b/i,
       /\b(?:barbell\s+)?(?:clean\s*(?:and|&)\s*jerk|c&j|snatch(?:es)?)\b/i,
+      /\b(?:power|hang|squat|muscle|split)\s+clean(?:s|ing)?\b/i,
+      /\bclean\s+(?:pull|high\s+pull|and\s+press|&\s+press)s?\b/i,
     ],
     safeExemptions: [
       /\bbird[- ]dog\b/i,
