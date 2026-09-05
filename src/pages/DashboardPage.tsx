@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
   TrendingUp,
@@ -34,7 +34,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from '@/hooks/use-toast'
 import { usePlan } from '@/context/PlanContext'
-import { loadWorkoutHistory, loadActiveSession, MAX_STORED_WORKOUTS, BACKUP_NUDGE_THRESHOLD } from '@/lib/sessionStorage'
+import { loadWorkoutHistory, loadActiveSession, loadAndValidateActiveSession, MAX_STORED_WORKOUTS, BACKUP_NUDGE_THRESHOLD } from '@/lib/sessionStorage'
 import type { CompletedWorkoutLog, WorkoutSession } from '@/types/workoutSession'
 import { calculateWorkoutStreak } from '@/lib/streakCalculation'
 import type { SavedPlan } from '@/types/savedPlan'
@@ -128,16 +128,16 @@ const DashboardPage: React.FC = () => {
     return filterLogsByTimeWindow(workoutHistory, analyticsTimeWindow)
   }, [workoutHistory, analyticsTimeWindow])
 
-  const refreshData = () => {
+  const refreshData = useCallback(() => {
     setWorkoutHistory(loadWorkoutHistory())
-    setActiveSession(loadActiveSession())
+    setActiveSession(loadAndValidateActiveSession(state.planId, state.formData.medicalIssues))
     setSavedPlans(loadSavedPlans())
     setBodyMetrics(loadBodyMetrics())
-  }
+  }, [state.planId, state.formData.medicalIssues])
 
   useEffect(() => {
     refreshData()
-  }, [])
+  }, [refreshData])
 
   const initialWeightNum = Number(formData.weight) || 72
   const targetWeightNum = formData.mainGoal === 'slim'

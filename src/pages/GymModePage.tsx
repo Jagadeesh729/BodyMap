@@ -34,7 +34,7 @@ import {
 } from '@/lib/exerciseSubstitution'
 import {
   saveActiveSession,
-  loadActiveSession,
+  loadAndValidateActiveSession,
   clearActiveSession,
   loadWorkoutHistory,
   saveCompletedWorkoutLog,
@@ -116,21 +116,15 @@ export const GymModePage: React.FC = () => {
     return evaluatePlanProfileBinding(state.formData, state.boundProfile)
   }, [state.formData, state.boundProfile])
 
-  // Deterministic contraindication evaluation
-  const contraScanResult = useMemo(() => {
-    return scanPlanForContraindications(state.generatedPlan, state.formData.medicalIssues)
-  }, [state.generatedPlan, state.formData.medicalIssues])
-
-  // Session state
+  // Session state: hydrate strictly validated session matching active plan and medical profile
   const [session, setSession] = useState<WorkoutSession>(() => {
-    const saved = loadActiveSession()
-    if (saved && saved.dayIndex === targetDayIndex && saved.status === 'in-progress') {
-      const isPlanMatch = !saved.planId || !state.planId || saved.planId === state.planId
-      const isMedicalMatch = !saved.medicalSnapshot || (saved.medicalSnapshot || '').trim().toLowerCase() === (state.formData.medicalIssues || '').trim().toLowerCase()
-      if (isPlanMatch && isMedicalMatch) {
-        return saved
-      }
-      // If plan or medical profile has changed, discard the stale session immediately!
+    const saved = loadAndValidateActiveSession(state.planId, state.formData.medicalIssues)
+    if (saved && saved.dayIndex === targetDayIndex) {
+      return saved
+    }
+    if (saved && saved.dayIndex !== targetDayIndex) {
+      // Conflicting active session for another day; preserved for conflictingSession dialog
+    } else {
       clearActiveSession()
     }
     return {
@@ -159,14 +153,26 @@ export const GymModePage: React.FC = () => {
     }
   })
 
-  // Detect if an active session for a different day exists
+  // Detect if an active validated session for a different day exists
   const [conflictingSession, setConflictingSession] = useState<WorkoutSession | null>(() => {
-    const saved = loadActiveSession()
-    if (saved && saved.dayIndex !== targetDayIndex && saved.status === 'in-progress') {
+    const saved = loadAndValidateActiveSession(state.planId, state.formData.medicalIssues)
+    if (saved && saved.dayIndex !== targetDayIndex) {
       return saved
     }
     return null
   })
+
+  // Deterministic contraindication evaluation across BOTH plan content AND active session exercises
+  const contraScanResult = useMemo(() => {
+    const planScan = scanPlanForContraindications(state.generatedPlan, state.formData.medicalIssues)
+    const sessionExerciseLines = (session?.exercises || []).map(e => e.name).join('\n')
+    const sessionScan = scanPlanForContraindications(sessionExerciseLines, state.formData.medicalIssues)
+    return {
+      hasViolation: planScan.hasViolation || sessionScan.hasViolation,
+      violations: [...planScan.violations, ...sessionScan.violations],
+      scannedExerciseCount: planScan.scannedExerciseCount + sessionScan.scannedExerciseCount
+    }
+  }, [state.generatedPlan, state.formData.medicalIssues, session?.exercises])
 
   // Track active stopwatch time accumulated across pauses/reloads
   const mountTimeRef = useRef<number>(Date.now())
@@ -186,24 +192,23 @@ export const GymModePage: React.FC = () => {
   }, [session])
 
   // Cross-tab / runtime plan synchronization:
-  // If planId changed, medical profile diverged, or safety binding failed while this session
-  // was active in-memory, immediately invalidate and cancel the session to prevent executing
-  // or persisting obsolete exercises.
+  // If planId changed, medical profile diverged, or safety binding / contraindications failed
+  // while this session was active in-memory, immediately invalidate and cancel the session to prevent
+  // executing or persisting obsolete/contraindicated exercises.
   useEffect(() => {
     if (session.status === 'in-progress') {
-      const isPlanMismatch = Boolean(state.planId && session.planId && state.planId !== session.planId)
+      const isPlanMismatch = Boolean(state.planId && (!session.planId || state.planId !== session.planId))
       const isMedicalDiverged = Boolean(
-        session.medicalSnapshot &&
         (session.medicalSnapshot || '').trim().toLowerCase() !== (state.formData.medicalIssues || '').trim().toLowerCase()
       )
-      const isSafetyViolated = bindingEval.isSafetyMismatched
+      const isSafetyViolated = bindingEval.isSafetyMismatched || contraScanResult.hasViolation
 
       if (isPlanMismatch || isMedicalDiverged || isSafetyViolated) {
         clearActiveSession()
         setSession(prev => prev.status === 'in-progress' ? { ...prev, status: 'cancelled' } : prev)
       }
     }
-  }, [state.planId, session.planId, session.medicalSnapshot, session.status, state.formData.medicalIssues, bindingEval.isSafetyMismatched])
+  }, [state.planId, session.planId, session.medicalSnapshot, session.status, state.formData.medicalIssues, bindingEval.isSafetyMismatched, contraScanResult.hasViolation])
 
   // Listen for active-session removal from another tab
   useEffect(() => {
@@ -667,6 +672,17 @@ export const GymModePage: React.FC = () => {
 
   // Substitution Handler
   const handleSelectAlternative = (alt: ExerciseAlternative) => {
+    // Deterministic safety check: verify alternative does not violate medical contraindications
+    const contraCheck = scanPlanForContraindications(alt.name, state.formData.medicalIssues)
+    if (contraCheck.hasViolation) {
+      toast({
+        title: 'Substitution Blocked ⚠️',
+        description: `Cannot swap to "${alt.name}": contraindicated for your medical profile.`,
+        variant: 'destructive',
+      })
+      return
+    }
+
     const updatedExercises = [...session.exercises]
     const ex = { ...updatedExercises[session.currentExerciseIndex] }
 

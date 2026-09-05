@@ -91,18 +91,19 @@ function isBoundProfileSafetyDiverged(
  * Returns undefined if missing, malformed, non-numeric, or non-finite.
  */
 function extractSafeVersion(raw: unknown): StateVersion | undefined {
-  if (!raw || typeof raw !== 'object') return undefined
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
   const v = raw as Record<string, unknown>
   if (
     typeof v.counter !== 'number' ||
-    !isFinite(v.counter) ||
-    isNaN(v.counter) ||
+    !Number.isFinite(v.counter) ||
+    !Number.isSafeInteger(v.counter) ||
     v.counter <= 0 ||
+    v.counter > 1e9 ||
     typeof v.timestamp !== 'number' ||
-    !isFinite(v.timestamp) ||
-    isNaN(v.timestamp) ||
+    !Number.isFinite(v.timestamp) ||
     typeof v.writerId !== 'string' ||
-    v.writerId.trim().length === 0
+    v.writerId.trim().length === 0 ||
+    v.writerId.length > 128
   ) {
     return undefined
   }
@@ -122,9 +123,12 @@ function extractSafeVersion(raw: unknown): StateVersion | undefined {
 function buildSafeState(parsed: Partial<PlanState>): PlanState | null {
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
 
+  const rawForm = parsed.formData && typeof parsed.formData === 'object' && !Array.isArray(parsed.formData)
+    ? parsed.formData
+    : {}
   const restoredFormData = {
     ...initialState.formData,
-    ...(parsed.formData || {}),
+    ...rawForm,
   }
 
   const rawBoundProfile =
@@ -149,8 +153,10 @@ function buildSafeState(parsed: Partial<PlanState>): PlanState | null {
     ...initialState,
     ...parsed,
     formData: restoredFormData,
-    planId: typeof parsed.planId === 'string' ? parsed.planId : undefined,
-    planGeneratedAt: typeof parsed.planGeneratedAt === 'number' ? parsed.planGeneratedAt : undefined,
+    generatedPlan: typeof parsed.generatedPlan === 'string' ? parsed.generatedPlan : '',
+    isGenerated: Boolean(parsed.isGenerated),
+    planId: typeof parsed.planId === 'string' && parsed.planId.trim().length > 0 ? parsed.planId.trim() : undefined,
+    planGeneratedAt: typeof parsed.planGeneratedAt === 'number' && Number.isFinite(parsed.planGeneratedAt) ? parsed.planGeneratedAt : undefined,
     stateVersion: safeVersion,
     boundProfile: safeBoundProfile,
     weightLog: Array.isArray(parsed.weightLog)

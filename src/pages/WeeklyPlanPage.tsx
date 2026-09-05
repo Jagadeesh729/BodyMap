@@ -31,7 +31,7 @@ import { scanPlanForContraindications } from '@/lib/contraindicationGuard'
 import { hasSafetySensitiveMedicalIssues } from '@/lib/validation'
 import { evaluatePlanProfileBinding } from '@/lib/planBinding'
 import { DEFAULT_WEEKLY_PLAN, type DayPlan } from '@/types/plan'
-import { loadActiveSession } from '@/lib/sessionStorage'
+import { loadAndValidateActiveSession } from '@/lib/sessionStorage'
 import type { WorkoutSession } from '@/types/workoutSession'
 import {
   findMealAlternatives,
@@ -59,11 +59,13 @@ const WeeklyPlanPage: React.FC = () => {
   const [activeSession, setActiveSession] = useState<WorkoutSession | null>(null)
 
   useEffect(() => {
-    const saved = loadActiveSession()
+    const saved = loadAndValidateActiveSession(state.planId, state.formData.medicalIssues)
     if (saved && saved.status === 'in-progress') {
       setActiveSession(saved)
+    } else {
+      setActiveSession(null)
     }
-  }, [])
+  }, [state.planId, state.formData.medicalIssues])
 
   const [expandedDay, setExpandedDay] = useState<number | null>(0)
   const [showRawMarkdown, setShowRawMarkdown] = useState(false)

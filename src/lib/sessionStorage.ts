@@ -1,9 +1,11 @@
 import type { WorkoutSession, CompletedWorkoutLog } from '@/types/workoutSession'
+import { scanPlanForContraindications } from '@/lib/contraindicationGuard'
 
 export const ACTIVE_SESSION_STORAGE_KEY = 'bodymap_active_session'
 export const WORKOUT_HISTORY_STORAGE_KEY = 'bodymap_workout_history'
 export const MAX_STORED_WORKOUTS = 250
 export const BACKUP_NUDGE_THRESHOLD = 220
+export const MAX_SESSION_INACTIVITY_MS = 24 * 60 * 60 * 1000 // 24 hours
 
 export function saveActiveSession(session: WorkoutSession): void {
   try {
@@ -23,7 +25,34 @@ export function loadActiveSession(): WorkoutSession | null {
     if (!raw) return null
     const parsed = JSON.parse(raw) as WorkoutSession
 
-    if (!parsed || !parsed.sessionId || !Array.isArray(parsed.exercises) || parsed.exercises.length === 0) {
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      clearActiveSession()
+      return null
+    }
+
+    if (
+      !parsed.sessionId ||
+      typeof parsed.sessionId !== 'string' ||
+      !Array.isArray(parsed.exercises) ||
+      parsed.exercises.length === 0
+    ) {
+      clearActiveSession()
+      return null
+    }
+
+    // Anti-resurrection: only in-progress sessions can be hydrated as active
+    if (parsed.status !== 'in-progress') {
+      clearActiveSession()
+      return null
+    }
+
+    // Inactivity expiration: discard stale abandoned sessions (>24h inactive)
+    if (
+      typeof parsed.lastUpdatedAt === 'number' &&
+      Number.isFinite(parsed.lastUpdatedAt) &&
+      Date.now() - parsed.lastUpdatedAt > MAX_SESSION_INACTIVITY_MS
+    ) {
+      clearActiveSession()
       return null
     }
 
@@ -33,6 +62,47 @@ export function loadActiveSession(): WorkoutSession | null {
     clearActiveSession()
     return null
   }
+}
+
+/**
+ * Context-aware session validator and loader.
+ * Enforces fail-closed plan binding, medical snapshot consistency, and
+ * deterministic contraindication verification on the actual session exercises.
+ */
+export function loadAndValidateActiveSession(
+  currentPlanId?: string,
+  currentMedicalIssues?: string
+): WorkoutSession | null {
+  const session = loadActiveSession()
+  if (!session) return null
+
+  // 1. Plan Provenance check (fail closed: no wildcards)
+  if (currentPlanId) {
+    if (!session.planId || session.planId !== currentPlanId) {
+      clearActiveSession()
+      return null
+    }
+  }
+
+  // 2. Medical Profile check (fail closed: no wildcards)
+  if (currentMedicalIssues && currentMedicalIssues.trim().length > 0) {
+    const curMed = currentMedicalIssues.trim().toLowerCase()
+    const snapMed = (session.medicalSnapshot || '').trim().toLowerCase()
+    if (curMed !== snapMed) {
+      clearActiveSession()
+      return null
+    }
+
+    // 3. Exercise Contraindication scan on runtime session exercises
+    const exerciseNames = session.exercises.map(e => e.name).join('\n')
+    const scan = scanPlanForContraindications(exerciseNames, currentMedicalIssues)
+    if (scan.hasViolation) {
+      clearActiveSession()
+      return null
+    }
+  }
+
+  return session
 }
 
 export function clearActiveSession(): void {

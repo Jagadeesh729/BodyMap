@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Menu, X, Play } from 'lucide-react'
 import { BodyMapLogo } from './BodyMapLogo'
 import { usePlan } from '@/context/PlanContext'
-import { loadActiveSession } from '@/lib/sessionStorage'
+import { loadAndValidateActiveSession } from '@/lib/sessionStorage'
 import type { WorkoutSession } from '@/types/workoutSession'
 
 // Defined outside component — stable reference, no recreation on render
@@ -24,7 +24,7 @@ const Navbar = () => {
   // Periodically check if an active workout exists
   useEffect(() => {
     const checkActiveSession = () => {
-      const saved = loadActiveSession()
+      const saved = loadAndValidateActiveSession(state.planId, state.formData.medicalIssues)
       if (saved && saved.status === 'in-progress') {
         setActiveSession(saved)
       } else {
@@ -34,7 +34,7 @@ const Navbar = () => {
     checkActiveSession()
     const interval = setInterval(checkActiveSession, 2000)
     return () => clearInterval(interval)
-  }, [location.pathname])
+  }, [location.pathname, state.planId, state.formData.medicalIssues])
 
   // Show Dashboard link only when a plan has been generated
   const navItems = state.isGenerated
