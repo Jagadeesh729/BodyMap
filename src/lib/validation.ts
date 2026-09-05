@@ -109,20 +109,39 @@ export function validateStep(step: number, data: Record<string, unknown>) {
  * Determines whether a user's declared medical issues string represents an active,
  * safety-sensitive medical condition or physical limitation (as opposed to 'None', empty, etc.).
  */
+// Positive clinical risk patterns: if any of these are present, the profile is ALWAYS safety-sensitive,
+// even if preceded by words like 'no', 'none', or 'doctor said'.
+const CLINICAL_RISK_PATTERN = /\b(pain|injur|tear|torn|sprain|strain|fracture|broken|dislocat|surgery|post[- ]op|rehab|cardiac|heart|chest|angina|hypertension|blood\s+pressure|stroke|aneurysm|palpitation|arrhythmia|asthma|copd|respiratory|dyspnea|breathless|disc\b|herniat|sciatica|spine|spinal|lumbar|cervical|back\s+pain|stenosis|spondyl|knee|acl\b|mcl\b|pcl\b|meniscus|patell|chondromalacia|shoulder|rotator\b|cuff|labr|impingement|tendon|tendin|bursitis|arthritis|osteo|rheumat|osteoporosis|plantar|achilles|pregnant|pregnancy|trimester|postpartum|diabet|neuropathy|seizure|epilep|vertigo|dizz|faint|syncope|glaucoma|hernia)\b/i
+
+// Strict benign declarations: only matches when the ENTIRE input represents a safe, non-injured profile.
+const BENIGN_EXACT_PATTERNS = [
+  /^(none|none\s+stated|nil|nothing|healthy|fine|good|normal|fit|all\s+good|no\s+problems?)$/i,
+  /^n\/?a$/i,
+  /^na$/i,
+  /^no(?:\s+(?:known\s+)?(?:medical\s+issues?|injuries|limitations|conditions|health\s+issues?|problems?))?$/i,
+  /^no(?:\s+(?:major|significant|serious))?\s+(?:medical\s+issues?|injuries|limitations|conditions|problems?)$/i,
+  /^(?:i\s+have\s+)?no(?:ne)?(?:\s+(?:known\s+)?(?:medical\s+issues?|injuries|limitations|conditions))?$/i,
+]
+
+/**
+ * Determines whether a user's declared medical issues string represents an active,
+ * safety-sensitive medical condition or physical limitation (as opposed to 'None', empty, etc.).
+ *
+ * Hardened against adversarial instruction conflict (e.g., 'No injuries; however acute ACL tear'
+ * or 'None, but I had heart surgery last month').
+ */
 export function hasSafetySensitiveMedicalIssues(medicalIssues?: string): boolean {
   if (!medicalIssues || typeof medicalIssues !== 'string') return false
   const trimmed = medicalIssues.trim().toLowerCase()
   if (!trimmed) return false
-  const benignPatterns = [
-    /^none\b/i,
-    /^none\s+stated\b/i,
-    /^no\b/i,
-    /^n\/?a\b/i,
-    /^nil\b/i,
-    /^nothing\b/i,
-    /^healthy\b/i,
-    /^no\s+(?:known\s+)?(?:medical\s+issues?|injuries|limitations|conditions)\b/i,
-  ]
-  return !benignPatterns.some(pattern => pattern.test(trimmed))
+
+  // 1. Positive clinical check: any known clinical indicator is ALWAYS safety-sensitive.
+  if (CLINICAL_RISK_PATTERN.test(trimmed)) return true
+
+  // 2. Exact benign check: only non-sensitive if the full text matches a benign declaration.
+  if (BENIGN_EXACT_PATTERNS.some(pattern => pattern.test(trimmed))) return false
+
+  // 3. Fail-closed: unrecognized or ambiguous free text is treated as potentially safety-sensitive.
+  return true
 }
 
