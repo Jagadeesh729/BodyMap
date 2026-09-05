@@ -290,11 +290,14 @@ export function parseExerciseStringToSessionExercise(
   rawStr: string,
   index: number
 ): SessionExercise {
-  const cleanStr = rawStr
+  let cleanStr = rawStr
     .replace(/^[-*•\d]+[.)\s]\s*/, '')
     .replace(/^[-*•]\s*/, '')
     .trim()
   
+  // Strip common labeled item prefixes e.g. "Exercise 1:", "Station A:", "Circuit 1:"
+  cleanStr = cleanStr.replace(/^(?:(?:exercise|station|movement|circuit|superset|item|part)\s+[a-z\d]+)\s*[:\-–—]\s*/i, '').trim()
+
   let name = cleanStr
   let targetSets = 3
   let targetReps = '10-12 reps'
@@ -306,7 +309,7 @@ export function parseExerciseStringToSessionExercise(
   if (cleanStr.includes(':')) {
     const parts = cleanStr.split(':')
     name = parts[0].trim()
-    const details = parts[1] || ''
+    const details = parts.slice(1).join(':')
 
     const setsMatch = details.match(/(\d+)\s*sets?/i)
     if (setsMatch) targetSets = parseInt(setsMatch[1], 10) || 3

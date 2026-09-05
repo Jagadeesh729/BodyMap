@@ -75,6 +75,7 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\bdepth[- ]+drops?\b/i,
       /\bplyometric[- ]+bounding\b/i,
       /\bhigh[- ]impact\s+(?:plyometrics|jumping|bounding)\b/i,
+      /\bdouble[- ]unders?\b/i,
     ],
     safeExemptions: [
       /\bbox[- ]+squats?\b/i, // Box squats are controlled sitting back onto box, not jumping
@@ -109,6 +110,8 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\bhandstand\s+push[- ]ups?\b/i,
       /\bupright\s+(?:barbell\s+|dumbbell\s+)?rows?\b/i,
       /\b(?:parallel\s+bar\s+dips?|chest\s+dips?|weighted\s+dips?|bench\s+dips?|dips?\b)/i,
+      /\b(?:(?:barbell|dumbbell|seated|standing|machine|kettlebell)\s+)?ohps?\b/i,
+      /\b(?:strict\s+|deficit\s+|kipping\s+)?hspus?\b/i,
     ],
     safeExemptions: [
       /\bbench\s+press\b/i,
@@ -135,13 +138,14 @@ export const CONTRAINDICATION_TAXONOMY: Record<
     ],
     forbiddenPatterns: [
       /\b(?:(?:barbell|romanian|stiff[- ]leg(?:ged)?|sumo|conventional|heavy|maximal)\s+)?deadlifts?\b/i,
+      /\b(?:(?:dumbbell|barbell|romanian|stiff[- ]leg(?:ged)?|single[- ]leg|b-stance)\s+)?rdls?\b/i,
       /\b(?:(?:barbell|heavy|loaded)\s+)?back\s*squats?\b/i,
       /\bbarbell\s+good[- ]mornings?\b/i,
       /\bgood[- ]mornings?\b/i,
       /\bjefferson\s+curls?\b/i,
       /\bloaded\s+(?:spinal\s+flexion|back\s+extensions?\s+with\s+weight)\b/i,
       /\b(?:weighted\s+|decline\s+)?(?:crunches?|sit[- ]*ups?)\b/i,
-      /\b(?:barbell\s+)?(?:clean\s+and\s+jerk|snatch(?:es)?)\b/i,
+      /\b(?:barbell\s+)?(?:clean\s*(?:and|&)\s*jerk|c&j|snatch(?:es)?)\b/i,
     ],
     safeExemptions: [
       /\bbird[- ]dog\b/i,
@@ -170,6 +174,7 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\b(?:wrestler'?s?\s+)?neck\s+bridges?\b/i,
       /\bheadstands?\b/i,
       /\b(?:handstands?|handstand\s+push[- ]*ups?|shoulder\s*stands?)\b/i,
+      /\b(?:strict\s+|deficit\s+|kipping\s+)?hspus?\b/i,
     ],
     safeExemptions: [
       /\bchin\s+tucks?\b/i,
@@ -253,6 +258,7 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\b(?:box|depth|tuck|squat|broad)[- ]*jumps?\b/i,
       /\bburpees?\b/i,
       /\b(?:barbell\s+)?deadlifts?\b/i,
+      /\b(?:(?:dumbbell|barbell|romanian|stiff[- ]leg(?:ged)?|single[- ]leg|b-stance)\s+)?rdls?\b/i,
       /\bhigh[- ]impact\s+bounding\b/i,
       /\bexplosive\s+twisting\b/i,
     ],
@@ -351,27 +357,38 @@ export function isPrescriptiveExerciseLine(
 
   // 2. Pure exclusion header checks
   // e.g., "Exercises to avoid: Box jumps, Depth jumps"
-  if (/^(?:exercises?\s+to\s+avoid|avoid|contraindications?|strictlys+avoid):/i.test(normalized)) {
+  if (/^(?:exercises?\s+to\s+avoid|avoid|contraindications?|strictly\s+avoid):/i.test(normalized)) {
     // If the whole line is an avoid list without subsequent prescriptive sets/reps:
     if (!/\b(?:\d+\s*sets?|\d+\s*reps?|\d+\s*x\s*\d+)\b/i.test(normalized)) {
       return { isPrescription: false, matchedSnippet: matchedTerm }
     }
   }
 
-  // 3. Parenthetical alternative checks
+  // 3. Substitution note exemption checks
   // e.g., "- Step-ups: 3 sets x 12 reps (safe alternative to box jumps)"
-  if (normalized.includes(':')) {
-    const [exerciseName, ...restParts] = normalized.split(':')
-    const restText = restParts.join(':').toLowerCase()
-    const nameMatch = exerciseName.toLowerCase().match(matchedPattern)
+  // The matched forbidden pattern must be explicitly the TARGET of the substitution clause,
+  // AND the forbidden pattern must NOT appear anywhere in the prescribed portion of the line.
+  const substitutionRegex =
+    /(?:\(|\[)(?:[^)\]]*?\b)?(?:alternative(?:\s+(?:to|for))?:?|replaces?:?|instead\s+of:?|substitute(?:\s+(?:for|to))?:?)\s+([^()[\]]+)(?:\)|\])|;\s*(?:alternative(?:\s+(?:to|for))?:?|replaces?:?|instead\s+of:?|substitute(?:\s+(?:for|to))?:?)\s+([^;\n]+)/gi
+  let isExemptSubstitution = false
+  let subMatch: RegExpExecArray | null
 
-    if (!nameMatch) {
-      if (
-        /\b(?:alternative\s+to|replaces?|instead\s+of|substitute\s+for)\s+[^)]*?\b/i.test(restText)
-      ) {
-        return { isPrescription: false, matchedSnippet: matchedTerm }
+  while ((subMatch = substitutionRegex.exec(normalized)) !== null) {
+    const targetClause = (subMatch[1] || subMatch[2] || '').toLowerCase()
+    if (matchedPattern.test(targetClause)) {
+      // The forbidden pattern is cited as the entity being avoided/replaced.
+      // Now verify that the forbidden pattern does NOT appear outside this substitution clause.
+      const lineWithoutSubstitution =
+        normalized.slice(0, subMatch.index) + normalized.slice(subMatch.index + subMatch[0].length)
+      if (!matchedPattern.test(lineWithoutSubstitution)) {
+        isExemptSubstitution = true
+        break
       }
     }
+  }
+
+  if (isExemptSubstitution) {
+    return { isPrescription: false, matchedSnippet: matchedTerm }
   }
 
   // 4. Clause-level evaluation
@@ -385,7 +402,10 @@ export function isPrescriptiveExerciseLine(
     const trimmedClause = clause.trim()
     if (!matchedPattern.test(trimmedClause)) continue
 
-    const cleanClause = trimmedClause.replace(/^[-*•\d.)\s]+/, '').trim()
+    const cleanClause = trimmedClause
+      .replace(/^[-*•\d.)\s]+/, '')
+      .replace(/^(?:(?:exercise|station|movement|circuit|superset|item|part)\s+[a-z\d]+)\s*[:\-–—]\s*/i, '')
+      .trim()
     const hasClausePrescription = /\b(?:\d+\s*sets?|\d+\s*reps?|\d+\s*x\s*\d+|perform\s+\d+|do\s+\d+)\b/i.test(
       cleanClause
     )

@@ -62,7 +62,7 @@ function parseExercises(text: string): Exercise[] {
     const isBullet = /^[-*•]/.test(trimmed)
     const isNumbered = /^\d+[.)]\s/.test(trimmed)
     if (isBullet || isNumbered) {
-      const content = trimmed
+      let content = trimmed
         .replace(/^[-*•]+\s*/, '')
         .replace(/^\d+[.)]\s*/, '')
         .replace(/\*+/g, '')
@@ -80,13 +80,18 @@ function parseExercises(text: string): Exercise[] {
           lower.startsWith('activities')) {
         continue
       }
+      // Clean labeled item prefixes like "Exercise 1:", "Station A:", "Circuit 1:"
+      content = content.replace(/^(?:(?:exercise|station|movement|circuit|superset|item|part)\s+[a-z\d]+)\s*[:\-–—]\s*/i, '').trim()
+
       if (content.includes(':')) {
-        const [name, details] = content.split(':')
+        const parts = content.split(':')
+        const name = parts[0].trim()
+        const details = parts.slice(1).join(':')
         const setsMatch = details.match(/(\d+)\s*sets?/i)
         const repsMatch = details.match(/(\d+[\d-]*)\s*reps?/i)
         const restMatch = details.match(/(\d+s|\d+\s*sec|\d+\s*min)/i)
         exercises.push({
-          name: name.trim(),
+          name,
           sets: setsMatch ? setsMatch[1] : undefined,
           reps: repsMatch ? repsMatch[1] : undefined,
           rest: restMatch ? restMatch[1] : undefined,
