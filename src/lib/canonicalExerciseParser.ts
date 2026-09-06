@@ -106,8 +106,8 @@ export function cleanExerciseName(rawName: string): string {
     .replace(/\s*[—–]\s*.*$/, '') // Trailing em/en-dashes
     .trim()
 
-  // Remove wrapping markdown formatting (**bold**, *italic*)
-  cleaned = cleaned.replace(/^\*+|\*+$/g, '').trim()
+  // Remove markdown formatting (**bold**, *italic*, _italic_, `code`, ~strikethrough~)
+  cleaned = cleaned.replace(/[*_~`#]+/g, ' ').replace(/\s+/g, ' ').trim()
 
   return cleaned
 }
@@ -131,7 +131,7 @@ export function parseCanonicalExerciseLine(rawLine: string): CanonicalExercise[]
   let content = normalized
     .replace(/^[-*•]+\s*/, '')
     .replace(/^\d+[.)]\s*/, '')
-    .replace(/\*+/g, '') // Strip bold/italic markdown delimiters
+    .replace(/[*_~`#]+/g, ' ') // Strip bold/italic/code markdown delimiters
     .trim()
 
   // Strip labeled prefix: "Exercise 1:", "Circuit A:", "Station 2:"

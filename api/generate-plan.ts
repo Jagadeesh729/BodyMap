@@ -1809,7 +1809,7 @@ export function cleanExerciseName(rawName: string): string {
     .replace(/\s*[—–]\s*.*$/, '')
     .trim()
 
-  cleaned = cleaned.replace(/^\*+|\*+$/g, '').trim()
+  cleaned = cleaned.replace(/[*_~`#]+/g, ' ').replace(/\s+/g, ' ').trim()
   return cleaned
 }
 
@@ -1826,7 +1826,7 @@ export function parseCanonicalExerciseLine(rawLine: string): CanonicalExercise[]
   let content = normalized
     .replace(/^[-*•]+\s*/, '')
     .replace(/^\d+[.)]\s*/, '')
-    .replace(/\*+/g, '')
+    .replace(/[*_~`#]+/g, ' ')
     .trim()
 
   content = stripLabeledItemPrefix(content)
@@ -2051,8 +2051,10 @@ export function scanPlanForContraindications(
         for (const exercise of canonicalExercises) {
           for (const config of activeCategories) {
             for (const forbiddenPattern of config.forbiddenPatterns) {
-              const rawMatches = forbiddenPattern.test(exercise.raw)
-              const nameMatches = forbiddenPattern.test(exercise.name)
+              const normRaw = normalizeExerciseString(exercise.raw)
+              const normName = normalizeExerciseString(exercise.name)
+              const rawMatches = forbiddenPattern.test(normRaw)
+              const nameMatches = forbiddenPattern.test(normName)
 
               if (rawMatches || nameMatches) {
                 const evalResult = isPrescriptiveExerciseLine(exercise.raw, forbiddenPattern)

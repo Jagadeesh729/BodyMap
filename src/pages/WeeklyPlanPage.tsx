@@ -20,7 +20,8 @@ import {
   RefreshCw,
   X,
   Flame,
-  AlertTriangle
+  AlertTriangle,
+  AlertCircle
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/hooks/use-toast'
@@ -235,18 +236,23 @@ const WeeklyPlanPage: React.FC = () => {
 
   const allergenScanResult = useMemo(() => {
     if (!state.formData.allergies || !state.formData.allergies.trim()) return { hasViolation: false, violations: [] }
-    if (state.generatedPlan) {
-      return scanPlanForAllergens(state.generatedPlan, state.formData.allergies)
-    }
+    const planScan = state.generatedPlan
+      ? scanPlanForAllergens(state.generatedPlan, state.formData.allergies)
+      : { hasViolation: false, violations: [] }
     const activeCats = getActiveAllergenCategories(state.formData.allergies)
-    if (activeCats.length === 0) return { hasViolation: false, violations: [] }
+    if (activeCats.length === 0) return planScan
+    const displayedViolations = []
     for (const text of allMealTexts) {
       const scan = scanMealTextForAllergens(text, activeCats)
       if (scan.hasViolation) {
-        return { hasViolation: true, violations: scan.violations }
+        displayedViolations.push(...scan.violations)
       }
     }
-    return { hasViolation: false, violations: [] }
+    const hasViolation = planScan.hasViolation || displayedViolations.length > 0
+    return {
+      hasViolation,
+      violations: [...planScan.violations, ...displayedViolations]
+    }
   }, [state.generatedPlan, state.formData.allergies, allMealTexts])
 
   const hasMedicalIssues = useMemo(() => {
@@ -257,9 +263,28 @@ const WeeklyPlanPage: React.FC = () => {
     return evaluatePlanProfileBinding(state.formData, state.boundProfile)
   }, [state.formData, state.boundProfile])
 
+  const displayExerciseLines = useMemo(() => {
+    const lines: string[] = []
+    for (const d of displayDays) {
+      if (d.workout?.main) lines.push(...d.workout.main)
+      if (d.workout?.warmup) lines.push(...d.workout.warmup)
+      if (d.workout?.cooldown) lines.push(...d.workout.cooldown)
+    }
+    return lines.join('\n')
+  }, [displayDays])
+
+  const displayContraScan = useMemo(() => {
+    return scanPlanForContraindications(displayExerciseLines, state.formData.medicalIssues)
+  }, [displayExerciseLines, state.formData.medicalIssues])
+
   const contraindicationScanResult = useMemo(() => {
-    return scanPlanForContraindications(state.generatedPlan, state.formData.medicalIssues)
-  }, [state.generatedPlan, state.formData.medicalIssues])
+    const rawScan = scanPlanForContraindications(state.generatedPlan, state.formData.medicalIssues)
+    return {
+      hasViolation: rawScan.hasViolation || displayContraScan.hasViolation,
+      violations: [...rawScan.violations, ...displayContraScan.violations],
+      scannedExerciseCount: rawScan.scannedExerciseCount + displayContraScan.scannedExerciseCount
+    }
+  }, [state.generatedPlan, state.formData.medicalIssues, displayContraScan])
 
   const isWorkoutLocked = bindingEval.isSafetyMismatched || contraindicationScanResult.hasViolation
 
@@ -307,6 +332,7 @@ const WeeklyPlanPage: React.FC = () => {
             </Link>
           </div>
         )}
+
 
         {allergenScanResult.hasViolation && (
           <div className="mb-8 p-4 sm:p-6 bg-red-500/10 border-2 border-red-500/40 rounded-xl flex items-start gap-4 shadow-lg shadow-red-500/5">

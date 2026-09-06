@@ -10,6 +10,7 @@ import { toast } from '@/hooks/use-toast'
 import { usePlan } from '@/context/PlanContext'
 import { callGeminiWithFormData, AllergenSafetyError, MedicalContraindicationError, MOCK_PLAN } from '@/lib/gemini'
 import { getActiveAllergenCategories, scanPlanForAllergens } from '@/lib/allergenGuard'
+import { scanPlanForContraindications } from '@/lib/contraindicationGuard'
 import { hasSafetySensitiveMedicalIssues } from '@/lib/validation'
 
 const BODY_FOCUS_AREAS = ['Belly', 'Arms', 'Legs', 'Butt', 'Chest', 'Back', 'Shoulders', 'Full Body']
@@ -139,10 +140,11 @@ const EditPlanPage = () => {
       const activeAllergens = getActiveAllergenCategories(localForm.allergies)
       const mockScan = scanPlanForAllergens(MOCK_PLAN, localForm.allergies)
       const hasMedical = hasSafetySensitiveMedicalIssues(localForm.medicalIssues)
+      const mockContraScan = scanPlanForContraindications(MOCK_PLAN, localForm.medicalIssues)
 
-      if (activeAllergens.length > 0 || mockScan.hasViolation || hasMedical) {
+      if (activeAllergens.length > 0 || mockScan.hasViolation || hasMedical || mockContraScan.hasViolation) {
         console.warn('AI regeneration failed and user has declared safety constraints; blocking generic mock plan:', err)
-        const reasonText = hasMedical
+        const reasonText = (hasMedical || mockContraScan.hasViolation)
           ? 'Because you have declared medical conditions or physical limitations'
           : 'Because you have declared food allergies'
         toast({
@@ -155,7 +157,7 @@ const EditPlanPage = () => {
 
       console.warn('Gemini API unavailable:', err)
       setFormData(localForm)
-      setGeneratedPlan(MOCK_PLAN)
+      setGeneratedPlan(MOCK_PLAN, merged)
       toast({ title: 'Demo Plan Loaded', description: 'API unavailable. Showing a sample plan.', variant: 'destructive' })
       navigate('/weekly-plan')
     } finally {

@@ -33,7 +33,8 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from '@/hooks/use-toast'
-import { usePlan } from '@/context/PlanContext'
+import { usePlan, initialState, type PlanState } from '@/context/PlanContext'
+import { computeProfileFingerprint } from '@/lib/planBinding'
 import {
   loadWorkoutHistory,
   loadActiveSession,
@@ -296,9 +297,16 @@ const DashboardPage: React.FC = () => {
   const executePlanSwitch = (plan: SavedPlan) => {
     // Purge any active workout session from prior routine to prevent cross-plan state contamination
     clearActiveSession()
+    const safePlanState: PlanState = {
+      ...initialState,
+      ...plan.planState,
+      planId: plan.planState.planId || `plan_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      boundProfile: plan.planState.boundProfile || plan.planState.formData,
+      boundProfileFingerprint: plan.planState.boundProfileFingerprint || (plan.planState.formData ? computeProfileFingerprint(plan.planState.formData) : undefined),
+    }
     dispatch({
       type: 'LOAD_SAVED_PLAN',
-      payload: plan.planState
+      payload: safePlanState
     })
     setPendingPlanSwitch(null)
     setIsPlanSwitchConfirmOpen(false)

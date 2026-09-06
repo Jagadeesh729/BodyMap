@@ -14,7 +14,8 @@ import {
   ShieldCheck,
   Database,
   Upload,
-  Activity
+  Activity,
+  AlertCircle
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,6 +26,9 @@ import { parseAndValidatePlan } from '@/lib/planSchema'
 import { calculateBMI } from '@/lib/bmi'
 import { DEFAULT_WEEKLY_PLAN, type DayPlan } from '@/types/plan'
 import { BodyMapLogo } from '@/components/BodyMapLogo'
+import { evaluatePlanProfileBinding } from '@/lib/planBinding'
+import { scanPlanForContraindications } from '@/lib/contraindicationGuard'
+import { scanPlanForAllergens } from '@/lib/allergenGuard'
 import { exportBackupToFile, validateAndParseBackup, restoreBackupData, generateBackupPayload } from '@/lib/backupStorage'
 import { validateBackupPayload } from '@/lib/backupIntegrity'
 import { analyzeBackupDiagnostics } from '@/lib/backupDiagnostics'
@@ -80,6 +84,12 @@ const DownloadPlanPage = () => {
     '---',
     'Visit BodyMap at https://bodymap-ai.vercel.app to customize your schedule.'
   ].join('\n')
+
+  const bindingEval = evaluatePlanProfileBinding(formData, state.boundProfile)
+  const contraScan = scanPlanForContraindications(planText, formData.medicalIssues)
+  const allergenScan = scanPlanForAllergens(planText, formData.allergies)
+  const isPlanCorrupted = Boolean(state.isGenerated && (!parsedAiPlan || !parsedAiPlan.success))
+  const isSafetyViolated = bindingEval.isSafetyMismatched || contraScan.hasViolation || allergenScan.hasViolation || isPlanCorrupted
 
   const handleDownloadMarkdown = () => {
     const blob = new Blob([planText], { type: 'text/markdown;charset=utf-8' })
@@ -229,6 +239,23 @@ const DownloadPlanPage = () => {
             <ArrowLeft className="w-4 h-4 mr-2" aria-hidden="true" />
             Back to 7-Day Plan
           </Link>
+
+          {isSafetyViolated && (
+            <div className="mb-8 p-4 sm:p-6 bg-bright-coral/10 border-2 border-bright-coral/50 rounded-xl flex items-start gap-4 shadow-lg shadow-bright-coral/10 animate-fade-in">
+              <AlertCircle className="w-8 h-8 text-bright-coral shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h2 className="font-poppins font-semibold text-bright-coral text-base sm:text-lg">
+                  Safety Warning — Plan Conflicts with Health Profile
+                </h2>
+                <p className="text-secondary-text font-open-sans text-xs sm:text-sm mt-1">
+                  This plan contains exercises, allergens, or structural conflicts that do not match your current health profile ({formData.medicalIssues || formData.allergies || 'Profile mismatch'}). Please return to your plan and regenerate it before following these recommendations.
+                </p>
+              </div>
+              <Link to="/edit-plan" className="btn-primary whitespace-nowrap text-xs sm:text-sm py-2 px-4 self-center sm:self-auto shrink-0">
+                Regenerate Plan
+              </Link>
+            </div>
+          )}
 
           {/* Header */}
           <div className="text-center mb-10">

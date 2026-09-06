@@ -11,7 +11,7 @@ import { toast } from '@/hooks/use-toast'
 import { usePlan } from '@/context/PlanContext'
 import { callGeminiWithFormData, AllergenSafetyError, MedicalContraindicationError, MOCK_PLAN } from '@/lib/gemini'
 import { getActiveAllergenCategories, scanPlanForAllergens } from '@/lib/allergenGuard'
-
+import { scanPlanForContraindications } from '@/lib/contraindicationGuard'
 import { validateStep, hasSafetySensitiveMedicalIssues } from '@/lib/validation'
 import { calculateBMI } from '@/lib/bmi'
 import type { FormData } from '@/context/PlanContext'
@@ -172,10 +172,11 @@ const CreatePlanPage = () => {
         const activeAllergens = getActiveAllergenCategories(formData.allergies)
         const mockScan = scanPlanForAllergens(MOCK_PLAN, formData.allergies)
         const hasMedical = hasSafetySensitiveMedicalIssues(formData.medicalIssues)
+        const mockContraScan = scanPlanForContraindications(MOCK_PLAN, formData.medicalIssues)
 
-        if (activeAllergens.length > 0 || mockScan.hasViolation || hasMedical) {
+        if (activeAllergens.length > 0 || mockScan.hasViolation || hasMedical || mockContraScan.hasViolation) {
           console.warn('AI generation failed and user has declared safety constraints; blocking generic mock plan:', apiErr)
-          const reasonText = hasMedical
+          const reasonText = (hasMedical || mockContraScan.hasViolation)
             ? 'Because you have declared medical conditions or physical limitations'
             : 'Because you have declared food allergies'
           toast({

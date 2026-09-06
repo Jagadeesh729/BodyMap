@@ -59,6 +59,10 @@ export function loadSavedPlans(): SavedPlan[] {
             formData: item.planState.formData || {},
             generatedPlan: typeof item.planState.generatedPlan === 'string' ? item.planState.generatedPlan : '',
             isGenerated: Boolean(item.planState.isGenerated),
+            planId: typeof item.planState.planId === 'string' ? item.planState.planId : undefined,
+            planGeneratedAt: typeof item.planState.planGeneratedAt === 'number' ? item.planState.planGeneratedAt : undefined,
+            boundProfile: item.planState.boundProfile && typeof item.planState.boundProfile === 'object' ? item.planState.boundProfile : undefined,
+            boundProfileFingerprint: typeof item.planState.boundProfileFingerprint === 'string' ? item.planState.boundProfileFingerprint : undefined,
             weightLog: Array.isArray(item.planState.weightLog) ? item.planState.weightLog : [],
             completedDays: Array.isArray(item.planState.completedDays) ? item.planState.completedDays : []
           }
@@ -114,6 +118,10 @@ export function savePlanToLibrary(
       formData: { ...planState.formData },
       generatedPlan: planState.generatedPlan,
       isGenerated: planState.isGenerated,
+      planId: planState.planId,
+      planGeneratedAt: planState.planGeneratedAt,
+      boundProfile: planState.boundProfile ? { ...planState.boundProfile } : undefined,
+      boundProfileFingerprint: planState.boundProfileFingerprint,
       weightLog: [...planState.weightLog],
       completedDays: [...planState.completedDays]
     }

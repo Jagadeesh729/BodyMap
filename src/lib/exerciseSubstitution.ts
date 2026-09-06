@@ -1,4 +1,5 @@
 import type { SessionExercise, WorkoutSet } from '@/types/workoutSession'
+import { scanPlanForContraindications } from './contraindicationGuard'
 import {
   parseCanonicalExerciseLine,
   cleanExerciseName,
@@ -278,12 +279,16 @@ const BIOMECHANICAL_FAMILIES: BiomechanicalFamily[] = [
   }
 ]
 
-export function getExerciseAlternatives(exerciseName: string): ExerciseAlternative[] {
+export function getExerciseAlternatives(exerciseName: string, medicalIssues?: string): ExerciseAlternative[] {
   const normalized = exerciseName.toLowerCase().trim()
 
   for (const family of BIOMECHANICAL_FAMILIES) {
     if (family.keywords.some(k => normalized.includes(k))) {
-      return family.alternatives.filter(alt => alt.name.toLowerCase() !== normalized)
+      const candidates = family.alternatives.filter(alt => alt.name.toLowerCase() !== normalized)
+      if (medicalIssues && medicalIssues.trim()) {
+        return candidates.filter(alt => !scanPlanForContraindications(alt.name, medicalIssues).hasViolation)
+      }
+      return candidates
     }
   }
 
