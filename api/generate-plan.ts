@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
 const DEFAULT_GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash'
-const MAX_PAYLOAD_SIZE = 16 * 1024 // 16 KB max request size
+export const MAX_PAYLOAD_SIZE = 16 * 1024 // 16 KiB (16,384 bytes) max request size
 
 // --- Domain Schema & Types (Self-Contained for Zero-Dependency Serverless Execution) ---
 
@@ -2126,40 +2126,82 @@ export function checkRateLimit(ip: string): { allowed: boolean; remaining: numbe
 }
 
 /**
- * Universal body parser that works across Vercel Serverless (pre-parsed req.body)
+ * Universal byte-accurate body parser that works across Vercel Serverless (pre-parsed req.body)
  * and raw Node.js / unit tests (streaming IncomingMessage).
+ * Strictly measures UTF-8 wire byte counts rather than UTF-16 string length.
  */
-async function parseRequestBody(req: IncomingMessage & { body?: unknown }): Promise<Record<string, unknown>> {
-  if (req.body !== undefined && req.body !== null) {
-    if (typeof req.body === 'string') {
-      if (req.body.length > MAX_PAYLOAD_SIZE) {
-        throw new Error('PAYLOAD_TOO_LARGE')
-      }
-      try {
-        return JSON.parse(req.body)
-      } catch {
-        throw new Error('MALFORMED_JSON')
-      }
-    }
-    if (typeof req.body === 'object') {
-      const serialized = JSON.stringify(req.body)
-      if (serialized.length > MAX_PAYLOAD_SIZE) {
-        throw new Error('PAYLOAD_TOO_LARGE')
-      }
-      return req.body as Record<string, unknown>
+export async function parseRequestBody(req: IncomingMessage & { body?: unknown }): Promise<Record<string, unknown>> {
+  // 1. Fast early rejection on declared Content-Length header (if present & valid)
+  const rawContentLength = req.headers['content-length']
+  if (rawContentLength) {
+    const declaredLength = parseInt(Array.isArray(rawContentLength) ? rawContentLength[0] : rawContentLength, 10)
+    if (!isNaN(declaredLength) && declaredLength > MAX_PAYLOAD_SIZE) {
+      throw new Error('PAYLOAD_TOO_LARGE')
     }
   }
 
+  // 2. Pre-parsed Buffer delivery mode
+  if (Buffer.isBuffer(req.body)) {
+    if (req.body.length > MAX_PAYLOAD_SIZE) {
+      throw new Error('PAYLOAD_TOO_LARGE')
+    }
+    const str = req.body.toString('utf8')
+    if (!str || str.trim().length === 0) {
+      return {}
+    }
+    try {
+      return JSON.parse(str)
+    } catch {
+      throw new Error('MALFORMED_JSON')
+    }
+  }
+
+  // 3. Pre-parsed String delivery mode (measured by UTF-8 wire byte length)
+  if (typeof req.body === 'string') {
+    if (Buffer.byteLength(req.body, 'utf8') > MAX_PAYLOAD_SIZE) {
+      throw new Error('PAYLOAD_TOO_LARGE')
+    }
+    if (!req.body || req.body.trim().length === 0) {
+      return {}
+    }
+    try {
+      return JSON.parse(req.body)
+    } catch {
+      throw new Error('MALFORMED_JSON')
+    }
+  }
+
+  // 4. Pre-parsed Object delivery mode (measured by serialized UTF-8 wire byte length)
+  if (req.body !== undefined && req.body !== null && typeof req.body === 'object') {
+    const serialized = JSON.stringify(req.body)
+    if (Buffer.byteLength(serialized, 'utf8') > MAX_PAYLOAD_SIZE) {
+      throw new Error('PAYLOAD_TOO_LARGE')
+    }
+    return req.body as Record<string, unknown>
+  }
+
+  // 5. Raw Streamed Body delivery mode (tracks incoming raw byte count)
   return new Promise((resolve, reject) => {
-    let rawBody = ''
+    let totalBytes = 0
+    const chunks: Buffer[] = []
+
     req.on('data', (chunk: Buffer | string) => {
-      rawBody += chunk.toString()
-      if (rawBody.length > MAX_PAYLOAD_SIZE) {
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, 'utf8')
+      totalBytes += buf.length
+      if (totalBytes > MAX_PAYLOAD_SIZE) {
         req.destroy()
         reject(new Error('PAYLOAD_TOO_LARGE'))
+        return
       }
+      chunks.push(buf)
     })
+
     req.on('end', () => {
+      if (chunks.length === 0) {
+        resolve({})
+        return
+      }
+      const rawBody = Buffer.concat(chunks).toString('utf8')
       if (!rawBody || rawBody.trim().length === 0) {
         resolve({})
         return
@@ -2170,6 +2212,7 @@ async function parseRequestBody(req: IncomingMessage & { body?: unknown }): Prom
         reject(new Error('MALFORMED_JSON'))
       }
     })
+
     req.on('error', (err) => {
       reject(err)
     })
@@ -2517,12 +2560,17 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
       executionSource: 'live-gemini',
     }))
   } catch (err: unknown) {
+    const rawError = (err as Error)?.message || 'Internal Server Error'
+    const sanitizedError = apiKey ? rawError.split(apiKey).join('[REDACTED]') : rawError
+    const boundedError = sanitizedError.slice(0, 200)
+
     res.statusCode = 500
     res.setHeader('Content-Type', 'application/json')
     res.end(JSON.stringify({
-      error: (err as Error).message || 'Internal Server Error',
+      error: boundedError,
       requestId,
       executionSource: 'upstream-error',
     }))
   }
 }
+
