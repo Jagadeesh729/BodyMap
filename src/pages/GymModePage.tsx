@@ -203,7 +203,7 @@ export const GymModePage: React.FC = () => {
   // executing or persisting obsolete/contraindicated exercises.
   useEffect(() => {
     if (session.status === 'in-progress') {
-      const isPlanMismatch = Boolean(state.planId && (!session.planId || state.planId !== session.planId))
+      const isPlanMismatch = state.planId !== session.planId
       const curMed = (state.formData.medicalIssues || '').trim().toLowerCase()
       const snapMed = (session.medicalSnapshot || '').trim().toLowerCase()
       const isMedicalDiverged = curMed !== snapMed && (

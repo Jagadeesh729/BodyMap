@@ -1,5 +1,5 @@
 import type { PlanState } from '@/context/PlanContext'
-import { loadPersistedState, savePersistedState } from '@/context/planStorage'
+import { loadPersistedState, savePersistedState, buildSafeState, STORAGE_KEY } from '@/context/planStorage'
 import type { WorkoutSession, CompletedWorkoutLog } from '@/types/workoutSession'
 import {
   loadActiveSession,
@@ -87,12 +87,23 @@ export function validateAndParseBackup(
       return { success: false, error: 'Invalid backup: Missing or invalid planState data.' }
     }
 
+    const safePlanState = buildSafeState(parsed.planState)
+    if (!safePlanState) {
+      return { success: false, error: 'Invalid backup: Missing or invalid planState data.' }
+    }
+
     // Process and validate saved plans
     const validatedSavedPlans: SavedPlan[] = []
     if (Array.isArray(parsed.savedPlans)) {
       for (const sp of parsed.savedPlans) {
         if (sp && typeof sp === 'object' && typeof sp.id === 'string' && typeof sp.name === 'string' && sp.planState) {
-          validatedSavedPlans.push(sp as SavedPlan)
+          const safeSpPlan = buildSafeState(sp.planState)
+          if (safeSpPlan) {
+            validatedSavedPlans.push({
+              ...(sp as SavedPlan),
+              planState: safeSpPlan,
+            })
+          }
         }
       }
     }
@@ -122,7 +133,7 @@ export function validateAndParseBackup(
       schema: BACKUP_SCHEMA_IDENTIFIER,
       exportedAt: typeof parsed.exportedAt === 'string' ? parsed.exportedAt : new Date().toISOString(),
       userName: typeof parsed.userName === 'string' ? parsed.userName : 'Athlete',
-      planState: parsed.planState as PlanState,
+      planState: safePlanState,
       savedPlans: validatedSavedPlans,
       bodyMetrics: validatedBodyMetrics,
       activeSession: parsed.activeSession && typeof parsed.activeSession === 'object' ? (parsed.activeSession as WorkoutSession) : null,
@@ -150,6 +161,7 @@ export function validateAndParseBackup(
 export function restoreBackupData(backup: BodyMapBackupV2): { success: boolean; error?: string } {
   // --- Snapshot current storage state BEFORE touching anything ---
   const SNAPSHOT_KEYS = [
+    STORAGE_KEY,
     'bodymap_plan_state',
     'bodymap_user_name',
     'bodymap_saved_plans',
@@ -188,7 +200,10 @@ export function restoreBackupData(backup: BodyMapBackupV2): { success: boolean; 
 
   try {
     // 1. Restore PlanState
-    savePersistedState(backup.planState)
+    const saved = savePersistedState(backup.planState)
+    if (!saved) {
+      throw new Error('Failed to persist planState')
+    }
 
     // 2. Restore User Display Name
     if (backup.userName) {

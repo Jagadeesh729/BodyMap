@@ -35,7 +35,10 @@ export function loadActiveSession(): WorkoutSession | null {
       !parsed.sessionId ||
       typeof parsed.sessionId !== 'string' ||
       !Array.isArray(parsed.exercises) ||
-      parsed.exercises.length === 0
+      parsed.exercises.length === 0 ||
+      parsed.exercises.some(
+        e => !e || typeof e !== 'object' || typeof e.name !== 'string' || e.name.trim().length === 0
+      )
     ) {
       clearActiveSession()
       return null
@@ -77,12 +80,10 @@ export function loadAndValidateActiveSession(
   const session = loadActiveSession()
   if (!session) return null
 
-  // 1. Plan Provenance check (fail closed: no wildcards)
-  if (currentPlanId) {
-    if (!session.planId || session.planId !== currentPlanId) {
-      clearActiveSession()
-      return null
-    }
+  // 1. Plan Provenance check (fail closed: active planId must strictly match session planId)
+  if (currentPlanId !== session.planId) {
+    clearActiveSession()
+    return null
   }
 
   // 2. Medical Profile check (fail closed: no wildcards or asymmetric skips)
@@ -98,7 +99,7 @@ export function loadAndValidateActiveSession(
   }
 
   // 3. Exercise Contraindication scan on runtime session exercises
-  if (curMed.length > 0) {
+  if (curMed.length > 0 && session.exercises.length > 0) {
     const exerciseNames = session.exercises.map(e => e.name).join('\n')
     const scan = scanPlanForContraindications(exerciseNames, currentMedicalIssues)
     if (scan.hasViolation) {
@@ -138,10 +139,12 @@ export function loadWorkoutHistory(): CompletedWorkoutLog[] {
     if (!raw) return []
     const parsed = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
-    return parsed.filter(
-      (item): item is CompletedWorkoutLog =>
-        Boolean(item && typeof item === 'object' && typeof item.id === 'string' && typeof item.dayTitle === 'string')
-    )
+    return parsed
+      .filter(
+        (item): item is CompletedWorkoutLog =>
+          Boolean(item && typeof item === 'object' && typeof item.id === 'string' && typeof item.dayTitle === 'string')
+      )
+      .slice(0, MAX_STORED_WORKOUTS)
   } catch (err) {
     console.warn('[SessionStorage] Corrupted workout history recovered:', err)
     return []

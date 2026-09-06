@@ -34,6 +34,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from '@/hooks/use-toast'
 import { usePlan, initialState, type PlanState } from '@/context/PlanContext'
+import { buildSafeState } from '@/context/planStorage'
+import { hasSafetySensitiveMedicalIssues } from '@/lib/validation'
+import { getActiveAllergenCategories } from '@/lib/allergenGuard'
 import { computeProfileFingerprint } from '@/lib/planBinding'
 import {
   loadWorkoutHistory,
@@ -297,16 +300,44 @@ const DashboardPage: React.FC = () => {
   const executePlanSwitch = (plan: SavedPlan) => {
     // Purge any active workout session from prior routine to prevent cross-plan state contamination
     clearActiveSession()
-    const safePlanState: PlanState = {
+
+    // Canonical validation and sanitization of saved plan state
+    const rawCandidate = {
       ...initialState,
       ...plan.planState,
       planId: plan.planState.planId || `plan_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       boundProfile: plan.planState.boundProfile || plan.planState.formData,
-      boundProfileFingerprint: plan.planState.boundProfileFingerprint || (plan.planState.formData ? computeProfileFingerprint(plan.planState.formData) : undefined),
+      boundProfileFingerprint:
+        plan.planState.boundProfileFingerprint ||
+        (plan.planState.boundProfile
+          ? computeProfileFingerprint(plan.planState.boundProfile)
+          : plan.planState.formData
+          ? computeProfileFingerprint(plan.planState.formData)
+          : undefined),
     }
+
+    const validated = buildSafeState(rawCandidate) || initialState
+
+    // Health Profile Preservation:
+    // If current profile has safety-critical medical constraints or active allergens,
+    // preserve them in formData so that evaluatePlanProfileBinding will detect any
+    // safety divergence against the saved plan's boundProfile and enforce the safety lockout!
+    const currentHasMedical = hasSafetySensitiveMedicalIssues(state.formData.medicalIssues)
+    const currentHasAllergens = getActiveAllergenCategories(state.formData.allergies).length > 0
+
+    const finalPlanState: PlanState = {
+      ...validated,
+      formData: {
+        ...validated.formData,
+        ...(currentHasMedical ? { medicalIssues: state.formData.medicalIssues } : {}),
+        ...(currentHasAllergens ? { allergies: state.formData.allergies } : {}),
+      },
+      stateVersion: undefined, // Freshly activated plan receives newly incremented Lamport version on persist
+    }
+
     dispatch({
       type: 'LOAD_SAVED_PLAN',
-      payload: safePlanState
+      payload: finalPlanState,
     })
     setPendingPlanSwitch(null)
     setIsPlanSwitchConfirmOpen(false)

@@ -12,6 +12,7 @@ import { callGeminiWithFormData, AllergenSafetyError, MedicalContraindicationErr
 import { getActiveAllergenCategories, scanPlanForAllergens } from '@/lib/allergenGuard'
 import { scanPlanForContraindications } from '@/lib/contraindicationGuard'
 import { hasSafetySensitiveMedicalIssues } from '@/lib/validation'
+import { evaluatePlanProfileBinding } from '@/lib/planBinding'
 
 const BODY_FOCUS_AREAS = ['Belly', 'Arms', 'Legs', 'Butt', 'Chest', 'Back', 'Shoulders', 'Full Body']
 
@@ -109,6 +110,18 @@ const EditPlanPage = () => {
       const plan = await callGeminiWithFormData(merged)
 
       if (seq !== generationSeqRef.current) return
+
+      // Fail-closed async race check:
+      const bindingCheck = evaluatePlanProfileBinding(state.formData, merged)
+      if (bindingCheck.isSafetyMismatched) {
+        toast({
+          title: 'Health Profile Changed',
+          description: 'Your health profile was updated while regeneration was in progress. The generated plan was not admitted to prevent safety contraindications.',
+          variant: 'destructive',
+        })
+        return
+      }
+
       setFormData(localForm)
       setGeneratedPlan(plan, merged)
       toast({ title: 'Plan Regenerated!', description: 'Your new personalized plan is ready.' })

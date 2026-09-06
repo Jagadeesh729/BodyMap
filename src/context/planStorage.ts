@@ -72,11 +72,11 @@ export function compareVersions(a?: StateVersion | null, b?: StateVersion | null
  * client-side without a server-authoritative reference. That is the
  * documented residual architectural boundary.
  */
-function isBoundProfileSafetyDiverged(
+export function isBoundProfileSafetyDiverged(
   formDataMedical: string,
   formDataAllergies: string,
   boundMedical: string,
-  boundAllergies: string,
+  boundAllergies: string
 ): boolean {
   const medicalDiverged =
     formDataMedical.trim().toLowerCase() !== boundMedical.trim().toLowerCase() &&
@@ -88,10 +88,61 @@ function isBoundProfileSafetyDiverged(
 }
 
 /**
+ * Sanitizes untrusted form data objects into canonical, prototype-safe FormData.
+ * Extracts only explicit known fields and enforces length/item bounds to prevent
+ * memory amplification and prototype pollution.
+ */
+export function sanitizeFormData(raw: unknown): FormData {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { ...initialState.formData }
+  }
+  const r = raw as Record<string, unknown>
+
+  const sanitizeString = (val: unknown, maxLen = 50): string => {
+    if (typeof val !== 'string') return ''
+    return val.trim().slice(0, maxLen)
+  }
+
+  const sanitizeArray = (val: unknown, maxItems = 50, maxItemLen = 50): string[] => {
+    if (!Array.isArray(val)) return []
+    const out: string[] = []
+    for (const item of val) {
+      if (typeof item === 'string') {
+        const clean = item.trim().slice(0, maxItemLen)
+        if (clean.length > 0 && out.length < maxItems) {
+          out.push(clean)
+        }
+      }
+    }
+    return out
+  }
+
+  return {
+    age: sanitizeString(r.age, 20),
+    gender: sanitizeString(r.gender, 30),
+    height: sanitizeString(r.height, 20),
+    weight: sanitizeString(r.weight, 20),
+    fitnessLevel: sanitizeString(r.fitnessLevel, 50),
+    mainGoal: sanitizeString(r.mainGoal, 50),
+    bodyFocus: sanitizeArray(r.bodyFocus, 50, 50),
+    timePerDay: sanitizeString(r.timePerDay, 20),
+    medicalIssues: sanitizeString(r.medicalIssues, 1000),
+    equipment: sanitizeArray(r.equipment, 50, 50),
+    pushupCount: sanitizeString(r.pushupCount, 20),
+    dietaryPreference: sanitizeString(r.dietaryPreference, 100),
+    allergies: sanitizeString(r.allergies, 1000),
+    specialRequests: sanitizeString(r.specialRequests, 1000),
+    recoveryDays: sanitizeString(r.recoveryDays, 30),
+    sleepHours: sanitizeString(r.sleepHours, 20),
+    stressLevel: sanitizeString(r.stressLevel, 30),
+  }
+}
+
+/**
  * Validates and extracts a safe StateVersion object from parsed JSON.
  * Returns undefined if missing, malformed, non-numeric, or non-finite.
  */
-function extractSafeVersion(raw: unknown): StateVersion | undefined {
+export function extractSafeVersion(raw: unknown): StateVersion | undefined {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
   const v = raw as Record<string, unknown>
   if (
@@ -102,6 +153,8 @@ function extractSafeVersion(raw: unknown): StateVersion | undefined {
     v.counter > 1e9 ||
     typeof v.timestamp !== 'number' ||
     !Number.isFinite(v.timestamp) ||
+    v.timestamp <= 0 ||
+    v.timestamp > Date.now() + 86400000 ||
     typeof v.writerId !== 'string' ||
     v.writerId.trim().length === 0 ||
     v.writerId.length > 128
@@ -116,80 +169,125 @@ function extractSafeVersion(raw: unknown): StateVersion | undefined {
 }
 
 /**
- * Internal function that validates and reconstructs a PlanState from a parsed
- * (already JSON.parse'd) object. Shared by loadPersistedState() and
- * parseSafeIncomingState() to avoid duplicating validation logic.
+ * Validates, sanitizes, and reconstructs a PlanState from an untrusted parsed object.
+ * Enforces canonical schema bounds, boundProfile integrity, and safety-divergence checks.
  * Returns null if the input is not a valid non-null plain object.
  */
-function buildSafeState(parsed: Partial<PlanState>): PlanState | null {
+export function buildSafeState(parsed: Partial<PlanState> | unknown): PlanState | null {
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
 
-  const rawForm = parsed.formData && typeof parsed.formData === 'object' && !Array.isArray(parsed.formData)
-    ? parsed.formData
-    : {}
-  const restoredFormData = {
-    ...initialState.formData,
-    ...rawForm,
+  const raw = parsed as Record<string, unknown>
+
+  // 1. Sanitize formData
+  const restoredFormData = sanitizeFormData(raw.formData)
+
+  // 2. Sanitize boundProfile
+  let safeBoundProfile: FormData | undefined = undefined
+  if (raw.boundProfile !== undefined && raw.boundProfile !== null) {
+    if (typeof raw.boundProfile === 'object') {
+      const sanitizedBound = sanitizeFormData(raw.boundProfile)
+      // Check safety divergence
+      if (
+        !isBoundProfileSafetyDiverged(
+          restoredFormData.medicalIssues,
+          restoredFormData.allergies,
+          sanitizedBound.medicalIssues,
+          sanitizedBound.allergies,
+        )
+      ) {
+        safeBoundProfile = sanitizedBound
+      }
+    }
   }
 
-  const rawBoundProfile =
-    parsed.boundProfile && typeof parsed.boundProfile === 'object'
-      ? { ...initialState.formData, ...parsed.boundProfile }
-      : undefined
-
-  let safeBoundProfile: typeof rawBoundProfile =
-    rawBoundProfile &&
-    isBoundProfileSafetyDiverged(
-      restoredFormData.medicalIssues ?? '',
-      restoredFormData.allergies ?? '',
-      rawBoundProfile.medicalIssues ?? '',
-      rawBoundProfile.allergies ?? '',
-    )
-      ? undefined
-      : rawBoundProfile
-
-  // Bound Profile Fingerprint verification:
-  // If boundProfileFingerprint is present in storage, verify integrity.
-  // Tampering with boundProfile fields in localStorage without a matching fingerprint
-  // fails closed by invalidating boundProfile (forcing safety mismatch lockout).
-  if (safeBoundProfile && typeof parsed.boundProfileFingerprint === 'string' && parsed.boundProfileFingerprint.trim().length > 0) {
-    const computed = computeProfileFingerprint(safeBoundProfile)
-    if (computed !== parsed.boundProfileFingerprint.trim()) {
+  // 3. Bound Profile Fingerprint verification:
+  if (safeBoundProfile && raw.boundProfileFingerprint !== undefined) {
+    if (
+      typeof raw.boundProfileFingerprint !== 'string' ||
+      raw.boundProfileFingerprint.trim().length === 0 ||
+      computeProfileFingerprint(safeBoundProfile) !== raw.boundProfileFingerprint.trim()
+    ) {
       safeBoundProfile = undefined
     }
   }
 
   const safeFingerprint = safeBoundProfile
-    ? (typeof parsed.boundProfileFingerprint === 'string' && parsed.boundProfileFingerprint.trim().length > 0
-        ? parsed.boundProfileFingerprint.trim()
+    ? (typeof raw.boundProfileFingerprint === 'string' && raw.boundProfileFingerprint.trim().length > 0
+        ? raw.boundProfileFingerprint.trim()
         : computeProfileFingerprint(safeBoundProfile))
     : undefined
 
-  const safeVersion = extractSafeVersion(parsed.stateVersion)
+  // 4. Safe Version
+  const safeVersion = extractSafeVersion(raw.stateVersion)
+
+  // 5. Plan identity & generation timestamp
+  const safePlanId = typeof raw.planId === 'string' && raw.planId.trim().length > 0
+    ? raw.planId.trim().slice(0, 128)
+    : undefined
+
+  const safePlanGeneratedAt = typeof raw.planGeneratedAt === 'number' &&
+    Number.isFinite(raw.planGeneratedAt) &&
+    raw.planGeneratedAt > 0 &&
+    raw.planGeneratedAt <= Date.now() + 86400000
+      ? raw.planGeneratedAt
+      : undefined
+
+  // 6. Generated plan string (cap at 250,000 chars)
+  const safeGeneratedPlan = typeof raw.generatedPlan === 'string'
+    ? raw.generatedPlan.slice(0, 250000)
+    : ''
+
+  // 7. Weight Log (cap at 1000 entries, safe numeric weight)
+  const safeWeightLog: WeightEntry[] = Array.isArray(raw.weightLog)
+    ? (raw.weightLog as unknown[])
+        .filter((entry): entry is { date: string; weight: number } =>
+          Boolean(
+            entry &&
+            typeof entry === 'object' &&
+            typeof (entry as Record<string, unknown>).date === 'string' &&
+            typeof (entry as Record<string, unknown>).weight === 'number' &&
+            Number.isFinite((entry as { weight: number }).weight) &&
+            (entry as { weight: number }).weight >= 0 &&
+            (entry as { weight: number }).weight <= 1000
+          )
+        )
+        .slice(0, 1000)
+    : initialState.weightLog
+
+  // 8. Completed Days (cap at 1000 entries, dayIndex 0..6)
+  const safeCompletedDays: CompletedDay[] = Array.isArray(raw.completedDays)
+    ? (raw.completedDays as unknown[])
+        .filter((entry): entry is { date: string; dayIndex: number } =>
+          Boolean(
+            entry &&
+            typeof entry === 'object' &&
+            typeof (entry as Record<string, unknown>).date === 'string' &&
+            typeof (entry as Record<string, unknown>).dayIndex === 'number' &&
+            Number.isSafeInteger((entry as { dayIndex: number }).dayIndex) &&
+            (entry as { dayIndex: number }).dayIndex >= 0 &&
+            (entry as { dayIndex: number }).dayIndex <= 6
+          )
+        )
+        .slice(0, 1000)
+    : initialState.completedDays
 
   return {
     ...initialState,
-    ...parsed,
     formData: restoredFormData,
-    generatedPlan: typeof parsed.generatedPlan === 'string' ? parsed.generatedPlan : '',
-    isGenerated: Boolean(parsed.isGenerated),
-    planId: typeof parsed.planId === 'string' && parsed.planId.trim().length > 0 ? parsed.planId.trim() : undefined,
-    planGeneratedAt: typeof parsed.planGeneratedAt === 'number' && Number.isFinite(parsed.planGeneratedAt) ? parsed.planGeneratedAt : undefined,
+    generatedPlan: safeGeneratedPlan,
+    isGenerated: Boolean(raw.isGenerated),
+    planId: safePlanId,
+    planGeneratedAt: safePlanGeneratedAt,
     stateVersion: safeVersion,
     boundProfile: safeBoundProfile,
     boundProfileFingerprint: safeFingerprint,
-    weightLog: Array.isArray(parsed.weightLog)
-      ? parsed.weightLog.filter((entry): entry is { date: string; weight: number } =>
-          Boolean(entry && typeof entry === 'object' && typeof (entry as Record<string, unknown>).date === 'string' && typeof (entry as Record<string, unknown>).weight === 'number' && !isNaN((entry as { weight: number }).weight))
-        )
-      : initialState.weightLog,
-    completedDays: Array.isArray(parsed.completedDays)
-      ? parsed.completedDays.filter((entry): entry is { date: string; dayIndex: number } =>
-          Boolean(entry && typeof entry === 'object' && typeof (entry as Record<string, unknown>).date === 'string' && typeof (entry as Record<string, unknown>).dayIndex === 'number')
-        )
-      : initialState.completedDays,
+    weightLog: safeWeightLog,
+    completedDays: safeCompletedDays,
   }
 }
+
+/** Canonical alias for buildSafeState */
+export const sanitizePlanState = buildSafeState
 
 /**
  * Pure production storage loader for PlanState.

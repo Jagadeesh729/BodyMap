@@ -16,6 +16,7 @@ import {
   parseSafeIncomingState,
   compareVersions,
   STORAGE_KEY,
+  buildSafeState,
 } from './planStorage'
 
 export interface WeightEntry { date: string; weight: number }
@@ -73,7 +74,7 @@ export type PlanAction =
 export function planReducer(state: PlanState, action: PlanAction): PlanState {
   switch (action.type) {
     case 'SET_FORM_DATA':
-      return { ...state, formData: { ...state.formData, ...action.payload } }
+      return { ...state, formData: { ...state.formData, ...action.payload }, stateVersion: undefined }
     case 'SET_GENERATED_PLAN': {
       const planText = typeof action.payload === 'string' ? action.payload : action.payload.plan
       const profileSnapshot = typeof action.payload === 'object' && action.payload.formData
@@ -90,25 +91,18 @@ export function planReducer(state: PlanState, action: PlanAction): PlanState {
         formData: profileSnapshot,   // keep formData in sync with what was generated
         boundProfile: profileSnapshot,
         boundProfileFingerprint,
+        stateVersion: undefined,
       }
     }
     case 'RESET_PLAN':
       return { ...initialState }
     case 'LOG_WEIGHT':
-      return { ...state, weightLog: [...state.weightLog, action.payload] }
-    case 'LOAD_SAVED_PLAN':
-      return {
-        formData: action.payload.formData || { ...defaultFormData },
-        generatedPlan: action.payload.generatedPlan || '',
-        isGenerated: Boolean(action.payload.isGenerated),
-        planId: action.payload.planId,
-        planGeneratedAt: action.payload.planGeneratedAt,
-        boundProfile: action.payload.boundProfile,
-        boundProfileFingerprint: action.payload.boundProfileFingerprint,
-        stateVersion: action.payload.stateVersion,
-        weightLog: Array.isArray(action.payload.weightLog) ? action.payload.weightLog : [],
-        completedDays: Array.isArray(action.payload.completedDays) ? action.payload.completedDays : []
-      }
+      return { ...state, weightLog: [...state.weightLog, action.payload], stateVersion: undefined }
+    case 'LOAD_SAVED_PLAN': {
+      const safe = buildSafeState(action.payload)
+      if (!safe) return state
+      return safe
+    }
     case 'TOGGLE_DAY_COMPLETE': {
       const exists = state.completedDays.some(
         d => d.date === action.payload.date && d.dayIndex === action.payload.dayIndex
@@ -118,6 +112,7 @@ export function planReducer(state: PlanState, action: PlanAction): PlanState {
         completedDays: exists
           ? state.completedDays.filter(d => !(d.date === action.payload.date && d.dayIndex === action.payload.dayIndex))
           : [...state.completedDays, action.payload],
+        stateVersion: undefined,
       }
     }
     case 'MARK_DAY_COMPLETE': {
@@ -128,6 +123,7 @@ export function planReducer(state: PlanState, action: PlanAction): PlanState {
       return {
         ...state,
         completedDays: [...state.completedDays, action.payload],
+        stateVersion: undefined,
       }
     }
     default:
@@ -152,6 +148,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
 
   // Track the current authoritative version and planId across renders
   const lastKnownVersionRef = useRef<StateVersion | undefined>(state.stateVersion)
+  const lastLoadedRemoteVersionRef = useRef<StateVersion | undefined>(undefined)
   const currentPlanIdRef = useRef<string | undefined>(state.planId)
   const currentProfileRef = useRef<FormData>(state.formData)
 
@@ -169,10 +166,17 @@ export function PlanProvider({ children }: { children: ReactNode }) {
 
     // If this render was triggered by adopting a remote StorageEvent, skip persistence.
     // The data is ALREADY in localStorage. Writing it would create an infinite ping-pong loop!
-    if (isApplyingRemoteRef.current) {
+    if (
+      isApplyingRemoteRef.current &&
+      state.stateVersion &&
+      lastLoadedRemoteVersionRef.current &&
+      compareVersions(state.stateVersion, lastLoadedRemoteVersionRef.current) === 0
+    ) {
       isApplyingRemoteRef.current = false
+      lastLoadedRemoteVersionRef.current = undefined
       return
     }
+    isApplyingRemoteRef.current = false
 
     const { success, version } = savePersistedStateWithVersion(state)
     if (success && version) {
@@ -219,7 +223,11 @@ export function PlanProvider({ children }: { children: ReactNode }) {
 
         // If the plan was regenerated in another tab OR medical/allergy safety profile changed remotely,
         // immediately invalidate local active workout session
-        const remotePlanChanged = Boolean(incoming.planId && incoming.planId !== currentPlanIdRef.current)
+        const remotePlanChanged = Boolean(
+          (!currentPlanIdRef.current && incoming.planId) ||
+          (currentPlanIdRef.current && !incoming.planId) ||
+          (incoming.planId && incoming.planId !== currentPlanIdRef.current)
+        )
         const curMed = (currentProfileRef.current.medicalIssues || '').trim().toLowerCase()
         const remoteMed = (incoming.formData?.medicalIssues || '').trim().toLowerCase()
         const curAllergens = getActiveAllergenCategories(currentProfileRef.current.allergies).sort().join(',')
@@ -235,6 +243,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
 
         // Adopt remote state without re-saving
         isApplyingRemoteRef.current = true
+        lastLoadedRemoteVersionRef.current = incoming.stateVersion
         lastKnownVersionRef.current = incoming.stateVersion
         currentPlanIdRef.current = incoming.planId
         if (incoming.formData) {

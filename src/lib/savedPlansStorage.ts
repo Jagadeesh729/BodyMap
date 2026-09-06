@@ -1,5 +1,7 @@
 import type { SavedPlan } from '@/types/savedPlan'
 import type { PlanState } from '@/context/PlanContext'
+import { buildSafeState } from '@/context/planStorage'
+import { computeProfileFingerprint } from '@/lib/planBinding'
 
 export const SAVED_PLANS_STORAGE_KEY = 'bodymap_saved_plans'
 
@@ -47,6 +49,9 @@ export function loadSavedPlans(): SavedPlan[] {
         item.planState &&
         typeof item.planState === 'object'
       ) {
+        const safePlanState = buildSafeState(item.planState)
+        if (!safePlanState) continue
+
         validPlans.push({
           id: item.id,
           name: item.name.trim() || 'Untitled Plan',
@@ -55,17 +60,7 @@ export function loadSavedPlans(): SavedPlan[] {
           isArchived: Boolean(item.isArchived),
           tags: normalizePlanTags(item.tags),
           notes: typeof item.notes === 'string' ? item.notes.slice(0, 1000) : undefined,
-          planState: {
-            formData: item.planState.formData || {},
-            generatedPlan: typeof item.planState.generatedPlan === 'string' ? item.planState.generatedPlan : '',
-            isGenerated: Boolean(item.planState.isGenerated),
-            planId: typeof item.planState.planId === 'string' ? item.planState.planId : undefined,
-            planGeneratedAt: typeof item.planState.planGeneratedAt === 'number' ? item.planState.planGeneratedAt : undefined,
-            boundProfile: item.planState.boundProfile && typeof item.planState.boundProfile === 'object' ? item.planState.boundProfile : undefined,
-            boundProfileFingerprint: typeof item.planState.boundProfileFingerprint === 'string' ? item.planState.boundProfileFingerprint : undefined,
-            weightLog: Array.isArray(item.planState.weightLog) ? item.planState.weightLog : [],
-            completedDays: Array.isArray(item.planState.completedDays) ? item.planState.completedDays : []
-          }
+          planState: safePlanState,
         })
       }
     }
@@ -106,6 +101,9 @@ export function savePlanToLibrary(
 ): SavedPlan {
   const currentPlans = loadSavedPlans()
   const now = new Date().toISOString()
+  const boundFingerprint = planState.boundProfile
+    ? (planState.boundProfileFingerprint || computeProfileFingerprint(planState.boundProfile))
+    : undefined
   const newPlan: SavedPlan = {
     id: `plan_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
     name: name.trim() || `Plan (${new Date().toLocaleDateString()})`,
@@ -121,7 +119,7 @@ export function savePlanToLibrary(
       planId: planState.planId,
       planGeneratedAt: planState.planGeneratedAt,
       boundProfile: planState.boundProfile ? { ...planState.boundProfile } : undefined,
-      boundProfileFingerprint: planState.boundProfileFingerprint,
+      boundProfileFingerprint: boundFingerprint,
       weightLog: [...planState.weightLog],
       completedDays: [...planState.completedDays]
     }

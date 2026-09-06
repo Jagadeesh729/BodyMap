@@ -19,21 +19,25 @@ export interface ProfileBindingEvaluation {
  * and physiological parameters of a user profile.
  */
 export function computeProfileFingerprint(formData?: Partial<FormData> | null): string {
-  if (!formData) return ''
+  if (!formData || typeof formData !== 'object') return ''
   const canonical = {
-    age: (formData.age || '').trim(),
-    gender: (formData.gender || '').trim(),
-    height: (formData.height || '').trim(),
-    weight: (formData.weight || '').trim(),
-    fitnessLevel: (formData.fitnessLevel || '').trim(),
-    mainGoal: (formData.mainGoal || '').trim(),
-    bodyFocus: [...(formData.bodyFocus || [])].sort().join(','),
-    timePerDay: (formData.timePerDay || '').trim(),
-    recoveryDays: (formData.recoveryDays || '').trim(),
-    medicalIssues: (formData.medicalIssues || '').trim().toLowerCase(),
-    dietaryPreference: (formData.dietaryPreference || '').trim().toLowerCase(),
-    allergies: (formData.allergies || '').trim().toLowerCase(),
-    equipment: [...(formData.equipment || [])].sort().join(','),
+    age: (typeof formData.age === 'string' ? formData.age : '').trim(),
+    gender: (typeof formData.gender === 'string' ? formData.gender : '').trim(),
+    height: (typeof formData.height === 'string' ? formData.height : '').trim(),
+    weight: (typeof formData.weight === 'string' ? formData.weight : '').trim(),
+    fitnessLevel: (typeof formData.fitnessLevel === 'string' ? formData.fitnessLevel : '').trim(),
+    mainGoal: (typeof formData.mainGoal === 'string' ? formData.mainGoal : '').trim(),
+    bodyFocus: Array.isArray(formData.bodyFocus)
+      ? [...formData.bodyFocus.filter((s): s is string => typeof s === 'string')].sort().join(',')
+      : '',
+    timePerDay: (typeof formData.timePerDay === 'string' ? formData.timePerDay : '').trim(),
+    recoveryDays: (typeof formData.recoveryDays === 'string' ? formData.recoveryDays : '').trim(),
+    medicalIssues: (typeof formData.medicalIssues === 'string' ? formData.medicalIssues : '').trim().toLowerCase(),
+    dietaryPreference: (typeof formData.dietaryPreference === 'string' ? formData.dietaryPreference : '').trim().toLowerCase(),
+    allergies: (typeof formData.allergies === 'string' ? formData.allergies : '').trim().toLowerCase(),
+    equipment: Array.isArray(formData.equipment)
+      ? [...formData.equipment.filter((s): s is string => typeof s === 'string')].sort().join(',')
+      : '',
   }
   return JSON.stringify(canonical)
 }
@@ -93,30 +97,60 @@ export function evaluatePlanProfileBinding(
   const mismatchedPreferenceFields: string[] = []
 
   // 1. Check Medical Issues:
-  const currentMedical = (currentFormData.medicalIssues || '').trim().toLowerCase()
-  const boundMedical = (boundProfile.medicalIssues || '').trim().toLowerCase()
+  const currentMedical = (typeof currentFormData.medicalIssues === 'string' ? currentFormData.medicalIssues : '').trim().toLowerCase()
+  const boundMedical = (typeof boundProfile.medicalIssues === 'string' ? boundProfile.medicalIssues : '').trim().toLowerCase()
   if (currentMedical !== boundMedical) {
-    if (hasSafetySensitiveMedicalIssues(currentFormData.medicalIssues) || hasSafetySensitiveMedicalIssues(boundProfile.medicalIssues)) {
+    if (hasSafetySensitiveMedicalIssues(currentMedical) || hasSafetySensitiveMedicalIssues(boundMedical)) {
       mismatchedSafetyFields.push('medicalIssues')
     }
   }
 
   // 2. Check Allergies:
-  const currentAllergens = getActiveAllergenCategories(currentFormData.allergies).sort().join(',')
-  const boundAllergens = getActiveAllergenCategories(boundProfile.allergies).sort().join(',')
+  const currentAllergies = typeof currentFormData.allergies === 'string' ? currentFormData.allergies : ''
+  const boundAllergies = typeof boundProfile.allergies === 'string' ? boundProfile.allergies : ''
+  const currentAllergens = getActiveAllergenCategories(currentAllergies).sort().join(',')
+  const boundAllergens = getActiveAllergenCategories(boundAllergies).sort().join(',')
   if (currentAllergens !== boundAllergens) {
     mismatchedSafetyFields.push('allergies')
   }
 
   // 3. Check Preferences:
-  if ((currentFormData.mainGoal || '').trim() !== (boundProfile.mainGoal || '').trim()) {
+  const curGoal = (typeof currentFormData.mainGoal === 'string' ? currentFormData.mainGoal : '').trim()
+  const boundGoal = (typeof boundProfile.mainGoal === 'string' ? boundProfile.mainGoal : '').trim()
+  if (curGoal !== boundGoal) {
     mismatchedPreferenceFields.push('mainGoal')
   }
-  if ((currentFormData.timePerDay || '').trim() !== (boundProfile.timePerDay || '').trim()) {
+
+  const curTime = (typeof currentFormData.timePerDay === 'string' ? currentFormData.timePerDay : '').trim()
+  const boundTime = (typeof boundProfile.timePerDay === 'string' ? boundProfile.timePerDay : '').trim()
+  if (curTime !== boundTime) {
     mismatchedPreferenceFields.push('timePerDay')
   }
-  if ((currentFormData.fitnessLevel || '').trim() !== (boundProfile.fitnessLevel || '').trim()) {
+
+  const curFit = (typeof currentFormData.fitnessLevel === 'string' ? currentFormData.fitnessLevel : '').trim()
+  const boundFit = (typeof boundProfile.fitnessLevel === 'string' ? boundProfile.fitnessLevel : '').trim()
+  if (curFit !== boundFit) {
     mismatchedPreferenceFields.push('fitnessLevel')
+  }
+
+  const curEq = Array.isArray(currentFormData.equipment)
+    ? [...currentFormData.equipment.filter((s): s is string => typeof s === 'string')].sort().join(',')
+    : ''
+  const boundEq = Array.isArray(boundProfile.equipment)
+    ? [...boundProfile.equipment.filter((s): s is string => typeof s === 'string')].sort().join(',')
+    : ''
+  if (curEq !== boundEq) {
+    mismatchedPreferenceFields.push('equipment')
+  }
+
+  const curFocus = Array.isArray(currentFormData.bodyFocus)
+    ? [...currentFormData.bodyFocus.filter((s): s is string => typeof s === 'string')].sort().join(',')
+    : ''
+  const boundFocus = Array.isArray(boundProfile.bodyFocus)
+    ? [...boundProfile.bodyFocus.filter((s): s is string => typeof s === 'string')].sort().join(',')
+    : ''
+  if (curFocus !== boundFocus) {
+    mismatchedPreferenceFields.push('bodyFocus')
   }
 
   const isSafetyMismatched = mismatchedSafetyFields.length > 0

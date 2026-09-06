@@ -14,6 +14,7 @@ import { getActiveAllergenCategories, scanPlanForAllergens } from '@/lib/allerge
 import { scanPlanForContraindications } from '@/lib/contraindicationGuard'
 import { validateStep, hasSafetySensitiveMedicalIssues } from '@/lib/validation'
 import { calculateBMI } from '@/lib/bmi'
+import { evaluatePlanProfileBinding } from '@/lib/planBinding'
 import type { FormData } from '@/context/PlanContext'
 
 const STEP_TITLES = [
@@ -199,6 +200,19 @@ const CreatePlanPage = () => {
       }
 
       if (seq !== generationSeqRef.current) return
+
+      // Fail-closed async race check:
+      // Verify that the active profile in state has not diverged on safety constraints while generation was in-flight
+      const bindingCheck = evaluatePlanProfileBinding(state.formData, formData)
+      if (bindingCheck.isSafetyMismatched) {
+        toast({
+          title: 'Health Profile Changed',
+          description: 'Your health profile was updated while generation was in progress. The generated plan was not admitted to prevent safety contraindications. Please generate with your current profile.',
+          variant: 'destructive',
+        })
+        return
+      }
+
       setFormData(formData)
       setGeneratedPlan(generatedPlan, formData)
       try {
