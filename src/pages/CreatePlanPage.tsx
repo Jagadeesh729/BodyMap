@@ -123,6 +123,8 @@ const CreatePlanPage = () => {
   const [generationStage, setGenerationStage] = useState<'connecting' | 'synthesizing' | 'validating'>('connecting')
 
   const handleSubmit = async () => {
+    if (isGenerating) return
+
     const result = validateStep(currentStep, formData)
     if (!result.success) {
       setStepErrors(result.errors)

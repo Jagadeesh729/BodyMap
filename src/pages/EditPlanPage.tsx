@@ -99,6 +99,8 @@ const EditPlanPage = () => {
   }
 
   const handleRegeneratePlan = async () => {
+    if (isRegenerating) return
+
     const seq = ++generationSeqRef.current
     setIsRegenerating(true)
     try {

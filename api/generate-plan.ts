@@ -4,6 +4,36 @@ import { z } from 'zod'
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
 const DEFAULT_GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash'
 export const MAX_PAYLOAD_SIZE = 16 * 1024 // 16 KiB (16,384 bytes) max request size
+export const MAX_TOTAL_UPSTREAM_CALLS = 3
+export const MAX_IN_FLIGHT_REQUESTS = 6
+export const MAX_REQUEST_WALLCLOCK_MS = 26000 // 26s overall serverless wall-clock budget
+export const PER_CALL_TIMEOUT_MS = 12000 // 12s per-call timeout
+
+let activeInFlightRequests = 0
+
+export function getActiveInFlightRequests(): number {
+  return activeInFlightRequests
+}
+
+export function resetInFlightRequestsForTesting(): void {
+  activeInFlightRequests = 0
+}
+
+export function createCompositeSignal(signals: AbortSignal[]): AbortSignal {
+  if (typeof (AbortSignal as unknown as { any?: (sigs: AbortSignal[]) => AbortSignal }).any === 'function') {
+    return (AbortSignal as unknown as { any: (sigs: AbortSignal[]) => AbortSignal }).any(signals)
+  }
+  const controller = new AbortController()
+  for (const sig of signals) {
+    if (sig.aborted) {
+      controller.abort(sig.reason)
+      return controller.signal
+    }
+    sig.addEventListener('abort', () => controller.abort(sig.reason), { once: true })
+  }
+  return controller.signal
+}
+
 
 // --- Domain Schema & Types (Self-Contained for Zero-Dependency Serverless Execution) ---
 
@@ -2276,15 +2306,44 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
     return
   }
 
-  const apiKey = process.env.GEMINI_API_KEY
-  if (!apiKey) {
-    res.statusCode = 500
+  // Hard in-process concurrency ceiling per serverless instance
+  if (activeInFlightRequests >= MAX_IN_FLIGHT_REQUESTS) {
+    res.statusCode = 503
+    res.setHeader('Retry-After', '3')
     res.setHeader('Content-Type', 'application/json')
-    res.end(JSON.stringify({ error: 'GEMINI_API_KEY is not configured in server environment.', requestId }))
+    res.setHeader('X-In-Flight-Requests', activeInFlightRequests.toString())
+    res.end(JSON.stringify({
+      error: 'Server is currently experiencing high load. Please retry shortly.',
+      retryAfter: 3,
+      requestId,
+      executionSource: 'in-flight-concurrency-limit',
+    }))
     return
   }
 
+  activeInFlightRequests++
+  res.setHeader('X-In-Flight-Requests', activeInFlightRequests.toString())
+
+  const reqAbortController = new AbortController()
+  const handleClientClose = () => {
+    if (!res.writableEnded) {
+      reqAbortController.abort(new Error('CLIENT_CLOSED_REQUEST'))
+    }
+  }
+  req.on('close', handleClientClose)
+
+  let totalUpstreamCalls = 0
+
   try {
+    const apiKey = process.env.GEMINI_API_KEY
+    if (!apiKey) {
+      res.statusCode = 500
+      res.setHeader('Content-Type', 'application/json')
+      res.setHeader('X-Upstream-Calls', '0')
+      res.end(JSON.stringify({ error: 'GEMINI_API_KEY is not configured in server environment.', requestId }))
+      return
+    }
+
     let parsed: Record<string, unknown>
     try {
       parsed = await parseRequestBody(req)
@@ -2292,11 +2351,13 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
       if ((bodyErr as Error).message === 'PAYLOAD_TOO_LARGE') {
         res.statusCode = 413
         res.setHeader('Content-Type', 'application/json')
+        res.setHeader('X-Upstream-Calls', '0')
         res.end(JSON.stringify({ error: 'Payload Too Large', requestId }))
         return
       }
       res.statusCode = 400
       res.setHeader('Content-Type', 'application/json')
+      res.setHeader('X-Upstream-Calls', '0')
       res.end(JSON.stringify({ error: 'Malformed request body', requestId }))
       return
     }
@@ -2304,6 +2365,7 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
     if (!parsed.formData || typeof parsed.formData !== 'object' || Array.isArray(parsed.formData)) {
       res.statusCode = 400
       res.setHeader('Content-Type', 'application/json')
+      res.setHeader('X-Upstream-Calls', '0')
       res.end(JSON.stringify({ error: 'A valid formData object is required.', requestId }))
       return
     }
@@ -2312,6 +2374,7 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
     if (!formValidation.success) {
       res.statusCode = 400
       res.setHeader('Content-Type', 'application/json')
+      res.setHeader('X-Upstream-Calls', '0')
       res.end(JSON.stringify({
         error: 'Invalid form data fields provided.',
         details: formValidation.error.issues,
@@ -2322,12 +2385,10 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
 
     const prompt = generatePlanPrompt(formValidation.data)
 
+    // Bounded primary candidate models (strictly at most 2 candidate models)
     const candidateModels = [
       DEFAULT_GEMINI_MODEL,
-      'gemini-2.0-flash',
       'gemini-1.5-flash',
-      'gemini-1.5-pro',
-      'gemini-2.5-flash',
     ].filter((m, i, arr) => arr.indexOf(m) === i) // unique
 
     let successfulText = ''
@@ -2335,7 +2396,21 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
     let lastErrorStatus = 500
 
     for (const modelToTry of candidateModels) {
+      if (reqAbortController.signal.aborted) break
+      if (totalUpstreamCalls >= MAX_TOTAL_UPSTREAM_CALLS) break
+
+      const elapsed = Date.now() - startTime
+      const remainingWallClock = MAX_REQUEST_WALLCLOCK_MS - elapsed
+      if (remainingWallClock < 1500) {
+        lastErrorStatus = 504
+        break
+      }
+
+      const callTimeout = Math.min(PER_CALL_TIMEOUT_MS, remainingWallClock)
+      const callSignal = createCompositeSignal([reqAbortController.signal, AbortSignal.timeout(callTimeout)])
+
       try {
+        totalUpstreamCalls++
         const response = await fetch(`${GEMINI_API_BASE}/${modelToTry}:generateContent?key=${apiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2343,16 +2418,16 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: { maxOutputTokens: 4096 },
           }),
-          signal: AbortSignal.timeout(25000),
+          signal: callSignal,
         })
 
         if (!response.ok) {
           lastErrorStatus = response.status
-          // Non-retryable client/auth errors: do not waste quota or add latency retrying
-          if (response.status === 400 || response.status === 401 || response.status === 403) {
+          // Non-retryable client/auth errors or upstream quota exhaustion: do not waste quota or add latency
+          if (response.status === 400 || response.status === 401 || response.status === 403 || response.status === 429) {
             break
           }
-          continue // try next candidate model on 404, 429, 500, 502, 503, 504
+          continue // try secondary candidate model on 404, 500, 502, 503, 504
         }
 
         const data = await response.json() as {
@@ -2366,183 +2441,191 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
           break // success
         }
       } catch {
+        if (reqAbortController.signal.aborted) break
         // try next candidate on timeout or network glitch
         continue
       }
     }
 
-    // --- Deterministic Allergen Output Guard with Bounded Single-Attempt Retry ---
+    // --- Unified Allergen & Medical Contraindication Output Guard with Single-Attempt Retry ---
     const declaredAllergies = formValidation.data.allergies?.trim() || ''
     const activeAllergens = getActiveAllergenCategories(declaredAllergies)
 
-    if (successfulText && activeAllergens.length > 0) {
-      const initialScan = scanPlanForAllergens(successfulText, declaredAllergies)
-      if (initialScan.hasViolation) {
-        const uniqueLabels = Array.from(new Set(initialScan.violations.map(v => v.label))).join(', ')
-        const violationDetails = initialScan.violations
-          .slice(0, 5)
-          .map(v => `- [${v.label} violation]: "${v.matchedTerm}" in "${v.rawSnippet.slice(0, 100)}"`)
-          .join('\n')
-
-        const retryCorrectionPrompt = [
-          'CRITICAL ALLERGY SAFETY CORRECTION REQUIRED:',
-          `The client has severe declared allergies to: ${uniqueLabels}.`,
-          'The previously generated plan contained the following violating ingredients:',
-          violationDetails,
-          '',
-          `You MUST regenerate the entire 7-day plan strictly omitting ALL ${uniqueLabels} and any related ingredients or derivatives.`,
-          'Ensure safe alternative ingredients are provided (e.g., sunflower butter instead of peanut butter, pea protein instead of whey, seed butter instead of almond butter, tofu/chickpeas instead of eggs/dairy, etc.).',
-          '',
-          'Here is the original client profile and instructions:',
-          prompt,
-        ].join('\n')
-
-        // BOUNDED SINGLE-MODEL RETRY: use the model that produced the primary output.
-        // This caps total provider calls at N (primary cascade) + 1 (retry) rather than 2N.
-        const retryModel = resolvedModel || candidateModels[0]
-
-        // Clear the unsafe output immediately; it will only be restored if retry is clean.
-        successfulText = ''
-        resolvedModel = ''
-
-        try {
-          const retryRes = await fetch(`${GEMINI_API_BASE}/${retryModel}:generateContent?key=${apiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: retryCorrectionPrompt }] }],
-              generationConfig: { maxOutputTokens: 4096 },
-            }),
-            signal: AbortSignal.timeout(25000),
-          })
-
-          if (retryRes.ok) {
-            const retryData = await retryRes.json() as {
-              candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
-            }
-            const retryText = retryData.candidates?.[0]?.content?.parts?.[0]?.text
-            if (retryText && retryText.trim().length > 0) {
-              // MANDATORY second scan: retry output is never assumed safe
-              const retryScan = scanPlanForAllergens(retryText, declaredAllergies)
-              if (!retryScan.hasViolation) {
-                successfulText = retryText
-                resolvedModel = retryModel
-              }
-              // If retryScan.hasViolation: successfulText stays empty → HTTP 422 below
-            }
-            // If retryText empty/missing: successfulText stays empty → HTTP 422 below
-          }
-          // If retryRes not ok: successfulText stays empty → HTTP 422 below
-        } catch {
-          // Retry network/timeout failure: successfulText stays empty → HTTP 422 below
-        }
-
-        // If successfulText is still empty after retry, return 422 allergen safety rejection.
-        if (!successfulText) {
-          res.statusCode = 422
-          res.setHeader('Content-Type', 'application/json')
-          res.end(JSON.stringify({
-            error: 'ALLERGEN_SAFETY_VIOLATION: Generated plan could not be made safe for declared allergies after correction attempt.',
-            allergenCategories: Array.from(new Set(initialScan.violations.map(v => v.label))),
-            requestId,
-            executionSource: 'allergen-safety-rejection',
-          }))
-          return
-        }
-      }
-    }
-
-    // --- Deterministic Medical Contraindication Output Guard with Bounded Single-Attempt Retry ---
     const declaredMedical = formValidation.data.medicalIssues?.trim() || ''
     const activeContraindications = getActiveContraindicationCategories(declaredMedical)
 
-    if (successfulText && activeContraindications.length > 0) {
-      const initialContraScan = scanPlanForContraindications(successfulText, declaredMedical)
-      if (initialContraScan.hasViolation) {
-        const uniqueConditionLabels = Array.from(new Set(initialContraScan.violations.map(v => v.conditionLabel))).join(', ')
-        const violationDetails = initialContraScan.violations
-          .slice(0, 5)
-          .map(v => `- [${v.conditionLabel} violation]: "${v.matchedExercise}" in "${v.sourceLine.slice(0, 100)}"`)
-          .join('\n')
+    if (successfulText && (activeAllergens.length > 0 || activeContraindications.length > 0)) {
+      let initialScan = activeAllergens.length > 0
+        ? scanPlanForAllergens(successfulText, declaredAllergies)
+        : { hasViolation: false, violations: [] }
+      let initialContraScan = activeContraindications.length > 0
+        ? scanPlanForContraindications(successfulText, declaredMedical)
+        : { hasViolation: false, violations: [] }
 
-        const retryCorrectionPrompt = [
-          'CRITICAL MEDICAL CONTRAINDICATION SAFETY CORRECTION REQUIRED:',
-          `The client has declared the following safety-sensitive conditions: ${uniqueConditionLabels}.`,
-          'The previously generated plan contained the following strictly contraindicated exercises:',
-          violationDetails,
-          '',
-          `You MUST regenerate the entire 7-day plan strictly omitting ALL contraindicated exercises (${uniqueConditionLabels}).`,
-          'Ensure safe, low-impact rehabilitative alternatives are prescribed instead (e.g., straight-leg raises, glute bridges, seated rows below shoulder height, neutral-spine core work like bird-dogs, etc.).',
-          '',
-          'Here is the original client profile and instructions:',
-          prompt,
-        ].join('\n')
+      if (initialScan.hasViolation || initialContraScan.hasViolation) {
+        // Safety violation detected. Check if quota or wall-clock allows a retry.
+        const elapsed = Date.now() - startTime
+        const remainingWallClock = MAX_REQUEST_WALLCLOCK_MS - elapsed
 
-        const retryModel = resolvedModel || candidateModels[0]
-        successfulText = ''
-        resolvedModel = ''
+        if (totalUpstreamCalls >= MAX_TOTAL_UPSTREAM_CALLS || remainingWallClock < 1500 || reqAbortController.signal.aborted) {
+          // Cannot retry: immediately fail-closed
+          successfulText = ''
+        } else {
+          // Build unified correction prompt
+          const correctionSections: string[] = []
 
-        try {
-          const retryRes = await fetch(`${GEMINI_API_BASE}/${retryModel}:generateContent?key=${apiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: retryCorrectionPrompt }] }],
-              generationConfig: { maxOutputTokens: 4096 },
-            }),
-            signal: AbortSignal.timeout(25000),
-          })
+          if (initialScan.hasViolation) {
+            const uniqueLabels = Array.from(new Set(initialScan.violations.map(v => v.label))).join(', ')
+            const violationDetails = initialScan.violations
+              .slice(0, 5)
+              .map(v => `- [${v.label} violation]: "${v.matchedTerm}" in "${v.rawSnippet.slice(0, 100)}"`)
+              .join('\n')
 
-          if (retryRes.ok) {
-            const retryData = await retryRes.json() as {
-              candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
-            }
-            const retryText = retryData.candidates?.[0]?.content?.parts?.[0]?.text
-            if (retryText && retryText.trim().length > 0) {
-              // MANDATORY second scan: retry output is never assumed safe
-              const retryContraScan = scanPlanForContraindications(retryText, declaredMedical)
-              // Also ensure retry didn't introduce allergen violations if allergies declared
-              const retryAllergenCheck = activeAllergens.length > 0
-                ? scanPlanForAllergens(retryText, declaredAllergies)
-                : { hasViolation: false }
+            correctionSections.push(
+              'CRITICAL ALLERGY SAFETY CORRECTION REQUIRED:',
+              `The client has severe declared allergies to: ${uniqueLabels}.`,
+              'The previously generated plan contained the following violating ingredients:',
+              violationDetails,
+              '',
+              `You MUST regenerate the entire 7-day plan strictly omitting ALL ${uniqueLabels} and any related ingredients or derivatives.`,
+              'Ensure safe alternative ingredients are provided (e.g., sunflower butter instead of peanut butter, pea protein instead of whey, seed butter instead of almond butter, tofu/chickpeas instead of eggs/dairy, etc.).'
+            )
+          }
 
-              if (!retryContraScan.hasViolation && !retryAllergenCheck.hasViolation) {
-                successfulText = retryText
-                resolvedModel = retryModel
+          if (initialContraScan.hasViolation) {
+            const uniqueConditionLabels = Array.from(new Set(initialContraScan.violations.map(v => v.conditionLabel))).join(', ')
+            const violationDetails = initialContraScan.violations
+              .slice(0, 5)
+              .map(v => `- [${v.conditionLabel} violation]: "${v.matchedExercise}" in "${v.sourceLine.slice(0, 100)}"`)
+              .join('\n')
+
+            correctionSections.push(
+              'CRITICAL MEDICAL CONTRAINDICATION SAFETY CORRECTION REQUIRED:',
+              `The client has declared the following safety-sensitive conditions: ${uniqueConditionLabels}.`,
+              'The previously generated plan contained the following strictly contraindicated exercises:',
+              violationDetails,
+              '',
+              `You MUST regenerate the entire 7-day plan strictly omitting ALL contraindicated exercises (${uniqueConditionLabels}).`,
+              'Ensure safe, low-impact rehabilitative alternatives are prescribed instead (e.g., straight-leg raises, glute bridges, seated rows below shoulder height, neutral-spine core work like bird-dogs, etc.).'
+            )
+          }
+
+          correctionSections.push(
+            '',
+            'Here is the original client profile and instructions:',
+            prompt
+          )
+
+          const retryCorrectionPrompt = correctionSections.join('\n')
+          const retryModel = resolvedModel || candidateModels[0]
+
+          // Clear unsafe output immediately
+          successfulText = ''
+          resolvedModel = ''
+
+          const callTimeout = Math.min(PER_CALL_TIMEOUT_MS, remainingWallClock)
+          const retrySignal = createCompositeSignal([reqAbortController.signal, AbortSignal.timeout(callTimeout)])
+
+          try {
+            totalUpstreamCalls++
+            const retryRes = await fetch(`${GEMINI_API_BASE}/${retryModel}:generateContent?key=${apiKey}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: retryCorrectionPrompt }] }],
+                generationConfig: { maxOutputTokens: 4096 },
+              }),
+              signal: retrySignal,
+            })
+
+            if (retryRes.ok) {
+              const retryData = await retryRes.json() as {
+                candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
+              }
+              const retryText = retryData.candidates?.[0]?.content?.parts?.[0]?.text
+              if (retryText && retryText.trim().length > 0) {
+                // Mandatory second scan for BOTH allergens and contraindications
+                const retryScan = scanPlanForAllergens(retryText, declaredAllergies)
+                const retryContraScan = activeContraindications.length > 0
+                  ? scanPlanForContraindications(retryText, declaredMedical)
+                  : { hasViolation: false, violations: [] }
+
+                if (!retryScan.hasViolation) {
+                  if (!retryContraScan.hasViolation) {
+                    successfulText = retryText
+                    resolvedModel = retryModel
+                  } else {
+                    initialContraScan = retryContraScan
+                  }
+                } else {
+                  initialScan = retryScan
+                  if (retryContraScan.hasViolation) initialContraScan = retryContraScan
+                }
               }
             }
+          } catch {
+            // Network/timeout error leaves successfulText empty
           }
-        } catch {
-          // Retry failure leaves successfulText empty
         }
 
-        // If successfulText is still empty after retry, return 422 medical contraindication rejection
+        // If successfulText is still empty after retry (or because retry was blocked), fail closed with 422
         if (!successfulText) {
+          if (res.writableEnded) return
+
           res.statusCode = 422
           res.setHeader('Content-Type', 'application/json')
-          res.end(JSON.stringify({
-            error: 'MEDICAL_CONTRAINDICATION_VIOLATION: Generated plan could not be made safe for declared medical conditions after correction attempt.',
-            contraindicatedConditions: Array.from(new Set(initialContraScan.violations.map(v => v.conditionLabel))),
-            contraindicatedViolations: initialContraScan.violations.map(v => ({
-              category: v.category,
-              conditionLabel: v.conditionLabel,
-              matchedExercise: v.matchedExercise,
-              dayNumber: v.dayNumber,
-              sourceLine: v.sourceLine,
-              reason: v.reason,
-            })),
-            requestId,
-            executionSource: 'contraindication-safety-rejection',
-          }))
-          return
+          res.setHeader('X-Upstream-Calls', totalUpstreamCalls.toString())
+
+          if (initialScan.hasViolation) {
+            res.end(JSON.stringify({
+              error: 'ALLERGEN_SAFETY_VIOLATION: Generated plan could not be made safe for declared allergies after correction attempt.',
+              allergenCategories: Array.from(new Set(initialScan.violations.map(v => v.label))),
+              requestId,
+              executionSource: 'allergen-safety-rejection',
+            }))
+            return
+          } else {
+            res.end(JSON.stringify({
+              error: 'MEDICAL_CONTRAINDICATION_VIOLATION: Generated plan could not be made safe for declared medical conditions after correction attempt.',
+              contraindicatedConditions: Array.from(new Set(initialContraScan.violations.map(v => v.conditionLabel))),
+              contraindicatedViolations: initialContraScan.violations.map(v => ({
+                category: v.category,
+                conditionLabel: v.conditionLabel,
+                matchedExercise: v.matchedExercise,
+                dayNumber: v.dayNumber,
+                sourceLine: v.sourceLine,
+                reason: v.reason,
+              })),
+              requestId,
+              executionSource: 'contraindication-safety-rejection',
+            }))
+            return
+          }
         }
       }
     }
 
+
+    if (res.writableEnded) return
+
     const duration = Date.now() - startTime
     res.setHeader('Server-Timing', `total;dur=${duration}`)
+    res.setHeader('X-Upstream-Calls', totalUpstreamCalls.toString())
 
     if (!successfulText) {
+      if (lastErrorStatus === 429) {
+        res.statusCode = 429
+        res.setHeader('Retry-After', '60')
+        res.setHeader('Content-Type', 'application/json')
+        res.end(JSON.stringify({
+          error: 'Upstream AI quota or rate limit exceeded. Please retry after backoff.',
+          retryAfter: 60,
+          requestId,
+          executionSource: 'upstream-quota-exhaustion',
+        }))
+        return
+      }
+
       res.statusCode = lastErrorStatus || 502
       res.setHeader('Content-Type', 'application/json')
       res.end(JSON.stringify({
@@ -2562,17 +2645,29 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
       executionSource: 'live-gemini',
     }))
   } catch (err: unknown) {
+    if (res.writableEnded) return
+
     const rawError = (err as Error)?.message || 'Internal Server Error'
+    const apiKey = process.env.GEMINI_API_KEY
     const sanitizedError = apiKey ? rawError.split(apiKey).join('[REDACTED]') : rawError
     const boundedError = sanitizedError.slice(0, 200)
 
     res.statusCode = 500
     res.setHeader('Content-Type', 'application/json')
+    res.setHeader('X-Upstream-Calls', totalUpstreamCalls.toString())
     res.end(JSON.stringify({
       error: boundedError,
       requestId,
       executionSource: 'upstream-error',
     }))
+  } finally {
+    activeInFlightRequests = Math.max(0, activeInFlightRequests - 1)
+    if (typeof req.removeListener === 'function') {
+      req.removeListener('close', handleClientClose)
+    } else if (typeof req.off === 'function') {
+      req.off('close', handleClientClose)
+    }
   }
 }
+
 
