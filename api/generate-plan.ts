@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'http'
+import net from 'net'
 import { z } from 'zod'
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
@@ -2123,6 +2124,207 @@ export function scanPlanForContraindications(
   }
 }
 
+// Bounded fallback identifier for unresolvable or malformed ingress callers
+export const UNKNOWN_CLIENT_IP = '__unknown_ingress__'
+
+/**
+ * Strict RFC 5952 / RFC 4291 compliant IP canonicalizer.
+ * Enforces uniform string representation across equivalent IP formats:
+ * - Strips bounding quotes and brackets
+ * - Strips valid TCP ports (:80, :443, etc.)
+ * - Strips IPv6 zone/scope identifiers (%eth0)
+ * - Normalizes IPv4 octets (strips leading zeroes, verifies 0-255 range)
+ * - Collapses IPv4-mapped IPv6 (::ffff:192.168.1.1 and ::ffff:c0a8:0101 -> 192.168.1.1)
+ * - Canonicalizes pure IPv6 to lowercase and compresses the longest zero run (RFC 5952)
+ * - Rejects malformed, oversized (>128 chars), control-character, or injection strings by returning null
+ */
+export function canonicalizeIp(rawIp?: string | null): string | null {
+  if (!rawIp || typeof rawIp !== 'string') return null
+  let s = rawIp.trim()
+  if (s.length === 0 || s.length > 128) return null
+
+  // Strip wrapping single or double quotes
+  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+    s = s.slice(1, -1).trim()
+  }
+
+  // Reject control characters, embedded whitespace, null bytes, CRLF, semicolons, commas
+  if (/[\0\r\n\t\s;,]/.test(s)) return null
+
+  // Handle bracketed IP format e.g. [2001:db8::1] or [2001:db8::1]:8080 or [192.168.1.1]:80
+  if (s.startsWith('[')) {
+    const closeBracket = s.indexOf(']')
+    if (closeBracket === -1) return null
+    const post = s.slice(closeBracket + 1)
+    if (post.length > 0) {
+      const match = /^:(\d+)$/.exec(post)
+      if (!match) return null
+      const port = parseInt(match[1], 10)
+      if (port < 0 || port > 65535) return null
+    }
+    s = s.slice(1, closeBracket)
+  } else if (/^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):(\d+)$/.test(s)) {
+    // IPv4 with port e.g. 192.168.1.1:8080
+    const match = /^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):(\d+)$/.exec(s)
+    if (match) {
+      const port = parseInt(match[2], 10)
+      if (port < 0 || port > 65535) return null
+      s = match[1]
+    }
+  }
+
+  // Remove zone index if present (e.g. fe80::1%eth0)
+  if (s.includes('%')) {
+    s = s.split('%')[0]
+  }
+
+  // Check standard IPv4 dotted-quad
+  const ipv4Match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(s)
+  if (ipv4Match) {
+    const octets = ipv4Match.slice(1, 5).map(Number)
+    if (octets.every(o => o >= 0 && o <= 255)) {
+      return octets.join('.')
+    }
+    return null
+  }
+
+  // Check IPv4-mapped IPv6 with dotted-quad suffix e.g. ::ffff:192.168.1.1
+  const v4MappedMatch = /^(?:::ffff:|0*:0*:0*:0*:0*:ffff:)(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/i.exec(s)
+  if (v4MappedMatch) {
+    return canonicalizeIp(v4MappedMatch[1])
+  }
+
+  // Validate IPv6 syntax via Node net module
+  if (!net.isIPv6(s)) return null
+
+  // Split on '::'
+  const parts = s.toLowerCase().split('::')
+  if (parts.length > 2) return null
+  const left = parts[0] ? parts[0].split(':').filter(Boolean) : []
+  const right = parts.length === 2 && parts[1] ? parts[1].split(':').filter(Boolean) : []
+
+  // Handle embedded IPv4 dotted-quad in IPv6 (e.g., ::ffff:192.168.1.1 if reached here)
+  if (right.length > 0 && right[right.length - 1].includes('.')) {
+    const v4 = canonicalizeIp(right.pop())
+    if (!v4) return null
+    const octets = v4.split('.').map(Number)
+    right.push(((octets[0] << 8) | octets[1]).toString(16))
+    right.push(((octets[2] << 8) | octets[3]).toString(16))
+  } else if (left.length > 0 && left[left.length - 1].includes('.')) {
+    const v4 = canonicalizeIp(left.pop())
+    if (!v4) return null
+    const octets = v4.split('.').map(Number)
+    left.push(((octets[0] << 8) | octets[1]).toString(16))
+    left.push(((octets[2] << 8) | octets[3]).toString(16))
+  }
+
+  const totalProvided = left.length + right.length
+  if (parts.length === 1 && totalProvided !== 8) return null
+  if (parts.length === 2 && totalProvided >= 8) return null
+
+  const middleZeroes = parts.length === 2 ? 8 - totalProvided : 0
+  const words = [
+    ...left.map(w => parseInt(w, 16)),
+    ...Array(middleZeroes).fill(0),
+    ...right.map(w => parseInt(w, 16)),
+  ]
+
+  if (words.length !== 8 || words.some(w => isNaN(w) || w < 0 || w > 0xffff)) return null
+
+  // Canonicalize IPv4-mapped IPv6 in hex notation (::ffff:c0a8:0101 -> 192.168.1.1)
+  if (words[0] === 0 && words[1] === 0 && words[2] === 0 && words[3] === 0 && words[4] === 0 && words[5] === 0xffff) {
+    const o1 = (words[6] >> 8) & 0xff
+    const o2 = words[6] & 0xff
+    const o3 = (words[7] >> 8) & 0xff
+    const o4 = words[7] & 0xff
+    return `${o1}.${o2}.${o3}.${o4}`
+  }
+
+  // RFC 5952 zero run compression
+  let maxZeroStart = -1, maxZeroLen = 0
+  let currZeroStart = -1, currZeroLen = 0
+  for (let i = 0; i < 8; i++) {
+    if (words[i] === 0) {
+      if (currZeroStart === -1) currZeroStart = i
+      currZeroLen++
+      if (currZeroLen > maxZeroLen) {
+        maxZeroLen = currZeroLen
+        maxZeroStart = currZeroStart
+      }
+    } else {
+      currZeroStart = -1
+      currZeroLen = 0
+    }
+  }
+
+  if (maxZeroLen < 2) {
+    return words.map(w => w.toString(16)).join(':')
+  }
+  const head = words.slice(0, maxZeroStart).map(w => w.toString(16)).join(':')
+  const tail = words.slice(maxZeroStart + maxZeroLen).map(w => w.toString(16)).join(':')
+  return `${head}::${tail}`
+}
+
+/**
+ * Robust ingress client IP extractor.
+ * Adheres strictly to reverse-proxy trust hierarchy:
+ * 1. x-vercel-forwarded-for (guaranteed by Vercel edge router, cannot be spoofed by external client)
+ * 2. x-real-ip (injected or overwritten by trusted reverse proxy)
+ * 3. x-forwarded-for chain evaluated RIGHT-TO-LEFT to trust proxy hops over attacker-controlled leftmost hop
+ * 4. req.socket.remoteAddress (TCP connection source address)
+ * 5. Falls back to UNKNOWN_CLIENT_IP ('__unknown_ingress__') for bounded rate-limit containment
+ */
+export function extractClientIp(req: IncomingMessage): string {
+  try {
+    // 1. Vercel Edge guaranteed header (unforgeable by external clients on Vercel)
+    const vercelFwd = req.headers['x-vercel-forwarded-for']
+    if (vercelFwd) {
+      const raw = Array.isArray(vercelFwd) ? vercelFwd[0] : vercelFwd
+      if (typeof raw === 'string') {
+        const first = raw.split(',')[0].trim()
+        const canon = canonicalizeIp(first)
+        if (canon) return canon
+      }
+    }
+
+    // 2. Real-IP header (injected or overwritten by trusted reverse proxy)
+    const realIp = req.headers['x-real-ip']
+    if (realIp) {
+      const raw = Array.isArray(realIp) ? realIp[0] : realIp
+      if (typeof raw === 'string') {
+        const first = raw.split(',')[0].trim()
+        const canon = canonicalizeIp(first)
+        if (canon) return canon
+      }
+    }
+
+    // 3. Forwarded-For chain: inspected RIGHT-TO-LEFT to trust reverse proxy appended hops
+    const forwarded = req.headers['x-forwarded-for']
+    if (forwarded) {
+      const rawEntries = Array.isArray(forwarded)
+        ? forwarded.flatMap(s => typeof s === 'string' ? s.split(',') : [])
+        : (typeof forwarded === 'string' ? forwarded.split(',') : [])
+
+      const entries = rawEntries.map(e => e.trim()).filter(Boolean)
+      for (let i = entries.length - 1; i >= 0; i--) {
+        const canon = canonicalizeIp(entries[i])
+        if (canon) return canon
+      }
+    }
+
+    // 4. Direct socket transport address
+    const socketAddr = req.socket?.remoteAddress
+    if (socketAddr) {
+      const canon = canonicalizeIp(socketAddr)
+      if (canon) return canon
+    }
+  } catch {
+    // Fail closed to unknown ingress
+  }
+
+  return UNKNOWN_CLIENT_IP
+}
+
 // In-memory sliding window rate limiter
 interface RateLimitEntry {
   timestamps: number[]
@@ -2130,12 +2332,18 @@ interface RateLimitEntry {
 const rateLimitMap = new Map<string, RateLimitEntry>()
 export const RATE_LIMIT_WINDOW_MS = 60 * 1000 // 60s
 export const RATE_LIMIT_MAX_REQUESTS = 10
+export const RATE_LIMIT_MAX_ENTRIES = 10000 // Hard memory cap to prevent map exhaustion attacks
 
 export function resetRateLimitsForTesting(): void {
   rateLimitMap.clear()
 }
 
-export function checkRateLimit(ip: string): { allowed: boolean; remaining: number; resetTime: number } {
+export function getRateLimitMapSize(): number {
+  return rateLimitMap.size
+}
+
+export function checkRateLimit(rawIp: string): { allowed: boolean; remaining: number; resetTime: number } {
+  const ip = canonicalizeIp(rawIp) || UNKNOWN_CLIENT_IP
   const now = Date.now()
   const entry = rateLimitMap.get(ip) || { timestamps: [] }
 
@@ -2150,6 +2358,20 @@ export function checkRateLimit(ip: string): { allowed: boolean; remaining: numbe
 
   entry.timestamps.push(now)
   rateLimitMap.set(ip, entry)
+
+  // Enforce bounded memory size on rateLimitMap to prevent map flooding
+  if (rateLimitMap.size > RATE_LIMIT_MAX_ENTRIES) {
+    const toDelete = rateLimitMap.size - RATE_LIMIT_MAX_ENTRIES
+    let count = 0
+    for (const key of rateLimitMap.keys()) {
+      if (key !== ip) {
+        rateLimitMap.delete(key)
+        count++
+        if (count >= toDelete) break
+      }
+    }
+  }
+
   return {
     allowed: true,
     remaining: RATE_LIMIT_MAX_REQUESTS - entry.timestamps.length,
@@ -2285,9 +2507,8 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
     return
   }
 
-  // Extract client IP for rate limiting
-  const forwarded = req.headers['x-forwarded-for']
-  const clientIp = (typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : (req.headers['x-real-ip'] as string)) || req.socket?.remoteAddress || '127.0.0.1'
+  // Extract client IP with canonicalization and reverse-proxy trust hierarchy
+  const clientIp = extractClientIp(req)
 
   const rateLimit = checkRateLimit(clientIp)
   res.setHeader('X-RateLimit-Limit', RATE_LIMIT_MAX_REQUESTS.toString())
