@@ -402,12 +402,12 @@ describe('Ingress Identity & Distributed Abuse Oracle', () => {
       expect(extractClientIp(req)).toBe('198.51.100.10')
     })
 
-    it('6.1.2: x-real-ip takes supremacy over x-forwarded-for when vercel header absent', () => {
+    it('6.1.2: x-real-ip is untrusted client input and is ignored in favor of x-forwarded-for', () => {
       const req = makeMockReq({
         'x-real-ip': '198.51.100.20',
         'x-forwarded-for': '2.2.2.2'
       }, '127.0.0.1')
-      expect(extractClientIp(req)).toBe('198.51.100.20')
+      expect(extractClientIp(req)).toBe('2.2.2.2')
     })
 
     it('6.1.3: Evaluates x-forwarded-for chain right-to-left to trust reverse proxy appended hop', () => {
@@ -479,18 +479,25 @@ describe('Ingress Identity & Distributed Abuse Oracle', () => {
       expect(extractClientIp(req)).toBe(UNKNOWN_CLIENT_IP)
     })
 
-    it('6.1.14: Handles vercel header as string array', () => {
+    it('6.1.14: Conflicting duplicate vercel headers fail closed to UNKNOWN_CLIENT_IP', () => {
       const req = makeMockReq({
         'x-vercel-forwarded-for': ['198.51.100.100', '1.1.1.1']
+      })
+      expect(extractClientIp(req)).toBe(UNKNOWN_CLIENT_IP)
+    })
+
+    it('6.1.16: Identical duplicate vercel headers merge cleanly to canonical IP', () => {
+      const req = makeMockReq({
+        'x-vercel-forwarded-for': ['198.51.100.100', '198.51.100.100']
       })
       expect(extractClientIp(req)).toBe('198.51.100.100')
     })
 
-    it('6.1.15: Handles real-ip header as string array', () => {
+    it('6.1.15: Handles real-ip header as untrusted and falls back to UNKNOWN_CLIENT_IP when no trusted headers', () => {
       const req = makeMockReq({
         'x-real-ip': ['198.51.100.101', '1.1.1.1']
       })
-      expect(extractClientIp(req)).toBe('198.51.100.101')
+      expect(extractClientIp(req)).toBe(UNKNOWN_CLIENT_IP)
     })
   })
 
@@ -731,12 +738,12 @@ describe('Ingress Identity & Distributed Abuse Oracle', () => {
       expect(extractClientIp(req)).toBe('198.51.100.99')
     })
 
-    it('M24: X-Real-IP reverse proxy precedence overrides untrusted X-Forwarded-For', () => {
+    it('M24: X-Real-IP is untrusted client input and cannot override X-Forwarded-For', () => {
       const req = makeMockReq({
         'x-real-ip': '198.51.100.88',
         'x-forwarded-for': '5.6.7.8'
       })
-      expect(extractClientIp(req)).toBe('198.51.100.88')
+      expect(extractClientIp(req)).toBe('5.6.7.8')
     })
 
     it('M25: Malformed IP fails closed to __unknown_ingress__ bucket', () => {

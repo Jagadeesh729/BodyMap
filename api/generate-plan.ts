@@ -2266,41 +2266,75 @@ export function canonicalizeIp(rawIp?: string | null): string | null {
 }
 
 /**
- * Robust ingress client IP extractor.
- * Adheres strictly to reverse-proxy trust hierarchy:
- * 1. x-vercel-forwarded-for (guaranteed by Vercel edge router, cannot be spoofed by external client)
- * 2. x-real-ip (injected or overwritten by trusted reverse proxy)
- * 3. x-forwarded-for chain evaluated RIGHT-TO-LEFT to trust proxy hops over attacker-controlled leftmost hop
- * 4. req.socket.remoteAddress (TCP connection source address)
- * 5. Falls back to UNKNOWN_CLIENT_IP ('__unknown_ingress__') for bounded rate-limit containment
+ * Strict proxy trust boundary client IP extractor.
+ *
+ * Threat Model:
+ * 1. External HTTP clients can forge ANY standard or custom HTTP header (e.g. X-Real-IP,
+ *    X-Forwarded-For, X-Client-IP, Forwarded, Host, etc.).
+ * 2. On Vercel (process.env.VERCEL === '1'), Vercel Edge is the only trusted hop.
+ *    Vercel Edge sets 'x-vercel-forwarded-for' to the TCP client IP observed at the edge.
+ *    Any client-supplied 'x-real-ip' or 'forwarded' is untrusted user input and is completely ignored.
+ * 3. If 'x-vercel-forwarded-for' is present:
+ *    - It must be unambiguously valid.
+ *    - If multiple conflicting IPs are present, it is ambiguous -> fail closed to UNKNOWN_CLIENT_IP.
+ *    - If it is malformed or invalid -> fail closed to UNKNOWN_CLIENT_IP (NEVER fall through).
+ * 4. In production on Vercel, if 'x-vercel-forwarded-for' is absent:
+ *    - The request did not arrive via standard Vercel edge -> fail closed to UNKNOWN_CLIENT_IP.
+ * 5. In non-Vercel environments (e.g. local test harness where process.env.VERCEL is unset):
+ *    - Allow 'x-vercel-forwarded-for' if present.
+ *    - Otherwise, allow 'x-forwarded-for' (scanned right-to-left) to support local test mocks.
+ *    - Otherwise, socket transport address.
+ *    - Fallback: UNKNOWN_CLIENT_IP.
  */
 export function extractClientIp(req: IncomingMessage): string {
   try {
-    // 1. Vercel Edge guaranteed header (unforgeable by external clients on Vercel)
+    const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV !== undefined
+
+    // 1. Authoritative Vercel Edge platform header
     const vercelFwd = req.headers['x-vercel-forwarded-for']
-    if (vercelFwd) {
-      const raw = Array.isArray(vercelFwd) ? vercelFwd[0] : vercelFwd
-      if (typeof raw === 'string') {
-        const first = raw.split(',')[0].trim()
-        const canon = canonicalizeIp(first)
-        if (canon) return canon
+    if (vercelFwd !== undefined && vercelFwd !== null) {
+      const rawEntries = Array.isArray(vercelFwd)
+        ? vercelFwd.flatMap(s => typeof s === 'string' ? s.split(',') : [])
+        : (typeof vercelFwd === 'string' ? vercelFwd.split(',') : [])
+
+      // Reject CRLF header injection immediately
+      if (rawEntries.some(s => typeof s === 'string' && /[\r\n]/.test(s))) {
+        return UNKNOWN_CLIENT_IP
       }
+
+      const entries = rawEntries.map(e => e.trim()).filter(Boolean)
+      if (entries.length === 0) {
+        return UNKNOWN_CLIENT_IP
+      }
+
+      const canonicalIps = new Set<string>()
+      for (const entry of entries) {
+        const canon = canonicalizeIp(entry)
+        if (!canon) {
+          // Fail closed immediately on malformed or injection entry in platform header
+          return UNKNOWN_CLIENT_IP
+        }
+        canonicalIps.add(canon)
+      }
+
+      // Ambiguous metadata: multiple conflicting IPs -> fail closed
+      if (canonicalIps.size > 1) {
+        return UNKNOWN_CLIENT_IP
+      }
+
+      const [resolvedIp] = Array.from(canonicalIps)
+      return resolvedIp || UNKNOWN_CLIENT_IP
     }
 
-    // 2. Real-IP header (injected or overwritten by trusted reverse proxy)
-    const realIp = req.headers['x-real-ip']
-    if (realIp) {
-      const raw = Array.isArray(realIp) ? realIp[0] : realIp
-      if (typeof raw === 'string') {
-        const first = raw.split(',')[0].trim()
-        const canon = canonicalizeIp(first)
-        if (canon) return canon
-      }
+    // On Vercel production, x-vercel-forwarded-for is mandatory. If absent, fail closed.
+    if (isVercel) {
+      return UNKNOWN_CLIENT_IP
     }
 
-    // 3. Forwarded-For chain: inspected RIGHT-TO-LEFT to trust reverse proxy appended hops
+    // 2. Non-Vercel environment (local test harness):
+    // In local unit tests, evaluate x-forwarded-for right-to-left.
     const forwarded = req.headers['x-forwarded-for']
-    if (forwarded) {
+    if (forwarded !== undefined && forwarded !== null) {
       const rawEntries = Array.isArray(forwarded)
         ? forwarded.flatMap(s => typeof s === 'string' ? s.split(',') : [])
         : (typeof forwarded === 'string' ? forwarded.split(',') : [])
@@ -2312,7 +2346,7 @@ export function extractClientIp(req: IncomingMessage): string {
       }
     }
 
-    // 4. Direct socket transport address
+    // 3. Socket transport address (local server / test harness)
     const socketAddr = req.socket?.remoteAddress
     if (socketAddr) {
       const canon = canonicalizeIp(socketAddr)
