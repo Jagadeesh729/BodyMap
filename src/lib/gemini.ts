@@ -3,12 +3,12 @@ import { scanPlanForAllergens } from './allergenGuard'
 import { scanPlanForContraindications } from './contraindicationGuard'
 import { classifyMedicalIntake } from './medicalIntakeParser'
 
-function sanitizePromptInput(val?: string, fallback = 'None'): string {
+export function sanitizePromptInput(val?: string, fallback = 'None'): string {
   if (!val || typeof val !== 'string') return fallback
   let cleaned = ''
   for (let i = 0; i < val.length; i++) {
     const code = val.charCodeAt(i)
-    if ((code >= 0 && code <= 8) || (code >= 11 && code <= 31) || (code >= 127 && code <= 159)) {
+    if ((code >= 0 && code <= 8) || (code >= 11 && code <= 12) || (code >= 14 && code <= 31) || (code >= 127 && code <= 159)) {
       continue
     }
     cleaned += val[i]

@@ -83,8 +83,8 @@ describe('Browser Security Boundary Oracle - Full Audit Suite', () => {
       expect(cspValue).toMatch(/style-src\s+[^;]*['"]unsafe-inline['"]/)
     })
 
-    it('A10: CSP style-src contains https://fonts.googleapis.com for Google Fonts', () => {
-      expect(cspValue).toContain('https://fonts.googleapis.com')
+    it('A10: CSP style-src does not depend on fonts.googleapis.com (self-hosted fonts)', () => {
+      expect(cspValue).not.toContain('https://fonts.googleapis.com')
     })
 
     it('A11: CSP style-src strictly forbids wildcard *', () => {
@@ -92,9 +92,9 @@ describe('Browser Security Boundary Oracle - Full Audit Suite', () => {
       expect(styleSrcMatch?.[1].split(/\s+/)).not.toContain('*')
     })
 
-    it('A12: CSP font-src contains self and https://fonts.gstatic.com', () => {
+    it('A12: CSP font-src contains self and does not depend on fonts.gstatic.com', () => {
       expect(cspValue).toMatch(/font-src\s+[^;]*['"]self['"]/)
-      expect(cspValue).toContain('https://fonts.gstatic.com')
+      expect(cspValue).not.toContain('https://fonts.gstatic.com')
     })
 
     it('A13: CSP font-src strictly forbids wildcard *', () => {
@@ -1431,16 +1431,16 @@ describe('Browser Security Boundary Oracle - Full Audit Suite', () => {
     const cspValue = headersList.find(h => h.key.toLowerCase() === 'content-security-policy')?.value || ''
     const indexHtml = loadIndexHtml()
 
-    it('I01: Only approved third-party domain in style-src is fonts.googleapis.com', () => {
+    it('I01: Zero third-party domains in style-src (self and unsafe-inline only)', () => {
       const styleSrcMatch = cspValue.match(/style-src\s+([^;]+)/)
       const domains = (styleSrcMatch?.[1] || '').split(/\s+/).filter(d => d.startsWith('https://'))
-      expect(domains).toEqual(['https://fonts.googleapis.com'])
+      expect(domains).toEqual([])
     })
 
-    it('I02: Only approved third-party domain in font-src is fonts.gstatic.com', () => {
+    it('I02: Zero third-party domains in font-src (self only, self-hosted typography)', () => {
       const fontSrcMatch = cspValue.match(/font-src\s+([^;]+)/)
       const domains = (fontSrcMatch?.[1] || '').split(/\s+/).filter(d => d.startsWith('https://'))
-      expect(domains).toEqual(['https://fonts.gstatic.com'])
+      expect(domains).toEqual([])
     })
 
     it('I03: Zero external domains permitted in script-src (self only)', () => {
@@ -1477,8 +1477,10 @@ describe('Browser Security Boundary Oracle - Full Audit Suite', () => {
       expect(cspValue).toMatch(/frame-ancestors\s+['"]none['"]/)
     })
 
-    it('I10: Google Fonts preconnect in index.html includes crossorigin attribute', () => {
-      expect(indexHtml).toContain('<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />')
+    it('I10: Typography is self-hosted via local fonts.css without external Google Fonts preconnects', () => {
+      expect(indexHtml).toContain('<link rel="stylesheet" href="/fonts/fonts.css" />')
+      expect(indexHtml).not.toContain('https://fonts.googleapis.com')
+      expect(indexHtml).not.toContain('https://fonts.gstatic.com')
     })
 
     it('I11: Lucide icons are bundled locally via npm (no external icon fonts)', () => {
