@@ -6,6 +6,7 @@ import fs from 'fs'
 function spaFallbackPlugin(): Plugin {
   return {
     name: 'spa-fallback',
+    apply: 'build',
     closeBundle() {
       const outDir = path.resolve(process.cwd(), 'dist')
       const indexPath = path.join(outDir, 'index.html')
@@ -63,6 +64,7 @@ function geminiDevApiPlugin(): Plugin {
 
   return {
     name: 'gemini-dev-api',
+    apply: 'serve',
     configureServer(server) {
       server.middlewares.use('/api/generate-plan', async (req, res) => {
         if (req.method !== 'POST') {
@@ -115,7 +117,9 @@ function geminiDevApiPlugin(): Plugin {
               }
             )
 
-            const data = await geminiRes.json()
+            const data = (await geminiRes.json()) as {
+              candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
+            }
             const text = data.candidates?.[0]?.content?.parts?.[0]?.text
 
             res.statusCode = geminiRes.status
@@ -145,6 +149,9 @@ export default defineConfig({
     spaFallbackPlugin(),
   ],
   build: {
+    sourcemap: false,
+    minify: 'esbuild',
+    target: 'es2020',
     rollupOptions: {
       output: {
         manualChunks: {
