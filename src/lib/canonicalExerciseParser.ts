@@ -71,7 +71,7 @@ export function extractPrescriptionDetails(text: string): {
   reps?: string
   rest?: string
 } {
-  const setsMatch = text.match(/(\d+)\s*sets?/i)
+  const setsMatch = text.match(/(\d+)\s*sets?/i) || text.match(/\b(\d+)\s*x\s*\d+/i)
   const repsMatch = text.match(/(\d+[\d-]*)\s*reps?/i) || text.match(/\b\d+\s*x\s*(\d+[\d-]*)\b/i)
   const restMatch =
     text.match(/(\d+s|\d+\s*sec(?:onds)?|\d+\s*min(?:utes)?)\s*rest/i) ||

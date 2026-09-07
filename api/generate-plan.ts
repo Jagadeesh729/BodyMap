@@ -693,14 +693,14 @@ export const CONTRAINDICATION_TAXONOMY: Record<
     ],
     forbiddenPatterns: [
       /\b(?:box|depth|tuck|jump|squat|split|broad|hurdle)[- ]*jumps?\b/i,
-      /\bjumps?\s+squats?\b/i,
+      /\bjumps?[- ]*squats?\b/i,
       /\bburpees?\b/i,
       /\b(?:jumping|plyometric|split)[- ]+lunges?\b/i,
       /\b(?:skater|speed\s+skater)[- ]*jumps?\b/i,
       /\b(?:jump|skipping)\s+rope\b/i,
       /\bhigh[- ]knee\s+jumps?\b/i,
       /\bpower[- ]+skips?\b/i,
-      /\bdepth[- ]+drops?\b/i,
+      /\bdepth[- ]*drops?\b/i,
       /\b(?:lateral|skater|single[- ]leg|plyometric|speed)\s+bounds?\b/i,
       /\b(?:(?:lateral|skater|single[- ]leg|plyometric|speed)\s+)?bounding\b/i,
       /\bhigh[- ]impact\s+(?:plyometrics|jumping|bounding)\b/i,
@@ -740,7 +740,7 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\bsubacromial\s+impingement\b/i,
     ],
     forbiddenPatterns: [
-      /\b(?:(?:barbell|dumbbell|seated|standing|machine|kettlebell)\s+)?(?:overhead|shoulder)\s+press(?:ing|es)?\b/i,
+      /\b(?:(?:barbell|dumbbell|seated|standing|machine|kettlebell)\s+)?(?:over[- ]*head|shoulder)\s+press(?:ing|es)?\b/i,
       /\b(?:military\s+press(?:ing)?|arnold\s+press(?:ing)?|push\s+press(?:ing)?)\b/i,
       /\bbehind[- ]the[- ]neck\s+(?:press(?:ing)?|shoulder\s+press|(?:lat\s+)?pulldowns?)\b/i,
       /\bhandstand\s+push[- ]ups?\b/i,
@@ -800,6 +800,8 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\b(?:seated\s+|loaded\s+|cable\s+|machine\s+)?(?:torso|trunk)\s+rotations?\b/i,
       /\brotary\s+torso\b/i,
       /\b(?:weighted\s+|decline\s+)?(?:crunches?|sit[- ]*ups?)\b/i,
+      /\b(?:bent[- ]over\s+(?:barbell\s+|dumbbell\s+)?rows?|barbell\s+rows?)\b/i,
+      /\brussian\s+twists?\b/i,
       /\b(?:barbell\s+)?(?:clean\s*(?:and|&)\s*jerk|c&j|snatch(?:es)?)\b/i,
       /\b(?:power|hang|squat|muscle|split)\s+clean(?:s|ing)?\b/i,
       /\bclean\s+(?:pull|high\s+pull|and\s+press|&\s+press)s?\b/i,
@@ -839,7 +841,9 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\b(?:handstands?|handstand\s+push[- ]*ups?|shoulder\s*stands?)\b/i,
       /\b(?:strict\s+|deficit\s+|kipping\s+)?hspus?\b/i,
       /\b(?:push|split|squat|power|olympic)\s+jerks?\b/i,
-      /\b(?:barbell\s+)?high[- ]bar\s+(?:back\s+)?squats?\b/i,
+      /\b(?:barbell\s+|dumbbell\s+|heavy\s+)?shrugs?\b/i,
+      /\bupright\s+(?:barbell\s+|dumbbell\s+)?rows?\b/i,
+      /\b(?:barbell\s+)?(?:high[- ]bar\s+)?back\s*squats?\b/i,
       /\bbar(?:bell)?\s+on\s+neck\b/i,
       /\b(?:weighted\s+)?neck\s+harness\b/i,
       /\bneck\s+(?:harness|extension\s+machine)\b/i,
@@ -866,13 +870,13 @@ export const CONTRAINDICATION_TAXONOMY: Record<
       /\b(?:angina|coronary\s+artery\s+disease|myocardial\s+infarction|heart\s+attack|heart\s+failure|cardiac\s+stent|recent\s+heart\s+surgery|severe\s+hypertension|uncontrolled\s+hypertension)\b/i,
     ],
     forbiddenPatterns: [
-      /\b(?:high[- ]intensity\s+interval\s+training|hiit|tabata)(?:\s+(?:cardio|circuit|intervals?|training|workout|sprints?))?\b/i,
+      /\b(?:high[- ]intensity\s+interval(?:\s+training)?|hiit|tabata)(?:\s+(?:cardio|circuit|intervals?|training|workout|sprints?))?\b/i,
       /\b(?:all[- ]out\s+|maximal\s+(?:effort\s+)?|sprint\s+|tabata\s+)?sprints?\b/i,
       /\b(?:1[- ]?rm|one[- ]?rep\s+max)\b/i,
       /\bburpees?\b/i,
       /\b(?:sets?|reps?)\s+to\s+failure\b/i,
       /\bto\s+failure\b/i,
-      /\bmaximal\s+valsalva\b/i,
+      /\b(?:maximal\s+)?valsalva\b/i,
     ],
     safeExemptions: [
       /\bwalking\b/i,
@@ -977,9 +981,10 @@ export const CONTRAINDICATION_TAXONOMY: Record<
     ],
     forbiddenPatterns: [
       /\b(?:box|depth|tuck|squat|split|broad)[- ]*jumps?\b/i,
-      /\bjumps?\s+squats?\b/i,
+      /\bjumps?[- ]*squats?\b/i,
       /\bburpees?\b/i,
       /\bjumping[- ]+lunges?\b/i,
+      /\bdepth[- ]*drops?\b/i,
       /\bhigh[- ]impact\s+(?:bounding|jumping|plyometrics)\b/i,
       /\b(?:all[- ]out\s+|high[- ]impact\s+)?sprints?\b/i,
       /\bsprinting\b/i,
@@ -1141,7 +1146,7 @@ const CLINICAL_ENTITIES: EntityPattern[] = [
   },
   {
     category: 'shoulder_impingement_cuff',
-    pattern: /\bshoulder\s+(?:impingement|tear|surgery|repair|dislocation|subluxation|separation|pain|injury|injuries|catching|clicking|problem|problems|issue|issues|trouble)\b/i,
+    pattern: /\bshoulder\s+(?:impingement|tear|surgery|repair|dislocation|subluxation|separation|sprain|strain|pain|injury|injuries|catching|clicking|problem|problems|issue|issues|trouble)\b/i,
   },
   {
     category: 'shoulder_impingement_cuff',
@@ -1155,12 +1160,23 @@ const CLINICAL_ENTITIES: EntityPattern[] = [
   // --- CERVICAL SPINE / NECK ---
   {
     category: 'cervical_spine_pathology',
-    pattern: /\bcervical(?:\s+spinal)?\s+(?:disc|spine|herniat(?:ion|ed)|fusion|radiculopathy|stenosis)\b/i,
+    pattern: /\b(?:cervical(?:\s+spinal)?\s+fusion|neck\s+fusion)\b/i,
+    isFormal: true,
+    isPermanentStructural: true,
+  },
+  {
+    category: 'cervical_spine_pathology',
+    pattern: /\bcervical(?:\s+spinal)?\s+(?:disc|spine|herniat(?:ion|ed)|radiculopathy|stenosis)\b/i,
     isFormal: true,
   },
   {
     category: 'cervical_spine_pathology',
     pattern: /\b(?:c3[- ]c4|c4[- ]c5|c5[- ]c6|c6[- ]c7)\b/i,
+    isFormal: true,
+  },
+  {
+    category: 'cervical_spine_pathology',
+    pattern: /\bwhiplash(?:\s+injury)?\b/i,
     isFormal: true,
   },
   {
@@ -1184,9 +1200,15 @@ const CLINICAL_ENTITIES: EntityPattern[] = [
   },
   {
     category: 'lumbar_disc_herniation',
-    pattern: /\b(?:disc\s+herniat(?:ion|ed)|herniated\s+disc|bulging\s+disc|slipped\s+disc|protruded\s+disc|extruded\s+disc|annular\s+(?:disc\s+)?tear|intervertebral\s+disc\s+protrusion)\b/i,
+    pattern: /\b(?:disc\s+herniat(?:ion|ed)|(?:herniated|bulging|slipped|protruded|extruded)(?:\s+(?:lumbar|intervertebral|spinal))?\s+disc|annular\s+(?:disc\s+)?tear|intervertebral\s+disc\s+protrusion)\b/i,
     isFormal: true,
     excludeIfContains: /\b(?:cervical|neck|c[3-7][- ]c[4-7])\b/i,
+  },
+  {
+    category: 'lumbar_disc_herniation',
+    pattern: /\b(?:degenerative\s+disc\s+disease|ddd\b|disc\s+bulg(?:e|ing)|lumbar\s+disc\s+bulg(?:e|ing))\b/i,
+    isFormal: true,
+    excludeIfContains: /\b(?:cervical|neck)\b/i,
   },
   {
     category: 'lumbar_disc_herniation',
@@ -1216,6 +1238,11 @@ const CLINICAL_ENTITIES: EntityPattern[] = [
   },
   {
     category: 'lumbar_disc_herniation',
+    pattern: /\b(?:spine|spinal)\s+(?:issue|issues|problem|problems|condition|conditions|pain|injury|injuries)\b/i,
+    excludeIfContains: /\b(?:cervical|neck)\b/i,
+  },
+  {
+    category: 'lumbar_disc_herniation',
     pattern: /\bdisc\s+surgery\b/i,
     excludeIfContains: /\b(?:cervical|neck)\b/i,
   },
@@ -1239,7 +1266,7 @@ const CLINICAL_ENTITIES: EntityPattern[] = [
   },
   {
     category: 'cardiac_symptomatic_condition',
-    pattern: /\b(?:atrial\s+fibrillation|a-?fib\b|arrhythmia|cardiac\s+stent|heart\s+bypass|cabg|recent\s+heart\s+surgery)\b/i,
+    pattern: /\b(?:atrial\s+fibrillation|a-?fib\b|arrhythmia|(?:coronary|cardiac|heart)\s+stent|stent\s+placement|(?:coronary\s+artery\s+)?bypass(?:\s+graft)?|heart\s+bypass|cabg|recent\s+heart\s+surgery)\b/i,
     isFormal: true,
     isPermanentStructural: true,
   },
@@ -1260,13 +1287,13 @@ const CLINICAL_ENTITIES: EntityPattern[] = [
   },
   {
     category: 'cardiac_symptomatic_condition',
-    pattern: /\b(?:heart|cardiac)\s+(?:condition|disease|problem|problems|issue|issues|trouble|history|event|disorder|surgery|surgeries)s?\b/i,
+    pattern: /\b(?:heart|cardiac|cardiovascular)\s+(?:condition|conditions|disease|diseases|problem|problems|issue|issues|trouble|history|event|disorder|surgery|surgeries|symptom|symptoms)s?\b/i,
   },
 
   // --- PREGNANCY (LATE STAGE / 2ND & 3RD TRIMESTER) ---
   {
     category: 'pregnancy_late_stage',
-    pattern: /\b(?:3rd\s+trimester|third\s+trimester|2nd\s+trimester|second\s+trimester|late\s+pregnancy|past\s+first\s+trimester|advanced\s+pregnancy)\b/i,
+    pattern: /\b(?:3rd\s+trimester|third\s+trimester|2nd\s+trimester|second\s+trimester|late(?:\s+stage)?\s+pregnancy|past\s+first\s+trimester|advanced\s+pregnancy)\b/i,
     isFormal: true,
   },
   {
@@ -1299,7 +1326,12 @@ const CLINICAL_ENTITIES: EntityPattern[] = [
   },
   {
     category: 'severe_osteoporosis',
-    pattern: /\bt-?score\s*[-–—]?\s*(?:-2\.[5-9]|-[3-5](?:\.\d+)?)\b/i,
+    pattern: /\b(?:brittle\s+bones?|bone\s+fragility|fragile\s+bones)\b/i,
+    isFormal: true,
+  },
+  {
+    category: 'severe_osteoporosis',
+    pattern: /\bt-?score\s*(?:<|<=|[-–—]|less\s+than)?\s*(?:-2\.[5-9]|-[3-5](?:\.\d+)?)\b/i,
     isFormal: true,
   },
 
@@ -1307,6 +1339,11 @@ const CLINICAL_ENTITIES: EntityPattern[] = [
   {
     category: 'severe_osteoarthritis',
     pattern: /\b(?:osteoarthritis|bone\s+on\s+bone(?:\s+arthritis)?|joint\s+space\s+narrowing)\b/i,
+    isFormal: true,
+  },
+  {
+    category: 'severe_osteoarthritis',
+    pattern: /\b(?:degenerative\s+joint\s+disease|djd\b|knee\s+arthrosis|hip\s+arthrosis)\b/i,
     isFormal: true,
   },
   {
@@ -1328,6 +1365,7 @@ export function normalizeMedicalInput(text?: string | null): string {
     .replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g, ' ')
     .replace(/[\u2018\u2019]/g, "'")
     .replace(/[\u201C\u201D]/g, '"')
+    .replace(/\u2212/g, '-')
     .replace(/\s+/g, ' ')
     .trim()
 }
@@ -1347,7 +1385,7 @@ export function splitMedicalClauses(normalizedText: string): string[] {
       for (let i = 1; i < parts.length; i++) {
         const nextPart = parts[i]
         const startsWithConditionPrefix =
-          /^(?:no\b|not\b|none\b|never\b|denies\b|denied\b|neither\b|history\b|prior\b|past\b|current\b|acute\b|family\b|mother\b|father\b|brother\b|sister\b|doctor\b|i\s+have\b|full\b|zero\b)/i.test(nextPart)
+          /^(?:no\b|not\b|none\b|never\b|denies\b|denied\b|neither\b|history\b|prior\b|past\b|current\b|acute\b|family\b|mother\b|father\b|brother\b|sister\b|doctor\b|physician\b|chiropractor\b|cardiologist\b|surgeon\b|ortho(?:pedic)?\b|pt\b|physio\b|trainer\b|coach\b|specialist\b|i\s+have\b|full\b|zero\b)/i.test(nextPart)
         const hasEntityInNext = CLINICAL_ENTITIES.some(e => e.pattern.test(nextPart))
 
         if (startsWithConditionPrefix || hasEntityInNext) {
@@ -1413,11 +1451,11 @@ function evaluateClauseEntitySemantics(
   const textAfter = lowerClause.slice(matchIndex + matchLength).trim()
 
   const negationSuffixRegex =
-    /^(?:(?:was|is|has\s+been)\s+)?(?:ruled\s+out|negative|cleared\s+of|denied|unremarkable|none|no)\b/i
+    /^(?:(?:was|were|is|are|has\s+been|have\s+been)\s+)?(?:ruled\s+out|negative|cleared\s+of|denied|unremarkable|none|no|non-?existent|absent|uninjured)\b/i
   const hasNegationSuffix = negationSuffixRegex.test(textAfter)
 
   const negationPrefixRegex =
-    /\b(?:no|not|none|never|denies|denied|denying|neither|ruled\s+out|negative\s+for|free\s+(?:of|from)|clear\s+of|cleared\s+of|unremarkable\s+for|without|nil|zero\s+(?:history|injur(?:y|ies)|events?|conditions?|problems?))(?:\s+(?:known|active|current|currently|acute|major|significant|prior|history\s+of|had(?:\s+a)?|any|a|an|ever|reported|personal|(?:[a-z]+\s+)+or|(?:[a-z]+\s+)+nor|[a-z]+\s+and))*$/i
+    /\b(?:no|not|none|never|denies|denied|denying|neither|ruled\s+out|negative\s+for|free\s+(?:of|from)|clear\s+of|cleared\s+of|unremarkable\s+for|without|nil|zero(?:\s+(?:history|injur(?:y|ies)|events?|conditions?|problems?|symptoms?))?)(?:\s+(?:known|active|current|currently|acute|major|significant|prior|history\s+of|had(?:\s+a)?|any|a|an|ever|reported|personal|(?:[a-z]+\s+)+or|(?:[a-z]+\s+)+nor|[a-z]+\s+and))*$/i
 
   // Prefix must be in the same immediate segment without intervening punctuation
   const lastChunkBefore = textBefore.split(/[,;]|\s+but\s+|\s+however\s+/).pop() || ''
@@ -1442,7 +1480,16 @@ function evaluateClauseEntitySemantics(
     recentOnsetRegex.test(lowerClause) &&
     !/\b(?:fully\s+recovered|healed|resolved|rehabilitated|asymptomatic|cleared)\b/i.test(lowerClause)
 
-  if (historicalRegex.test(lowerClause) && !activePersistenceRegex.test(lowerClause) && !isRecentWithoutRecovery) {
+  // Adversarial authority clearance override attempt:
+  // e.g. "cleared me for box jumps", "cleared to do heavy deadlifts", "chiropractor cleared me for push-ups"
+  // This is an unverified verbal permission claim, NOT evidence that tissue pathology is healed.
+  const isAuthorityOverrideAttempt =
+    /\b(?:cleared\s+(?:me\s+)?(?:to|for)|cleared\s+by\s+[a-z\s]+(?:to|for)|(?:doctor|physician|dr|physio|pt|chiropractor|trainer|coach|specialist|surgeon|cardiologist|ortho|orthopedic)\s+(?:cleared|said|approved|signed\s+off))\b/i.test(lowerClause)
+
+  // Ancillary modifier exclusion: "osteoporosis with prior fracture" means osteoporosis plus fragility fracture history, NOT resolved osteoporosis
+  const clauseForHistorical = lowerClause.replace(/\bwith\s+(?:prior|past|previous|old)\s+fractures?\b/gi, '')
+
+  if (historicalRegex.test(clauseForHistorical) && !activePersistenceRegex.test(lowerClause) && !isRecentWithoutRecovery && !isAuthorityOverrideAttempt) {
     if (entity.isPermanentStructural) {
       return { state: 'formal_diagnosis', qualifier: 'permanent_structural_modification' }
     }
@@ -1605,8 +1652,9 @@ export function classifyMedicalIntake(rawInput?: string | null): MedicalIntakeCl
       isSafetySensitive = true
     } else if (mentions.length === 0) {
       // Input had 0 category mentions: check if it's explicitly resolved/healed or truly unclassified
+      const hasActivePain = /\bpain\b/i.test(normalized) && !/\bpain[- ]free\b/i.test(normalized)
       const isExplicitlyResolved = /\b(?:healed|resolved|rehabilitated|fully\s+recovered|old\s+injury|years?\s+ago)\b/i.test(normalized) &&
-        !/\b(?:current|active|still|ongoing|pain)\b/i.test(normalized)
+        !/\b(?:current|active|still|ongoing)\b/i.test(normalized) && !hasActivePain
 
       if (!isExplicitlyResolved) {
         isSafetySensitive = true // Fail-closed on unrecognized unconfirmed free text
@@ -1810,7 +1858,7 @@ export function extractPrescriptionDetails(text: string): {
   reps?: string
   rest?: string
 } {
-  const setsMatch = text.match(/(\d+)\s*sets?/i)
+  const setsMatch = text.match(/(\d+)\s*sets?/i) || text.match(/\b(\d+)\s*x\s*\d+/i)
   const repsMatch = text.match(/(\d+[\d-]*)\s*reps?/i) || text.match(/\b\d+\s*x\s*(\d+[\d-]*)\b/i)
   const restMatch =
     text.match(/(\d+s|\d+\s*sec(?:onds)?|\d+\s*min(?:utes)?)\s*rest/i) ||
