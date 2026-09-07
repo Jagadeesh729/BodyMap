@@ -2524,6 +2524,11 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
   res.setHeader('X-Frame-Options', 'DENY')
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
   res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+  res.setHeader('Pragma', 'no-cache')
+  res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'")
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), bluetooth=(), interest-cohort=()')
+  res.setHeader('X-Permitted-Cross-Domain-Policies', 'none')
 
   if (req.method === 'OPTIONS') {
     res.statusCode = 204

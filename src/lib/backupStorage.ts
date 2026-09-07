@@ -13,6 +13,7 @@ import type { SavedPlan } from '@/types/savedPlan'
 import { loadSavedPlans, persistSavedPlans, clearSavedPlans } from '@/lib/savedPlansStorage'
 import type { BodyMeasurementEntry } from '@/types/bodyMetrics'
 import { loadBodyMetrics, persistBodyMetrics, clearBodyMetrics } from '@/lib/bodyMetricsStorage'
+import { sanitizeDownloadFilename } from '@/lib/downloadSecurity'
 
 export const BACKUP_SCHEMA_VERSION = '2.3.0'
 export const BACKUP_SCHEMA_IDENTIFIER = 'bodymap_backup_v2'
@@ -262,7 +263,7 @@ export function exportBackupToFile(filename?: string): void {
   const link = document.createElement('a')
   const dateStamp = new Date().toISOString().split('T')[0]
   link.href = url
-  link.download = filename || `bodymap-backup-${dateStamp}.json`
+  link.download = sanitizeDownloadFilename(filename, `bodymap-backup-${dateStamp}`, 'json')
 
   document.body.appendChild(link)
   link.click()

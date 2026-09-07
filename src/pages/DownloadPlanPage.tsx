@@ -34,6 +34,7 @@ import { validateBackupPayload } from '@/lib/backupIntegrity'
 import { analyzeBackupDiagnostics } from '@/lib/backupDiagnostics'
 import { generateVaultManifest } from '@/lib/vaultManifestEngine'
 import { auditVaultIntegrity } from '@/lib/vaultIntegrityEngine'
+import { sanitizeDownloadFilename } from '@/lib/downloadSecurity'
 
 const DownloadPlanPage = () => {
   const { state } = usePlan()
@@ -96,7 +97,11 @@ const DownloadPlanPage = () => {
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `bodymap-7day-plan-${formData.mainGoal || 'fitness'}.md`
+    link.download = sanitizeDownloadFilename(
+      formData.mainGoal ? `bodymap-7day-plan-${formData.mainGoal}` : 'bodymap-7day-plan-fitness',
+      'bodymap-7day-plan',
+      'md'
+    )
 
     document.body.appendChild(link)
     link.click()
