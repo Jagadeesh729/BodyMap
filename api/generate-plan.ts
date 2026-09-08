@@ -20,6 +20,25 @@ export function resetInFlightRequestsForTesting(): void {
   activeInFlightRequests = 0
 }
 
+export const CIRCUIT_BREAKER_COOLDOWN_MS = 30000 // 30s cooldown
+let upstreamCircuitOpenUntil = 0
+
+export function isUpstreamCircuitOpen(): boolean {
+  return Date.now() < upstreamCircuitOpenUntil
+}
+
+export function tripUpstreamCircuit(cooldownMs = CIRCUIT_BREAKER_COOLDOWN_MS): void {
+  upstreamCircuitOpenUntil = Date.now() + cooldownMs
+}
+
+export function resetCircuitBreakerForTesting(): void {
+  upstreamCircuitOpenUntil = 0
+}
+
+export function getCircuitBreakerResetTime(): number {
+  return Math.max(0, Math.ceil((upstreamCircuitOpenUntil - Date.now()) / 1000))
+}
+
 export function createCompositeSignal(signals: AbortSignal[]): AbortSignal {
   if (typeof (AbortSignal as unknown as { any?: (sigs: AbortSignal[]) => AbortSignal }).any === 'function') {
     return (AbortSignal as unknown as { any: (sigs: AbortSignal[]) => AbortSignal }).any(signals)
@@ -2532,6 +2551,7 @@ export const RATE_LIMIT_MAX_ENTRIES = 10000 // Hard memory cap to prevent map ex
 
 export function resetRateLimitsForTesting(): void {
   rateLimitMap.clear()
+  resetCircuitBreakerForTesting()
 }
 
 export function getRateLimitMapSize(): number {
@@ -2728,6 +2748,22 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
     return
   }
 
+  // Process-local upstream 429 fast-fail circuit breaker
+  if (isUpstreamCircuitOpen()) {
+    const retryAfter = getCircuitBreakerResetTime() || 30
+    res.statusCode = 429
+    res.setHeader('Retry-After', retryAfter.toString())
+    res.setHeader('Content-Type', 'application/json')
+    res.setHeader('X-Upstream-Calls', '0')
+    res.end(JSON.stringify({
+      error: 'Upstream AI quota or rate limit exceeded. Circuit breaker active.',
+      retryAfter,
+      requestId,
+      executionSource: 'upstream-circuit-breaker',
+    }))
+    return
+  }
+
   // Hard in-process concurrency ceiling per serverless instance
   if (activeInFlightRequests >= MAX_IN_FLIGHT_REQUESTS) {
     res.statusCode = 503
@@ -2784,7 +2820,7 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
       return
     }
 
-    if (!parsed.formData || typeof parsed.formData !== 'object' || Array.isArray(parsed.formData)) {
+    if (!parsed || typeof parsed !== 'object' || !parsed.formData || typeof parsed.formData !== 'object' || Array.isArray(parsed.formData)) {
       res.statusCode = 400
       res.setHeader('Content-Type', 'application/json')
       res.setHeader('X-Upstream-Calls', '0')
@@ -2815,7 +2851,7 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
 
     let successfulText = ''
     let resolvedModel = ''
-    let lastErrorStatus = 500
+    let lastErrorStatus = 0
 
     for (const modelToTry of candidateModels) {
       if (reqAbortController.signal.aborted) break
@@ -2847,6 +2883,9 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
           lastErrorStatus = response.status
           // Non-retryable client/auth errors or upstream quota exhaustion: do not waste quota or add latency
           if (response.status === 400 || response.status === 401 || response.status === 403 || response.status === 429) {
+            if (response.status === 429) {
+              tripUpstreamCircuit()
+            }
             break
           }
           continue // try secondary candidate model on 404, 500, 502, 503, 504
@@ -2860,6 +2899,7 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
         if (text && text.trim().length > 0) {
           successfulText = text
           resolvedModel = modelToTry
+          resetCircuitBreakerForTesting()
           break // success
         }
       } catch {
@@ -2961,6 +3001,7 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
             })
 
             if (retryRes.ok) {
+              resetCircuitBreakerForTesting()
               const retryData = await retryRes.json() as {
                 candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
               }
@@ -3036,6 +3077,7 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
 
     if (!successfulText) {
       if (lastErrorStatus === 429) {
+        tripUpstreamCircuit()
         res.statusCode = 429
         res.setHeader('Retry-After', '60')
         res.setHeader('Content-Type', 'application/json')
