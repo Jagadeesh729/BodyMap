@@ -154,7 +154,7 @@ const CLINICAL_ENTITIES: EntityPattern[] = [
   },
   {
     category: 'shoulder_impingement_cuff',
-    pattern: /\b(?:labr(?:al|um)\s+(?:tear|lesion|repair|pathology|slap)|slap\s+tear|glenoid\s+labral)\b/i,
+    pattern: /\b(?:labr(?:al|um)\s+(?:tear|lesion|repair|pathology|slap)|slap(?:\s+tear)?|superior\s+labr(?:um|al)|glenoid\s+labral)\b/i,
     isFormal: true,
   },
   {
@@ -312,6 +312,7 @@ const CLINICAL_ENTITIES: EntityPattern[] = [
   {
     category: 'cardiac_symptomatic_condition',
     pattern: /\b(?:heart|cardiac|cardiovascular)\s+(?:condition|conditions|disease|diseases|problem|problems|issue|issues|trouble|history|event|disorder|surgery|surgeries|symptom|symptoms)s?\b/i,
+    excludeIfContains: /\b(?:excellent|good|great|healthy|normal|peak|prime)\s+(?:cardiovascular|cardiac|heart)\b/i,
   },
 
   // --- PREGNANCY (LATE STAGE / 2ND & 3RD TRIMESTER) ---
@@ -345,7 +346,7 @@ const CLINICAL_ENTITIES: EntityPattern[] = [
   },
   {
     category: 'severe_osteoporosis',
-    pattern: /\b(?:osteoporosis|bone\s+density\s+loss|osteopenia\s+with\s+fracture)\b/i,
+    pattern: /\b(?:osteoporosis|bone\s+density\s+loss|osteopenia\s+with\s+(?:[a-z]+\s+)?fracture)\b/i,
     isFormal: true,
   },
   {
@@ -440,6 +441,100 @@ const BENIGN_EXACT_PATTERNS = [
 
 const GENERAL_CLINICAL_RISK_PATTERN =
   /\b(asthma|copd|respiratory|diabet|neuropathy|seizure|epilep|vertigo|dizz|faint|syncope|glaucoma|hernia|dialysis|renal|kidney|cancer|stroke|aneurysm|surgery|post[- ]op)\b/i
+
+const RED_FLAG_PATTERNS: RegExp[] = [
+  /\b(?:faint(?:ed|ing)?|syncope|near[- ]syncope|presyncope|black(?:ing)?[- ]?out|blackouts?|passed\s+out|passing\s+out|loss\s+of\s+consciousness|collapsed?)\b/i,
+  /\b(?:air\s+hunger|gasping\s+for\s+air|dyspnea|shortness\s+of\s+breath|breathless(?:ness)?|stridor|suffocating|orthopnea|paroxysmal\s+nocturnal\s+dyspnea|\bsob\b|inability\s+to\s+catch\s+(?:one'?s?\s+|my\s+)?breath|cannot\s+catch\s+(?:my\s+)?breath|unable\s+to\s+catch\s+(?:my\s+)?breath)\b/i,
+  /\b(?:crushing\s+(?:chest\s+)?pressure|(?:crushing|heavy|severe|squeezing)\s+pressure\s+(?:in|on|across)\s+(?:the\s+)?(?:center\s+of\s+)?chest|tight\s+band\s+around\s+(?:the\s+)?chest|substernal\s+(?:chest\s+)?pain|chest\s+(?:tightness|constriction|heaviness|squeezing)|angina(?:\s+pectoris)?|tearing\s+chest\s+pain)\b/i,
+  /\b(?:facial\s+droop|slurred\s+speech|dysarthria|hemiparesis|hemiplegia|paralysis|ataxia|foot\s+drop|drop\s+attacks?|transient\s+ischemic\s+attack|\btia\b|amaurosis\s+fugax|loss\s+of\s+motor\s+control|unilateral\s+(?:arm|leg|facial)\s+(?:weakness|numbness)|inability\s+to\s+move\s+[a-z\s]*(?:hand|arm|leg|foot|limb))\b/i,
+  /\b(?:saddle\s+(?:numbness|anesthesia)|loss\s+of\s+(?:bowel|bladder)\s+control|(?:fecal|urinary)\s+incontinence|cauda\s+equina|bilateral\s+leg\s+weakness|loss\s+of\s+sphincter\s+tone)\b/i,
+  /\b(?:coughing\s+(?:up\s+)?blood|spitting\s+(?:up\s+)?blood|coughing\s+[a-z\s]*\bblood|spitting\s+[a-z\s]*\bblood|hemoptysis|swollen\s+red\s+(?:throbbing\s+)?calf|deep\s+vein\s+thrombosis|\bdvt\b|thunderclap\s+headache|worst\s+headache\s+of\s+(?:my\s+)?life|retinal\s+detachment)\b/i,
+]
+
+const UNLISTED_PATHOLOGY_PATTERNS: RegExp[] = [
+  /\b(?:multiple\s+sclerosis|\bms\b|amyotrophic\s+lateral\s+sclerosis|\bals\b|parkinson(?:'?s)?(?:\s+disease)?|myasthenia\s+gravis|\bmg\b|epilep(?:sy|tic|sey)|seizures?|siezures?|cerebral\s+palsy|huntington(?:'?s)?|charcot[- ]marie[- ]tooth|\bcmt\b|neuropathy|polyneuropathy|hydrocephalus|traumatic\s+brain\s+injury|\btbi\b|post[- ]concussion|spinal\s+cord\s+injury|\bsci\b|paraplegia|quadriplegia|spastic\s+diplegia|neuromyelitis\s+optica|guillain[- ]barre|dystonia|essential\s+tremor)\b/i,
+  /\b(?:ehlers[- ]danlos|\beds\b|\bheds\b|\bveds\b|hypermobility\s+spectrum|\bhsd\b|marfan(?:\s+syndrome)?|osteogenesis\s+imperfecta|lupus|\bsle\b|rheumatoid\s+arthritis|\bra\b|ankylosing\s+spondylitis|\bas\b|scleroderma|systemic\s+sclerosis|sjogren(?:'?s)?|fibromyalgia|fibromialg(?:ia|a)|chronic\s+fatigue\s+syndrome|myalgic\s+encephalomyelitis|\bme\/cfs\b|polymyalgia\s+rheumatica|psoriatic\s+arthritis|dermatomyositis|polymyositis|behcet(?:'?s)?|mixed\s+connective\s+tissue|\bmctd\b|vasculitis|sarcoidosis|giant\s+cell\s+arteritis)\b/i,
+  /\b(?:postural\s+orthostatic\s+tachycardia|\bpots\b|dysautonomia|orthostatic\s+hypotension|peripheral\s+artery\s+disease|\bpad\b|claudication|pulmonary\s+embolism|\bpe\b|aortic\s+aneurysm|abdominal\s+aortic\s+aneurysm|\baaa\b|aneurism|anurism|sickle\s+cell|hemophilia|von\s+willebrand|\bvwd\b|factor\s+v\s+leiden|thrombophilia|antiphospholipid|raynaud(?:'?s)?|polycythemia\s+vera|thrombocytopenic\s+purpura|\bitp\b|brugada(?:\s+syndrome)?)\b/i,
+  /\b(?:type\s+1\s+diabetes|\bt1d\b|insulin[- ]dependent\s+diabetes|type\s+2\s+diabetes|\bt2d\b|diabet(?:es|ic|is|eetus)|\bdm\b|retinopathy|chronic\s+kidney\s+disease|\bckd\b|end[- ]stage\s+renal|\besrd\b|hemodialysis|dialysis|dialisis|peritoneal\s+dialysis|polycystic\s+kidney|\bpkd\b|cirrhosis|portal\s+hypertension|liver\s+failure|addison(?:'?s)?(?:\s+disease)?|adrenal\s+insufficiency|cushing(?:'?s)?|graves(?:'?s)?(?:\s+disease)?|hyperthyroidism|thyrotoxicosis|hyperaldosteronism)\b/i,
+  /\b(?:cystic\s+fibrosis|\bcf\b|pulmonary\s+fibrosis|\bipf\b|pulmonary\s+hypertension|\bpah\b|copd\b|emphysema|bronchiectasis|pneumothorax|pleural\s+effusion|asthma|astma|athsma|berylliosis)\b/i,
+  /\b(?:cancer|carcinoma|malignan(?:cy|t)|leukemia|lymphoma|myeloma|metastases|metastatic|chemotherapy|chemo\b|radiotherapy|radiation\s+therapy|immunotherapy|hernia|hernea|crohn(?:'?s)?|ulcerative\s+colitis|\bibd\b|colostomy|ileostomy|urostomy|stoma\b)\b/i,
+]
+
+const MEDICATION_DEVICE_PATTERNS: RegExp[] = [
+  /\b(?:warfarin|coumadin|eliquis|apixaban|xarelto|rivaroxaban|pradaxa|dabigatran|plavix|clopidogrel|brilinta|ticagrelor|lovenox|enoxaparin|heparin|blood\s+thinners?|anticoagula(?:nt|tion)|antiplatelet|\bdapt\b)\b/i,
+  /\b(?:metoprolol|atenolol|propranolol|carvedilol|bisoprolol|labetalol|beta[- ]blockers?|nitroglycerin|nitrostat|digoxin|lanoxin|amiodarone|flecainide|antiarrhythmic)\b/i,
+  /\b(?:insulin|humalog|novolog|lantus|levemir|prednisone|prednisolone|dexamethasone|corticosteroids?|methotrexate|infliximab|remicade|adalimumab|humira|cyclosporine|tacrolimus|prograf)\b/i,
+  /\b(?:pacemaker|pacmaker|pace\s+maker|pacer\b|defibrillator|\bicd\b|\blvad\b|spinal\s+cord\s+stimulator|\bscs\b|baclofen\s+pump|vagus\s+nerve\s+stimulator|\bvns\b|vp\s+shunt|av\s+fistula|dialysis\s+(?:access|catheter|graft|permcath)|port[- ]a[- ]cath|chemo\s+port|picc\s+line|spinal\s+hardware|pedicle\s+screws?|titanium\s+rods?|surgical\s+mesh|hernia\s+mesh|abdominal\s+mesh|insulin\s+pump|continuous\s+glucose\s+monitor|\bcgm\b|deep\s+brain\s+stimulat(?:or|\b)|\bdbs\b)\b/i,
+]
+
+const CLINICAL_SHORTHAND_PATTERNS: RegExp[] = [
+  /\bs\/p\b/i,
+  /\bstatus\s+post\b/i,
+  /\bh\/o\b/i,
+  /\bhx\s+of\b/i,
+  /\bc\/o\b/i,
+  /\br\/o\b/i,
+  /\bw\/\s*(?:history|h\/o|diagnosis)\b/i,
+  /\bb\/l\b/i,
+  /\b(?:severe\s+|uncontrolled\s+)?htn\b/i,
+  /\b(?:severe\s+|uncontrolled\s+)?dm\b/i,
+]
+
+const CLINICAL_RESTRICTION_OR_ADVICE_PATTERN =
+  /\b(?:avoid|avoiding|avoids|limit(?:ed|s|ing)?|restrict(?:ed|s|ion|ions)?|prohibit(?:ed|s)?|precaution(?:s)?|contraindicat(?:ed|ion|ions)?|caution|careful)\b/i
+
+const BENIGN_FITNESS_AND_HEALTH_PATTERNS: RegExp[] = [
+  /\b(?:push\s+workout|pull\s+workout|push\s*(?:\/|-|\s+)\s*pull|legs?\s+on\s+[a-z]+|split\s+routine|bench\s+press|barbell|squats?|deadlifts?|kettlebells?|dumbbells?|stationary\s+bike|calisthenics|powerlifting|hiit(?:\s+training)?|swimming|cycling|mobility(?:\s+training)?|stretching|progressive\s+overload)\b/i,
+  /\b(?:runner|running|jogging|cardio|weight\s+lifting|yoga|pilates|functional\s+fitness|gym\s+(?:workouts?|routine|goer)|gym)\b/i,
+  /\b(?:feel\s+the\s+burn|sweating|heart\s+rate\s+(?:gets|is)?\s*(?:elevated\s+)?(?:up\s+to\s+)?\d+\s*bpm|tired\s+muscles?|delayed\s+onset\s+muscle\s+soreness|doms\b|foam\s+roll(?:ing)?|sitting\s+at\s+(?:office\s+)?desk|stiff\s+shoulders|muscle\s+fatigue|fully\s+rested|muscle\s+burn|sore\s+(?:pectorals?|muscles?)|lactic\s+acid|muscle\s+tightness|tight\s+(?:calves|hamstrings|quads|muscles?|hips?|glutes?))\b/i,
+  /\b(?:blood\s+pressure\s+(?:is\s+)?120\s*\/\s*80|normal\s+blood\s+pressure|resting\s+heart\s+rate|good\s+cholesterol|annual\s+physical|clean\s+bill\s+of\s+health|cleared\s+for\s+all\s+sports|completely\s+healthy|fit\s+and\s+(?:healthy|active|energetic)|zero\s+(?:medical\s+)?limitations|no\s+health\s+problems|no\s+(?:physical\s+)?restrictions|no\s+injuries|healthy\s+adult|healthy\s+heart|cardiovascular\s+condition|active\s+lifestyle|fit,\s+healthy)\b/i,
+]
+
+const ACTIVE_COMPLAINT_OR_INJURY_PATTERN: RegExp =
+  /\b(?:sharp\s+pain|pain|ache|aching|hurts|hurt|hurting|injured|injuries|injury|swelling|swollen|locking|clicking|catching|numbness|tingling|weakness|sprain|sprained|strain|strained|tear|torn|surgery|broken|fracture|fractured|herniat(?:ed|ion)|dislocat(?:ed|ion)|sublux(?:ed|ation)|awaiting|suspected|possible)\b/i
+
+function checkClauseForUnlistedRisk(clause: string): boolean {
+  const lower = clause.toLowerCase()
+
+  const matchesRisk =
+    RED_FLAG_PATTERNS.some(p => p.test(lower)) ||
+    UNLISTED_PATHOLOGY_PATTERNS.some(p => p.test(lower)) ||
+    MEDICATION_DEVICE_PATTERNS.some(p => p.test(lower)) ||
+    CLINICAL_SHORTHAND_PATTERNS.some(p => p.test(lower)) ||
+    GENERAL_CLINICAL_RISK_PATTERN.test(lower)
+
+  if (!matchesRisk) return false
+
+  // Family history check
+  const isFamily =
+    /\b(?:family\s+history|mother|father|parents?|sister|brother|grandmother|grandfather)\b/i.test(lower) &&
+    !/\b(?:i\s+have|i\s+personally|me|my\s+own)\b/i.test(lower)
+  if (isFamily) return false
+
+  // Explicit negation check in the clause
+  const isNegated =
+    /\b(?:no|not|none|never|without|denies|denied|free\s+(?:of|from)|clear\s+of|negative\s+for|ruled\s+out)\s+(?:known\s+|active\s+|current\s+|personal\s+|history\s+of\s+)?(?:[a-z0-9/-]+\s+)*(?:asthma|diabetes|seizures?|siezures?|cancer|blood\s+thinners?|pacemaker|pots|ms|als|dvt|pe|aneurysm|aneurism|hernia|stroke|fainting|blackout|dyspnea|chest\s+pain|syncope|heart\s+attack|heart\s+disease|cardiac\s+disease|headache)\b/i.test(lower) ||
+    /^(?:no|none|never|denies|denied|without|clear\s+of|negative\s+for)\s+[a-z0-9\s/-]+$/i.test(lower.trim())
+
+  if (isNegated && !/\b(?:actually|confirmed|diagnosed|active|taking|prescribed|currently|s\/p|c\/o|flare)\b/i.test(lower)) {
+    return false
+  }
+
+  // Historical resolved check (excluding permanent implants/devices/hardware and chronic conditions)
+  const isPermanent =
+    /\b(?:pacemaker|defibrillator|icd|stent|hardware|rods|screws|shunt|fistula|mesh|bypass|replacement|amputation)\b/i.test(lower)
+  const isChronic =
+    /\b(?:multiple\s+sclerosis|\bms\b|amyotrophic|\bals\b|parkinson|ehlers|marfan|lupus|diabetes|\bt1d\b|\bt2d\b|pots\b|chf\b|ckd\b|esrd\b|cirrhosis|myasthenia|crohn|colitis|fibromyalgia)\b/i.test(lower)
+  const isHistorical =
+    /\b(?:years?\s+ago|decade\s+ago|fully\s+recovered|healed|resolved|rehabilitated)\b/i.test(lower) &&
+    !/\b(?:current|active|still|ongoing|recent|diagnosed)\b/i.test(lower)
+
+  if (isHistorical && !isPermanent && !isChronic) {
+    return false
+  }
+
+  return true
+}
 
 function evaluateClauseEntitySemantics(
   clause: string,
@@ -641,47 +736,64 @@ export function classifyMedicalIntake(rawInput?: string | null): MedicalIntakeCl
   const familyHistoryCategories = Array.from(familyHistoryCategoriesSet)
 
   // Explicit, Auditable Safety Sensitivity Contract:
+  // Explicit, Auditable Safety Sensitivity Contract:
   // A profile is safety-sensitive if:
   // 1. Any contraindication category is actively restricted
-  // 2. Or un-negated general clinical conditions exist (e.g. active diabetes, asthma, unverified surgery)
-  // 3. Or genuinely ambiguous unclassified text exists that is not confirmed resolved/healed
+  // 2. Or un-negated unlisted medical risks / red flags / devices / medications exist
+  // 3. Or genuinely ambiguous unclassified medical complaints exist that are not confirmed resolved/healed
+  // Monotonicity Invariant: Negating an 8-category condition CANNOT dilute an unlisted medical risk!
+  const hasUnlistedMedicalRisk = clauses.some(clause => checkClauseForUnlistedRisk(clause))
+
   let isSafetySensitive = false
 
-  if (activeCategories.length > 0) {
+  if (activeCategories.length > 0 || hasUnlistedMedicalRisk) {
     isSafetySensitive = true
+    if (hasUnlistedMedicalRisk) {
+      hasAmbiguous = true
+    }
   } else {
-    // Check if any clause has un-negated, un-resolved, non-family general clinical risks
-    const hasUnresolvedGeneralRisk = clauses.some(clause => {
+    // Check if any clause has unconfirmed active complaints, pain, or acute injuries
+    const hasActivePainOrComplaint = clauses.some(clause => {
       const lower = clause.toLowerCase()
-      if (!GENERAL_CLINICAL_RISK_PATTERN.test(lower)) return false
+      if (!ACTIVE_COMPLAINT_OR_INJURY_PATTERN.test(lower)) return false
 
-      // If family history, not a personal risk
-      const isFamily = /\b(?:family\s+history|mother|father|parents?|sister|brother)\b/i.test(lower) &&
-        !/\b(?:i\s+have|i\s+personally|me)\b/i.test(lower)
+      // If family history, not a personal complaint
+      const isFamily =
+        /\b(?:family\s+history|mother|father|parents?|sister|brother)\b/i.test(lower) &&
+        !/\b(?:i\s+have|i\s+personally|me|my\s+own)\b/i.test(lower)
       if (isFamily) return false
 
-      // If negated, not a risk
-      const isNeg = /\b(?:no|denies|never|without|none)\s+(?:asthma|diabetes|seizures?|surger(?:y|ies))\b/i.test(lower)
-      if (isNeg) return false
+      // If negated
+      const isNeg =
+        /\b(?:no|not|none|never|without|denies|denied|neither|nor|free\s+(?:of|from)|zero|ruled\s+out|clear\s+of|negative\s+for)\b/i.test(lower) ||
+        /\bpain[- ]free\b/i.test(lower)
+      if (isNeg && !/\b(?:actually|confirmed|diagnosed|active|still|ongoing)\b/i.test(lower)) return false
 
       // If explicitly historical/resolved
-      const isHistorical = /\b(?:years?\s+ago|prior|past|healed|resolved|rehabilitated)\b/i.test(lower) &&
+      const isHistorical =
+        /\b(?:years?\s+ago|decade\s+ago|prior|past|healed|resolved|rehabilitated|fully\s+recovered)\b/i.test(lower) &&
         !/\b(?:current|active|ongoing|recent)\b/i.test(lower)
       if (isHistorical) return false
 
       return true
     })
 
-    if (hasUnresolvedGeneralRisk) {
+    if (hasActivePainOrComplaint) {
       isSafetySensitive = true
-    } else if (mentions.length === 0) {
-      // Input had 0 category mentions: check if it's explicitly resolved/healed or truly unclassified
-      const hasActivePain = /\bpain\b/i.test(normalized) && !/\bpain[- ]free\b/i.test(normalized)
-      const isExplicitlyResolved = /\b(?:healed|resolved|rehabilitated|fully\s+recovered|old\s+injury|years?\s+ago)\b/i.test(normalized) &&
-        !/\b(?:current|active|still|ongoing)\b/i.test(normalized) && !hasActivePain
+      hasAmbiguous = true
+    } else {
+      // No active categories, no unlisted risks, and no active pain/complaint.
+      // Check whether input is benign fitness description, health metric, or resolved history
+      const unnegatedForRestriction = normalized.replace(/\b(?:no|without|zero)\s+(?:known\s+|physical\s+|medical\s+)?(?:restrictions?|limitations?)\b/gi, '')
+      const hasClinicalRestriction = CLINICAL_RESTRICTION_OR_ADVICE_PATTERN.test(unnegatedForRestriction)
+      const isBenignFitnessOrHealth = !hasClinicalRestriction && BENIGN_FITNESS_AND_HEALTH_PATTERNS.some(p => p.test(normalized))
+      const isExplicitlyResolved =
+        /\b(?:healed|resolved|rehabilitated|fully\s+recovered|old\s+injury|years?\s+ago)\b/i.test(normalized) &&
+        !/\b(?:current|active|still|ongoing)\b/i.test(normalized)
 
-      if (!isExplicitlyResolved) {
+      if (!isBenignFitnessOrHealth && !isExplicitlyResolved && mentions.length === 0) {
         isSafetySensitive = true // Fail-closed on unrecognized unconfirmed free text
+        hasAmbiguous = true
       }
     }
   }
@@ -689,6 +801,9 @@ export function classifyMedicalIntake(rawInput?: string | null): MedicalIntakeCl
   const promptLines: string[] = ['[STRUCTURED CLINICAL INTAKE EVALUATION]']
   if (activeCategories.length > 0) {
     promptLines.push(`- ACTIVE RESTRICTED CONDITIONS (MANDATORY STRICT ACCOMMODATION): ${activeCategories.map(c => CATEGORY_LABELS[c]).join('; ')}`)
+  }
+  if (hasUnlistedMedicalRisk) {
+    promptLines.push('- UNLISTED MEDICAL RISK / CLINICAL PRECAUTION: Client has disclosed active unlisted medical condition, symptom, medication, or medical device. Mandatory conservative safety protocol applies: require formal medical clearance before starting vigorous exercise, prohibit maximal exertion, avoid ballistic impact, and pace volume conservatively.')
   }
   if (negatedCategories.length > 0) {
     promptLines.push(`- CONFIRMED NEGATIONS (USER HAS DECLARED FREE OF THESE INJURIES): ${negatedCategories.map(c => CATEGORY_LABELS[c]).join('; ')}`)
