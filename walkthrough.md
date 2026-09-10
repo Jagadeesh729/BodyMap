@@ -39,10 +39,28 @@ The accepted payload is byte bounded before JSON parsing where a declared length
 
 The existing 500-case abuse oracle exercises request admission, IP canonicalization, amplification, concurrency, payload economics, prompt/output bounds, abort cleanup, circuit behavior, CORS, and cost invariants. Focused result: **500 passed**.
 
+## Independent mutation assurance
+
+The deterministic harness is [scratch/run_api_abuse_mutation_suite.mjs](scratch/run_api_abuse_mutation_suite.mjs). It snapshots `api/generate-plan.ts`, applies one mutation at a time, runs the independent contract driver plus the 500-case abuse oracle, restores the original bytes, verifies SHA-256, and performs a clean rerun.
+
+Baseline and restored SHA-256: `6083213286cff68646d2d75dbdc7bf0c2f63e3c1a67004bb9bd467d83f81c5b2`.
+
+- **M1 upstream call cap bypass:** detected. `2` assertions failed; `MAX_TOTAL_UPSTREAM_CALLS` became 4 and C80/J01 rejected it.
+- **M2 concurrency slot leak:** detected. The lifecycle oracle failed disconnect cleanup assertions, including G27-G30 with observed active count 1 instead of 0.
+- **M3 proxy identity weakening:** detected. B62 failed because Vercel requests accepted attacker-controlled `x-forwarded-for` (`1.2.3.4`) instead of `__unknown_ingress__` when trusted metadata was absent.
+- **M4 correction/retry amplification:** detected. `2` assertions failed; C77/C79 observed 3 calls where the bounded two-candidate path requires 2.
+
+The post-restore clean run passed **504/504**: the 500-case oracle plus four independent contract tests. No mutation remains in the production tree.
+
+## Independent API verification
+
+The independent driver is [src/__tests__/apiAbuseIndependentContract.test.ts](src/__tests__/apiAbuseIndependentContract.test.ts). It independently observed the three-call ceiling, verified slot release after an upstream failure, checked the Vercel trust boundary, and verified a 16 KiB-plus pre-parsed payload returns 413 without calling fetch. It passed 4/4 before and after mutation rollback.
+
 ## Verification evidence
 
 - Focused abuse oracle: **500 passed**.
-- Full Vitest suite: **111 files, 4,207 tests passed**.
+- Independent API contracts: **4 passed**.
+- Full Vitest suite: **112 files, 4,211 tests passed**.
 - `npm run typecheck`: passed.
 - `npx tsc -p tsconfig.node.json`: passed as part of the clean typecheck/build sequence.
 - `npm run lint`: passed.
@@ -50,23 +68,29 @@ The existing 500-case abuse oracle exercises request admission, IP canonicalizat
 - `npm audit --audit-level=moderate`: passed after lockfile-only `js-yaml` 4.3.2 remediation.
 - `git diff --check`: passed before the report update.
 
-## Production probes
+## Live HTTPS verification
 
-A bounded set of **42 synthetic probes** ran against `https://bodymap-ai.vercel.app/api/generate-plan`:
+A bounded set of **25 probes** ran against `https://bodymap-ai.vercel.app` using [scratch/verify_live_artifacts.mjs](scratch/verify_live_artifacts.mjs):
 
-- `GET`: 6 x 405
-- `PUT`: 6 x 405
-- `DELETE`: 6 x 405
-- `OPTIONS`: 6 x 204
-- malformed or invalid POST: 7 x 400
-- oversized POST: 3 x 413
-- bounded burst rate-limit responses: 8 x 429
+- Root and six SPA deep links: 200.
+- Four current hashed JS/CSS assets: 200.
+- Three self-hosted font resources: 200.
+- API GET, PUT, DELETE, PATCH, HEAD: 405; TRACE was rejected by the client transport before reaching the endpoint.
+- OPTIONS: 204.
+- Malformed JSON and invalid schema: 400.
+- Oversized body: 413.
+- `robots.txt`: 200.
 
-Sampled responses included request IDs. The probe set did not intentionally invoke a valid Gemini generation, provider failure, or quota-consuming path. Therefore those live behaviors remain locally verified rather than live-proven.
+API responses included request IDs, restrictive CSP, and `no-store, no-cache, must-revalidate, private`. API error bodies were 67-86 bytes in this run. The probe set did not intentionally invoke valid Gemini generation, provider failure, or quota-consuming paths.
 
-## Mutation testing
+The four current assets referenced by live HTML were byte-identical to the local build:
 
-The repository contains extensive mutation-style regression coverage in the surrounding security oracles. The four requested temporary source mutations were not run as a separate checked-in harness in this audit because deployment and mutation tooling are not part of the repository. The relevant local invariants are covered by the abuse, availability, ingress identity, and proxy trust suites; this distinction is **ASSUMED/locally regression-tested**, not a claim of independently recorded mutation-score evidence.
+- `index-rDMnGn5Z.js`: `976148318aaa44f43d02878225d6bb6d6f97056abcbef58f32186e7cadd319ef`
+- `ui-vendor-BrSrLvhZ.js`: `e44d2a1cb270111a024504f45b9eed964c117b681ae607947fc2490f3c0882db`
+- `react-vendor-C-GRX3M_.js`: `41731f06cc0a1b964c2047d266a56b36aa0b99ed3bc612d26fb29deb620e126a`
+- `index-DZxHE66Y.css`: `cb3db2f66de6aed4e2a5c10d782cc5ff6afbf2b9bdc44379929bd1fcc3c9cada`
+
+This proves public asset byte correspondence with the local build, not Git revision identity.
 
 ## Architectural limitations and actual findings
 
@@ -80,9 +104,9 @@ The concrete finding during this audit was one high-severity transitive developm
 
 ## VERIFIED vs ASSUMED
 
-**VERIFIED:** source-level constants and control flow; 500-case oracle; full local suite; typecheck; lint; build; clean npm audit after lockfile remediation; 42 bounded production rejection/preflight probes; no provider secret exposed in the audited files.
+**VERIFIED:** exact clean baseline; four independent mutation failures; SHA-256 restoration for every mutation; 504/504 clean mutation rerun; 500-case oracle; 4 independent API contracts; full local suite; typecheck; lint; build; clean npm audit; 25 bounded live probes; byte-identical hashes for all four current public entry assets; no provider secret exposed in the audited files.
 
-**ASSUMED or unavailable:** global protection across Vercel instances; network-layer DDoS mitigation; live Gemini success/error/correction behavior; Vercel deployment ID and READY status; four independent temporary mutation runs; live commit parity after deployment.
+**UNVERIFIED or unavailable:** Vercel deployment ID and READY status; proof that Git commit `479e74ef369c7e1b5bb89be13a5a18f8fd4acee3` is the deployment revision; global protection across Vercel instances; network-layer DDoS mitigation; live Gemini success/error/correction behavior.
 
 ## Deployment record
 
