@@ -92,6 +92,61 @@ The four current assets referenced by live HTML were byte-identical to the local
 
 This proves public asset byte correspondence with the local build, not Git revision identity.
 
+## End-to-end lifecycle integrity audit
+
+Audit baseline: clean published commit `5d83194835d4fb395eee2fb3ed479bbccd0c7e5e`.
+
+Lifecycle state map:
+
+`profile -> generated plan -> bound plan -> PlanState persistence -> saved plan -> restored plan -> active session -> displayed exercise -> completed workout`
+
+Trust and safety gates at each transition:
+
+- **Profile -> generated:** Create/Edit pages verify the generation result against the profile used during the request before dispatching it.
+- **Generated -> bound:** `SET_GENERATED_PLAN` records `boundProfile` and a deterministic fingerprint.
+- **Bound -> persistence:** `savePersistedStateWithVersion` recomputes the fingerprint; `buildSafeState` sanitizes fields, verifies the fingerprint, rejects divergent safety fields, and validates versions.
+- **Persistence -> saved library:** `savePlanToLibrary` copies the state; `loadSavedPlans` rehydrates through `buildSafeState` before exposing records.
+- **Saved -> active:** Dashboard clears the active session, rebuilds a safe state, preserves current safety-critical profile fields, and dispatches only the sanitized candidate.
+- **Backup/import -> storage:** schema parsing, state sanitization, and backup-integrity checks run before restore; storage writes are snapshotted and rollback is attempted on failure.
+- **Storage/cross-tab -> React:** Lamport version ordering and `parseSafeIncomingState` reject malformed, unversioned, stale, or fingerprint-invalid state. Plan/profile safety changes clear the active session.
+- **Plan -> weekly/render:** Weekly Plan scans both raw plan text and rendered exercise lines; profile mismatch and contraindications lock Gym Mode links.
+- **Plan/session -> Gym Mode:** Gym Mode validates plan ID, medical snapshot, runtime session exercise names, current plan content, and profile binding before rendering the executable workout. A safety failure returns a lockout screen.
+- **Gym Mode -> completed workout:** only the in-progress session path can advance or complete; active-session removal or safety divergence cancels execution.
+- **Plan -> download/export:** the remediation added fail-closed guards for print, markdown download, email, and clipboard copy when binding, contraindication, allergen, or structural checks fail. Backup export remains available for recovery and is not an execution path.
+- **Purge -> all routes:** active sessions are explicitly cleared on reset, plan switches, safety changes, and cross-tab invalidation; direct routes fall back to current context and cannot reconstruct state from URL parameters.
+
+## Lifecycle oracle and mutation proof
+
+Added [src/__tests__/planLifecycleSafetyBoundaryOracle.test.ts](src/__tests__/planLifecycleSafetyBoundaryOracle.test.ts) with **500 cases**: A binding 70, B provenance 60, C sessions 60, D backup/import 60, E deep-link/render parsing 40, F cross-tab ordering 60, G persistence tampering 60, H execution-time safety 50, I purge/resurrection 20, J round-trip/policy monotonicity 20.
+
+Added [scratch/run_plan_lifecycle_mutation_suite.mjs](scratch/run_plan_lifecycle_mutation_suite.mjs). All four temporary mutations were caught and restored with exact SHA-256 matches:
+
+- M1 disabled profile-binding validation: caught by binding and provenance assertions.
+- M2 disabled bound-profile fingerprint verification: caught by forged-fingerprint backup and state-provenance assertions.
+- M3 removed runtime session exercise scanning: caught by 20 runtime session cases.
+- M4 disabled cross-tab active-session invalidation: caught by cross-tab and medical-profile trust tests.
+
+The four source snapshot hashes were:
+
+- `planBinding.ts`: `39f64dec62cfaa2a6801283d9d43934f8c283fec192cbb61d5f9bf72ee2e0f4b`
+- `planStorage.ts`: `5467f39e79be9d35ecbdbfbab8c7c6d2023c88c69a4f07e11f9b76c0a65cb944`
+- `sessionStorage.ts`: `b2ac734c7afbdd107971334698c104c64f248c1562c8f35c0e80674eb9c787be`
+- `PlanContext.tsx`: `b164098a1261e3d4ad15d707d7a173e29c2a2a013d9b2450b359b87ce43581e6`
+
+Mutation clean rerun: **784/784** related tests passed. No mutation remained.
+
+## Vulnerability found and remediation
+
+The lifecycle audit found one concrete gap: `DownloadPlanPage` calculated `isSafetyViolated` and displayed a warning, but its print, markdown, email, and clipboard handlers still exported the conflicted `planText`. A stale or tampered plan could therefore leave the guarded execution surface through content-bearing export.
+
+Remediation: those four handlers now return immediately when the safety/structure gate fails. A regression test proves an ACL-conflicting persisted plan cannot invoke print. Backup export/import remains available as a recovery mechanism and all restored execution paths still pass through sanitization and runtime validation.
+
+## Policy drift and residual limitations
+
+No explicit clinical policy-version field exists in persisted plans. Safety is instead re-evaluated at load/render/session execution using the current contraindication taxonomy and current profile. This is sufficient for the tested monotonicity property: increased medical risk or invalid provenance locks or invalidates use; it does not prove historical equivalence between arbitrary future policies.
+
+The application may still render a conflicted plan together with a visible warning on non-execution views such as Weekly Plan or the export page. Execution and content-bearing export are locked; this is an intentional diagnostic presentation, not a claim that unsafe content is removed from all display surfaces.
+
 ## Architectural limitations and actual findings
 
 The rate limiter, concurrency ceiling, circuit breaker, and their maps/counters are process-local. On a multi-instance serverless deployment, requests can bypass those controls by landing on different instances. This audit does not claim distributed rate limiting, global concurrency, global circuit state, or arbitrary volumetric DDoS protection. Platform/network protections remain outside this application boundary.

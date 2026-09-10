@@ -93,6 +93,7 @@ const DownloadPlanPage = () => {
   const isSafetyViolated = bindingEval.isSafetyMismatched || contraScan.hasViolation || allergenScan.hasViolation || isPlanCorrupted
 
   const handleDownloadMarkdown = () => {
+    if (isSafetyViolated) return
     const blob = new Blob([planText], { type: 'text/markdown;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
@@ -116,11 +117,13 @@ const DownloadPlanPage = () => {
   }
 
   const handlePrint = () => {
+    if (isSafetyViolated) return
     window.print()
   }
 
   const handleEmailPlan = (e: React.FormEvent) => {
     e.preventDefault()
+    if (isSafetyViolated) return
     if (!emailInput || !emailInput.includes('@')) {
       toast({
         title: 'Please enter a valid email',
@@ -164,6 +167,7 @@ const DownloadPlanPage = () => {
   }
 
   const handleCopyPlan = () => {
+    if (isSafetyViolated) return
     navigator.clipboard.writeText(planText)
     setCopied(true)
     toast({ title: 'Plan Copied!', description: 'Full plan text copied to clipboard.' })

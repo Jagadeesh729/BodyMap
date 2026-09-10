@@ -6,24 +6,27 @@ import DownloadPlanPage from '@/pages/DownloadPlanPage'
 import { PlanProvider, usePlan } from '@/context/PlanContext'
 
 // Helper component to dispatch a real generated plan into context
-const SetupPlanWrapper = ({ children, planText }: { children: React.ReactNode, planText?: string }) => {
+const SetupPlanWrapper = ({ children, planText, medicalIssues }: { children: React.ReactNode, planText?: string, medicalIssues?: string }) => {
   const { dispatch } = usePlan()
   React.useEffect(() => {
+    if (medicalIssues) {
+      dispatch({ type: 'SET_FORM_DATA', payload: { medicalIssues } })
+    }
     if (planText) {
       dispatch({
         type: 'SET_GENERATED_PLAN',
         payload: planText
       })
     }
-  }, [dispatch, planText])
+  }, [dispatch, medicalIssues, planText])
 
   return <>{children}</>
 }
 
-const renderDownloadPage = (planText?: string) => {
+const renderDownloadPage = (planText?: string, medicalIssues?: string) => {
   return render(
     <PlanProvider>
-      <SetupPlanWrapper planText={planText}>
+      <SetupPlanWrapper planText={planText} medicalIssues={medicalIssues}>
         <BrowserRouter>
           <DownloadPlanPage />
         </BrowserRouter>
@@ -35,6 +38,8 @@ const renderDownloadPage = (planText?: string) => {
 describe('DownloadPlanPage & 7-Day Printable Document System', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    localStorage.clear()
+    sessionStorage.clear()
     window.print = vi.fn()
   })
 
@@ -84,6 +89,23 @@ describe('DownloadPlanPage & 7-Day Printable Document System', () => {
     expect(printButtons.length).toBeGreaterThan(0)
     fireEvent.click(printButtons[0])
     expect(window.print).toHaveBeenCalledTimes(1)
+  })
+
+  it('blocks print when persisted plan content conflicts with the current medical profile', async () => {
+    const unsafePlan = `
+## Day 1 - Unsafe
+**Warm-up:** 5 mins walking
+- Box jumps: 3 sets x 10 reps
+**Cool-down:** 5 mins stretching
+**Meals:**
+- Breakfast: Oatmeal
+- Lunch: Rice bowl
+- Dinner: Vegetables
+`
+    renderDownloadPage(unsafePlan, 'Acute ACL tear')
+    const printButtons = screen.getAllByRole('button', { name: /print/i })
+    fireEvent.click(printButtons[0])
+    expect(window.print).not.toHaveBeenCalled()
   })
 
   it('contains health & safety medical disclaimer and attribution in document footer', () => {
