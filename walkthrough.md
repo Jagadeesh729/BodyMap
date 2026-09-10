@@ -87,6 +87,6 @@ The concrete finding during this audit was one high-severity transitive developm
 ## Deployment record
 
 - Audited implementation commit: `161cd55`.
-- Final post-audit commit: `2d189cbf652857c4c45df0f9ed8e57757b773397`.
+- Published audit commit lineage: `2d189cbf652857c4c45df0f9ed8e57757b773397` followed by metadata amendment `bf0bdd419261856a523d464c1a0cd4b8c28ff538`; the final repository HEAD is authoritative because a commit cannot embed its own hash.
 - Vercel deployment ID: unavailable; Vercel CLI/authentication was unavailable in this workspace.
 - Production route observed: `https://bodymap-ai.vercel.app/api/generate-plan`.
