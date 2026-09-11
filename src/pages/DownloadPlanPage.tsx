@@ -26,9 +26,7 @@ import { parseAndValidatePlan } from '@/lib/planSchema'
 import { calculateBMI } from '@/lib/bmi'
 import { DEFAULT_WEEKLY_PLAN, type DayPlan } from '@/types/plan'
 import { BodyMapLogo } from '@/components/BodyMapLogo'
-import { evaluatePlanProfileBinding } from '@/lib/planBinding'
-import { scanPlanForContraindications } from '@/lib/contraindicationGuard'
-import { scanPlanForAllergens } from '@/lib/allergenGuard'
+import { evaluatePlanContentSafety } from '@/lib/planSafetyGate'
 import { exportBackupToFile, validateAndParseBackup, restoreBackupData, generateBackupPayload } from '@/lib/backupStorage'
 import { validateBackupPayload } from '@/lib/backupIntegrity'
 import { analyzeBackupDiagnostics } from '@/lib/backupDiagnostics'
@@ -86,11 +84,13 @@ const DownloadPlanPage = () => {
     'Visit BodyMap at https://bodymap-ai.vercel.app to customize your schedule.'
   ].join('\n')
 
-  const bindingEval = evaluatePlanProfileBinding(formData, state.boundProfile)
-  const contraScan = scanPlanForContraindications(planText, formData.medicalIssues)
-  const allergenScan = scanPlanForAllergens(planText, formData.allergies)
-  const isPlanCorrupted = Boolean(state.isGenerated && (!parsedAiPlan || !parsedAiPlan.success))
-  const isSafetyViolated = bindingEval.isSafetyMismatched || contraScan.hasViolation || allergenScan.hasViolation || isPlanCorrupted
+  const { isSafetyViolated } = evaluatePlanContentSafety({
+    formData,
+    boundProfile: state.boundProfile,
+    planText,
+    isGenerated: state.isGenerated,
+    parsedAiPlanSuccess: parsedAiPlan?.success,
+  })
 
   const handleDownloadMarkdown = () => {
     if (isSafetyViolated) return
@@ -292,7 +292,12 @@ const DownloadPlanPage = () => {
                   Full 7-day formatted document ready for PDF export or paper printing.
                 </p>
               </div>
-              <Button onClick={handlePrint} className="btn-primary w-full text-xs font-bold py-2.5">
+              <Button
+                onClick={handlePrint}
+                disabled={isSafetyViolated}
+                className="btn-primary w-full text-xs font-bold py-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                title={isSafetyViolated ? 'Plan export locked due to safety violations' : 'Print or Save PDF'}
+              >
                 <Printer className="w-4 h-4 mr-1.5" aria-hidden="true" />
                 Print / Save PDF
               </Button>
@@ -311,7 +316,12 @@ const DownloadPlanPage = () => {
                   Save complete raw markdown with exercises, sets, reps, and calories.
                 </p>
               </div>
-              <Button onClick={handleDownloadMarkdown} className="btn-secondary w-full text-xs font-bold py-2.5">
+              <Button
+                onClick={handleDownloadMarkdown}
+                disabled={isSafetyViolated}
+                className="btn-secondary w-full text-xs font-bold py-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                title={isSafetyViolated ? 'Plan export locked due to safety violations' : 'Save .MD File'}
+              >
                 <Download className="w-4 h-4 mr-1.5" aria-hidden="true" />
                 Save .MD File
               </Button>
@@ -349,7 +359,13 @@ const DownloadPlanPage = () => {
                   Copy full raw text to clipboard for Apple Notes, Notion, or WhatsApp.
                 </p>
               </div>
-              <Button onClick={handleCopyPlan} variant="outline" className="border-gray-700 text-secondary-text hover:text-primary-text w-full text-xs font-bold py-2.5">
+              <Button
+                onClick={handleCopyPlan}
+                disabled={isSafetyViolated}
+                variant="outline"
+                className="border-gray-700 text-secondary-text hover:text-primary-text w-full text-xs font-bold py-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                title={isSafetyViolated ? 'Plan export locked due to safety violations' : 'Copy full plan to clipboard'}
+              >
                 {copied ? <Check className="w-4 h-4 mr-1.5" /> : <Copy className="w-4 h-4 mr-1.5" />}
                 {copied ? 'Text Copied!' : 'Copy to Clipboard'}
               </Button>
@@ -467,7 +483,13 @@ const DownloadPlanPage = () => {
                 className="input-dark text-xs py-2 h-9 min-w-[200px]"
                 required
               />
-              <Button type="submit" size="sm" className="btn-secondary whitespace-nowrap h-9 text-xs">
+              <Button
+                type="submit"
+                disabled={isSafetyViolated}
+                size="sm"
+                className="btn-secondary whitespace-nowrap h-9 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                title={isSafetyViolated ? 'Plan export locked due to safety violations' : 'Send'}
+              >
                 <Mail className="w-3.5 h-3.5 mr-1" />
                 Send
               </Button>
@@ -482,7 +504,13 @@ const DownloadPlanPage = () => {
                 7-Day Printable Document Preview
               </h2>
             </div>
-            <Button onClick={handlePrint} size="sm" className="btn-primary text-xs h-8">
+            <Button
+              onClick={handlePrint}
+              disabled={isSafetyViolated}
+              size="sm"
+              className="btn-primary text-xs h-8 disabled:opacity-50 disabled:cursor-not-allowed"
+              title={isSafetyViolated ? 'Plan export locked due to safety violations' : 'Print / Save PDF'}
+            >
               <Printer className="w-3.5 h-3.5 mr-1.5" />
               Print / Save PDF
             </Button>

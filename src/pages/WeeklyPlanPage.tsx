@@ -27,10 +27,8 @@ import { Button } from '@/components/ui/button'
 import { toast } from '@/hooks/use-toast'
 import { usePlan } from '@/context/PlanContext'
 import { parseAndValidatePlan } from '@/lib/planSchema'
-import { scanPlanForAllergens, scanMealTextForAllergens, getActiveAllergenCategories } from '@/lib/allergenGuard'
-import { scanPlanForContraindications } from '@/lib/contraindicationGuard'
+import { evaluatePlanContentSafety, evaluateGroceryContentSafety } from '@/lib/planSafetyGate'
 import { hasSafetySensitiveMedicalIssues } from '@/lib/validation'
-import { evaluatePlanProfileBinding } from '@/lib/planBinding'
 import { DEFAULT_WEEKLY_PLAN, type DayPlan } from '@/types/plan'
 import { loadAndValidateActiveSession } from '@/lib/sessionStorage'
 import type { WorkoutSession } from '@/types/workoutSession'
@@ -108,14 +106,6 @@ const WeeklyPlanPage: React.FC = () => {
     })
   }
 
-  const handleCopy = () => {
-    const textToCopy = state.generatedPlan || JSON.stringify(DEFAULT_WEEKLY_PLAN, null, 2)
-    navigator.clipboard.writeText(textToCopy)
-    setCopied(true)
-    toast({ title: 'Copied!', description: 'Plan copied to clipboard.' })
-    setTimeout(() => setCopied(false), 2000)
-  }
-
   const [hydrationLogged, setHydrationLogged] = useState<number>(() => getTodayHydration())
   const hydrationTarget = useMemo(() => calculateHydrationTarget(state.formData.weight), [state.formData.weight])
 
@@ -191,21 +181,6 @@ const WeeklyPlanPage: React.FC = () => {
     }
   }
 
-  const handleCopyGroceryList = () => {
-    let output = `🛒 BODYMAP 7-DAY GROCERY CHECKLIST (${servingMultiplier}x Servings${hidePantryStaples ? ' • Pantry Excluded' : ''})\n`
-    output += `Generated for: ${state.formData.mainGoal || 'Fitness'} Plan\n\n`
-    for (const group of displayGroceryCategories) {
-      output += `[ ${group.category.toUpperCase()} ]\n`
-      for (const item of group.items) {
-        const isChecked = checkedGroceryItems[item.id] ? '[x]' : '[ ]'
-        output += `${isChecked} ${item.name}\n`
-      }
-      output += '\n'
-    }
-    navigator.clipboard.writeText(output)
-    toast({ title: 'Grocery List Copied! 📋', description: `Categorized ${servingMultiplier}x grocery checklist copied to clipboard.` })
-  }
-
   const mealAlternatives: FoodAlternative[] = useMemo(() => {
     if (!selectedMealForSwap) return []
     return findMealAlternatives(
@@ -234,34 +209,9 @@ const WeeklyPlanPage: React.FC = () => {
     return calculateHydrationClimateAdjustment(hydrationTarget, 'warm')
   }, [hydrationTarget])
 
-  const allergenScanResult = useMemo(() => {
-    if (!state.formData.allergies || !state.formData.allergies.trim()) return { hasViolation: false, violations: [] }
-    const planScan = state.generatedPlan
-      ? scanPlanForAllergens(state.generatedPlan, state.formData.allergies)
-      : { hasViolation: false, violations: [] }
-    const activeCats = getActiveAllergenCategories(state.formData.allergies)
-    if (activeCats.length === 0) return planScan
-    const displayedViolations = []
-    for (const text of allMealTexts) {
-      const scan = scanMealTextForAllergens(text, activeCats)
-      if (scan.hasViolation) {
-        displayedViolations.push(...scan.violations)
-      }
-    }
-    const hasViolation = planScan.hasViolation || displayedViolations.length > 0
-    return {
-      hasViolation,
-      violations: [...planScan.violations, ...displayedViolations]
-    }
-  }, [state.generatedPlan, state.formData.allergies, allMealTexts])
-
   const hasMedicalIssues = useMemo(() => {
     return hasSafetySensitiveMedicalIssues(state.formData.medicalIssues)
   }, [state.formData.medicalIssues])
-
-  const bindingEval = useMemo(() => {
-    return evaluatePlanProfileBinding(state.formData, state.boundProfile)
-  }, [state.formData, state.boundProfile])
 
   const displayExerciseLines = useMemo(() => {
     const lines: string[] = []
@@ -273,20 +223,77 @@ const WeeklyPlanPage: React.FC = () => {
     return lines.join('\n')
   }, [displayDays])
 
-  const displayContraScan = useMemo(() => {
-    return scanPlanForContraindications(displayExerciseLines, state.formData.medicalIssues)
-  }, [displayExerciseLines, state.formData.medicalIssues])
+  const safetyEval = useMemo(() => {
+    return evaluatePlanContentSafety({
+      formData: state.formData,
+      boundProfile: state.boundProfile,
+      planText: state.generatedPlan,
+      isGenerated: state.isGenerated,
+      parsedAiPlanSuccess: parsedAiPlan?.success,
+      additionalExerciseLines: displayExerciseLines,
+      additionalMealTexts: allMealTexts,
+    })
+  }, [
+    state.formData,
+    state.boundProfile,
+    state.generatedPlan,
+    state.isGenerated,
+    parsedAiPlan?.success,
+    displayExerciseLines,
+    allMealTexts,
+  ])
 
-  const contraindicationScanResult = useMemo(() => {
-    const rawScan = scanPlanForContraindications(state.generatedPlan, state.formData.medicalIssues)
-    return {
-      hasViolation: rawScan.hasViolation || displayContraScan.hasViolation,
-      violations: [...rawScan.violations, ...displayContraScan.violations],
-      scannedExerciseCount: rawScan.scannedExerciseCount + displayContraScan.scannedExerciseCount
+  const {
+    isSafetyViolated,
+    isWorkoutLocked,
+    bindingEval,
+    contraScan: contraindicationScanResult,
+    allergenScan: allergenScanResult,
+    isPlanCorrupted,
+  } = safetyEval
+
+  const grocerySafetyEval = useMemo(() => {
+    return evaluateGroceryContentSafety(safetyEval)
+  }, [safetyEval])
+
+  const handleCopy = () => {
+    if (isSafetyViolated) {
+      toast({
+        title: 'Plan Copy Blocked',
+        description: 'This plan contains safety conflicts with your health profile and cannot be exported.',
+        variant: 'destructive',
+      })
+      return
     }
-  }, [state.generatedPlan, state.formData.medicalIssues, displayContraScan])
+    const textToCopy = state.generatedPlan || JSON.stringify(DEFAULT_WEEKLY_PLAN, null, 2)
+    navigator.clipboard.writeText(textToCopy)
+    setCopied(true)
+    toast({ title: 'Copied!', description: 'Plan copied to clipboard.' })
+    setTimeout(() => setCopied(false), 2000)
+  }
 
-  const isWorkoutLocked = bindingEval.isSafetyMismatched || contraindicationScanResult.hasViolation
+  const handleCopyGroceryList = () => {
+    if (grocerySafetyEval.isGrocerySafetyViolated) {
+      toast({
+        title: 'Grocery Export Blocked',
+        description: 'This grocery list contains allergen conflicts or invalid plan data and cannot be exported.',
+        variant: 'destructive',
+      })
+      return
+    }
+    let output = `🛒 BODYMAP 7-DAY GROCERY CHECKLIST (${servingMultiplier}x Servings${hidePantryStaples ? ' • Pantry Excluded' : ''})\n`
+    output += `Generated for: ${state.formData.mainGoal || 'Fitness'} Plan\n\n`
+    for (const group of displayGroceryCategories) {
+      output += `[ ${group.category.toUpperCase()} ]\n`
+      for (const item of group.items) {
+        const isChecked = checkedGroceryItems[item.id] ? '[x]' : '[ ]'
+        output += `${isChecked} ${item.name}\n`
+      }
+      output += '\n'
+    }
+    navigator.clipboard.writeText(output)
+    toast({ title: 'Grocery List Copied! 📋', description: `Categorized ${servingMultiplier}x grocery checklist copied to clipboard.` })
+  }
 
   return (
     <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8 bg-bodymap-dark text-primary-text">
@@ -364,6 +371,23 @@ const WeeklyPlanPage: React.FC = () => {
             </div>
             <Link to="/edit-plan" className="btn-secondary whitespace-nowrap text-xs sm:text-sm py-2 px-4 self-center sm:self-auto shrink-0 border-amber-500/40 text-amber-400 hover:bg-amber-500/20">
               Update Profile
+            </Link>
+          </div>
+        )}
+
+        {isPlanCorrupted && (
+          <div className="mb-8 p-4 sm:p-6 bg-bright-coral/10 border-2 border-bright-coral/50 rounded-xl flex items-start gap-4 shadow-lg shadow-bright-coral/10 animate-fade-in">
+            <AlertCircle className="w-8 h-8 text-bright-coral shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h2 className="font-poppins font-semibold text-bright-coral text-base sm:text-lg">
+                Corrupted Plan Data Detected
+              </h2>
+              <p className="text-secondary-text font-open-sans text-xs sm:text-sm mt-1">
+                The generated plan structure is invalid or could not be parsed safely. Plan export and execution are locked. Please regenerate your plan.
+              </p>
+            </div>
+            <Link to="/edit-plan" className="btn-primary whitespace-nowrap text-xs sm:text-sm py-2 px-4 self-center sm:self-auto shrink-0">
+              Regenerate Plan
             </Link>
           </div>
         )}
@@ -567,8 +591,10 @@ const WeeklyPlanPage: React.FC = () => {
           </Link>
           <Button
             onClick={handleCopy}
+            disabled={isSafetyViolated}
             variant="outline"
-            className="border-gray-700 text-secondary-text hover:bg-gray-800 hover:text-primary-text text-sm py-2.5 px-4"
+            className="border-gray-700 text-secondary-text hover:bg-gray-800 hover:text-primary-text text-sm py-2.5 px-4 disabled:opacity-50 disabled:cursor-not-allowed"
+            title={isSafetyViolated ? 'Plan export locked due to safety violations' : 'Copy full plan to clipboard'}
           >
             {copied ? <Check className="w-4 h-4 mr-2 text-neon-green" /> : <Copy className="w-4 h-4 mr-2" />}
             {copied ? 'Copied!' : 'Copy Plan'}
@@ -892,6 +918,13 @@ const WeeklyPlanPage: React.FC = () => {
                 </label>
               </div>
 
+              {grocerySafetyEval.isGrocerySafetyViolated && (
+                <div className="p-3 bg-red-500/10 border border-red-500/40 rounded-lg text-xs text-red-400 flex items-center gap-2 mt-3">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span>Allergen conflicts or invalid plan data detected. Exporting grocery checklist is disabled.</span>
+                </div>
+              )}
+
               {/* Categorized Grocery Checklist */}
               <div className="overflow-y-auto max-h-[50vh] pr-2 mt-3 space-y-5">
                 {displayGroceryCategories.map((group) => (
@@ -952,8 +985,10 @@ const WeeklyPlanPage: React.FC = () => {
               <div className="flex items-center gap-2 w-full sm:w-auto">
                 <Button
                   onClick={handleCopyGroceryList}
+                  disabled={grocerySafetyEval.isGrocerySafetyViolated}
                   size="sm"
-                  className="btn-primary text-xs py-2 px-4 flex items-center gap-1.5 w-full sm:w-auto"
+                  className="btn-primary text-xs py-2 px-4 flex items-center gap-1.5 w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={grocerySafetyEval.isGrocerySafetyViolated ? 'Grocery export blocked due to allergen conflicts or invalid plan data' : 'Copy categorized checklist'}
                 >
                   <Copy className="w-3.5 h-3.5" />
                   Copy Categorized Checklist
