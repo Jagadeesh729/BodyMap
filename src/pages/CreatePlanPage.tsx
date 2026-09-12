@@ -497,6 +497,9 @@ const CreatePlanPage = () => {
           placeholder="e.g., Lower back pain, knee issues, shoulder impingement..."
           rows={3}
         />
+        <p className="text-[11px] text-secondary-text mt-1.5 leading-relaxed">
+          BodyMap uses algorithmic screening to exclude common contraindicated exercises based on your inputs. This application provides informational wellness guidance and does not substitute for licensed clinical diagnosis, physical therapy, or medical clearance.
+        </p>
       </div>
 
       <div>
@@ -744,7 +747,7 @@ const CreatePlanPage = () => {
               </h3>
               <p className="text-secondary-text font-open-sans text-sm">
                 {generationStage === 'connecting' && 'Securing serverless proxy session and building domain prompt...'}
-                {generationStage === 'synthesizing' && 'Gemini 1.5 Flash is analyzing your biometrics, equipment, and diet goals...'}
+                {generationStage === 'synthesizing' && 'Gemini AI is analyzing your biometrics, equipment, and diet goals...'}
                 {generationStage === 'validating' && 'Zod parser is verifying exact 7-day schedule, exercise sets, and meal macros...'}
               </p>
 

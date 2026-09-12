@@ -295,6 +295,19 @@ const WeeklyPlanPage: React.FC = () => {
     toast({ title: 'Grocery List Copied! 📋', description: `Categorized ${servingMultiplier}x grocery checklist copied to clipboard.` })
   }
 
+  useEffect(() => {
+    if (!isGroceryModalOpen && !selectedMealForSwap) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        if (isGroceryModalOpen) setIsGroceryModalOpen(false)
+        if (selectedMealForSwap) setSelectedMealForSwap(null)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isGroceryModalOpen, selectedMealForSwap])
+
   return (
     <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8 bg-bodymap-dark text-primary-text">
       <div className="max-w-6xl mx-auto">
@@ -342,14 +355,14 @@ const WeeklyPlanPage: React.FC = () => {
 
 
         {allergenScanResult.hasViolation && (
-          <div className="mb-8 p-4 sm:p-6 bg-red-500/10 border-2 border-red-500/40 rounded-xl flex items-start gap-4 shadow-lg shadow-red-500/5">
+          <div className="mb-8 p-4 sm:p-6 bg-red-500/10 border-2 border-red-500/40 rounded-xl flex items-start gap-4 shadow-lg shadow-red-500/5" role="alert">
             <AlertTriangle className="w-8 h-8 text-red-400 shrink-0 mt-0.5" />
             <div className="flex-1">
               <h2 className="font-poppins font-semibold text-red-400 text-base sm:text-lg">
                 Allergen Safety Warning
               </h2>
               <p className="text-secondary-text font-open-sans text-xs sm:text-sm mt-1">
-                This plan contains ingredients that conflict with your current declared allergy profile ({Array.from(new Set(allergenScanResult.violations.map(v => v.label))).join(', ')}). Please regenerate your plan before preparing any meals.
+                This plan contains ingredients that conflict with your current declared allergy profile ({Array.from(new Set(allergenScanResult.violations.map(v => v.label))).join(', ')}). Lexical screening cannot guarantee the absence of biological cross-contact or manufacturer formulation changes. Please regenerate your plan and verify ingredient packaging before preparing any meals.
               </p>
             </div>
             <Link to="/edit-plan" className="btn-secondary whitespace-nowrap text-xs sm:text-sm py-2 px-4 self-center sm:self-auto shrink-0 border-red-500/40 text-red-400 hover:bg-red-500/20">
@@ -859,7 +872,12 @@ const WeeklyPlanPage: React.FC = () => {
 
       {/* 7-Day Grocery List Modal Dialog */}
       {isGroceryModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label="7-Day Grocery Shopping List"
+        >
           <div className="card-dark max-w-2xl w-full p-6 space-y-6 border border-gray-700 max-h-[90vh] flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between pb-4 border-b border-gray-800">
@@ -1001,7 +1019,12 @@ const WeeklyPlanPage: React.FC = () => {
 
       {/* Smart Meal Protein Alternatives Modal */}
       {selectedMealForSwap && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Protein Alternatives"
+        >
           <div className="card-dark max-w-lg w-full p-6 space-y-4 border border-gray-700">
             <div className="flex items-center justify-between pb-3 border-b border-gray-800">
               <div>

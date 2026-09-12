@@ -384,6 +384,17 @@ export const CONTRAINDICATION_TAXONOMY: Record<
 }
 
 /**
+ * Exported rule list for contract testing and external validation tooling.
+ */
+export const CONTRAINDICATION_RULES = Object.values(CONTRAINDICATION_TAXONOMY).map(cfg => ({
+  ...cfg,
+  id: cfg.key,
+  label: cfg.conditionLabel,
+  conditionKeywords: cfg.declarationTriggers,
+  forbiddenExercisePatterns: cfg.forbiddenPatterns,
+}))
+
+/**
  * Returns active contraindication categories matching the user's declared medical profile string.
  */
 export function getActiveContraindicationCategories(

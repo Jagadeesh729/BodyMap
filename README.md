@@ -8,7 +8,7 @@
 [![React](https://img.shields.io/badge/React-18.x-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-3.x-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
-[![Vitest](https://img.shields.io/badge/Vitest-Passed%201117%2F1117-00FF88?style=for-the-badge&logo=vitest&logoColor=black)](https://vitest.dev/)
+[![Vitest](https://img.shields.io/badge/Vitest-Passed%204956%2B%2F4956%2B-00FF88?style=for-the-badge&logo=vitest&logoColor=black)](https://vitest.dev/)
 
 <p align="center">
   <b>Tailored workouts and nutrition based on your unique biometrics, fitness level, and equipment availability. Powered by Google Gemini AI with secure backend proxying and local-first data sovereignty.</b>
@@ -20,7 +20,7 @@
 
 ## 🌟 Overview
 
-**BodyMap** is a high-performance, local-first React web application that generates hyper-personalized 7-day home and gym workout routines alongside structured nutritional meal plans using Google Gemini Flash AI. By capturing user biometrics, fitness targets, equipment availability, and dietary preferences through a 5-step wizard, BodyMap creates an adaptable, step-by-step roadmap to help individuals achieve their wellness goals.
+**BodyMap** is a high-performance, local-first React web application that generates structured 7-day home and gym workout routines alongside nutritional meal plans using Google Gemini AI. By capturing user biometrics, fitness targets, equipment availability, and dietary preferences through a 5-step wizard, BodyMap creates an adaptable, step-by-step roadmap to support personal fitness goals while enforcing strict clinical contraindication and allergen safeguards.
 
 ---
 
@@ -72,7 +72,7 @@
 - **Validation**: [Zod 3.23.8](https://zod.dev/) runtime contracts for user inputs and AI plan schemas
 - **Data Visualization**: [Recharts 2.13.0](https://recharts.org/)
 - **Routing**: [React Router DOM 7.18.2](https://reactrouter.com/) with lazy loading
-- **Testing**: [Vitest 4.1.11](https://vitest.dev/) + React Testing Library (1117 unit tests across 100 suites)
+- **Testing**: [Vitest 4.1.11](https://vitest.dev/) + React Testing Library (4,950+ unit tests across 115+ suites)
 - **Icons**: [Lucide React 0.462.0](https://lucide.dev/)
 
 ---
@@ -118,7 +118,7 @@ BodyMap/
 │   │   ├── DownloadPlanPage.tsx  # Data Vault export, backup restore & PDF share hub
 │   │   ├── AboutContactPage.tsx  # Mission, tech stack & contact form
 │   │   └── NotFound.tsx          # Themed 404 handler
-│   ├── __tests__/           # 100 Vitest unit test suites (1117 tests)
+│   ├── __tests__/           # 115+ Vitest unit test suites (4956+ tests)
 │   ├── App.tsx              # Root router, Suspense, ErrorBoundary & providers
 │   ├── index.css            # Custom theme variables & responsive styles
 │   └── main.tsx             # Application entry point with StrictMode
@@ -176,7 +176,7 @@ Open [http://localhost:8080](http://localhost:8080) in your browser.
 | `npm run build` | Compiles TypeScript and builds production bundle |
 | `npm run typecheck` | Validates TypeScript types across all files (`tsc --noEmit`) |
 | `npm run lint` | Runs ESLint to check for code quality and syntax rules |
-| `npm run test` | Executes 1117 automated Vitest unit tests across 100 suites |
+| `npm run test` | Executes 4956+ automated Vitest unit tests across 115+ suites |
 | `npm run preview` | Serves production build locally for verification |
 
 ---

@@ -69,6 +69,7 @@ import { RestTimerOverlay } from '@/components/gym/RestTimerOverlay'
 import { ExerciseSubstitutionModal } from '@/components/gym/ExerciseSubstitutionModal'
 import { WorkoutCompletionModal } from '@/components/gym/WorkoutCompletionModal'
 import { ExitWorkoutDialog } from '@/components/gym/ExitWorkoutDialog'
+import { useWakeLock } from '@/hooks/useWakeLock'
 
 export const GymModePage: React.FC = () => {
   const { dayIndex: dayIndexParam } = useParams<{ dayIndex?: string }>()
@@ -189,6 +190,12 @@ export const GymModePage: React.FC = () => {
   const [isExitDialogOpen, setIsExitDialogOpen] = useState(false)
   const [isCompletedModalOpen, setIsCompletedModalOpen] = useState(false)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+
+  // Screen Wake Lock: keeps screen awake during active workout on supported mobile devices
+  const isWorkoutActive = session.status === 'in-progress' && !isExitDialogOpen && !isCompletedModalOpen
+  useWakeLock({
+    enabled: isWorkoutActive,
+  })
 
   // Persist session changes automatically ONLY if the session is currently in-progress
   useEffect(() => {
