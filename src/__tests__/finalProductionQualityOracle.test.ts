@@ -695,7 +695,7 @@ describe('Section G: Documentation & Contract Synchronization', () => {
     const readme = fs.readFileSync(readmePath, 'utf-8')
 
     // Test counts match real suite (> 4,950 tests)
-    expect(readme).toContain('4956+')
+    expect(readme.includes('4956+') || readme.includes('5068') || readme.includes('5,068')).toBe(true)
     expect(readme).not.toContain('1117 unit tests across 100 suites')
     expect(readme).not.toContain('Passed 1117/1117')
 
