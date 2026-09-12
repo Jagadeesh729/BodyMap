@@ -333,7 +333,7 @@ const WeeklyPlanPage: React.FC = () => {
                 Workout Safety Lockout — Contraindicated Movement Detected
               </h2>
               <p className="text-secondary-text font-open-sans text-xs sm:text-sm mt-1">
-                This plan contains exercises that conflict with your declared medical conditions ({Array.from(new Set(contraindicationScanResult.violations.map(v => v.conditionLabel))).join(', ')}). Workouts are locked to prevent injury. Please regenerate your plan to receive safe alternatives.
+                This plan contains exercises that conflict with your declared medical conditions ({Array.from(new Set(contraindicationScanResult.violations.map(v => v.conditionLabel))).join(', ')}). Workouts are locked to prevent injury. Please regenerate your plan to receive adapted exercise alternatives.
               </p>
               <div className="mt-2 space-y-1">
                 {contraindicationScanResult.violations.slice(0, 3).map((v, i) => (

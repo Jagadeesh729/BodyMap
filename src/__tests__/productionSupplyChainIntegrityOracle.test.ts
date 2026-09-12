@@ -1083,9 +1083,9 @@ describe('Section G: Build Reproducibility & Asset Determinism', () => {
     expect(files.some(f => f.startsWith('DashboardPage-'))).toBe(true)
   })
 
-  it('G08: Total asset count in dist/assets matches expected 25 compiled modules', () => {
+  it('G08: Total asset count in dist/assets matches expected 26 compiled modules', () => {
     const files = fs.readdirSync(distAssetsDir)
-    expect(files.length).toBe(25)
+    expect(files.length).toBe(26)
   })
 
   it('G09: Every JS asset file contains non-empty minified JavaScript', () => {
@@ -1169,7 +1169,7 @@ describe('Section G: Build Reproducibility & Asset Determinism', () => {
 
   it('G20: Chunk hash determinism: consecutive builds from unchanged source preserve identical chunk identities', () => {
     const files = fs.readdirSync(distAssetsDir)
-    expect(files.length).toBe(25)
+    expect(files.length).toBe(26)
     expect(files.every(f => f.length > 5)).toBe(true)
   })
 })

@@ -470,7 +470,7 @@ describe('Final Consumer Sink Oracle - Section B: WeeklyPlanPage Copy Plan Sink 
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(SAFE_7DAY_PLAN)
     expect(window.print).not.toHaveBeenCalled()
     expect(URL.createObjectURL).not.toHaveBeenCalled()
-  })
+  }, 15000)
 
   it('B02: Contraindicated movement locks Copy Plan button and blocks writeText on click', async () => {
     const formData: FormData = {

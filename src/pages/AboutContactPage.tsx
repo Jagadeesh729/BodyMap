@@ -18,7 +18,7 @@ const AboutContactPage = () => {
           </h1>
           <p className="text-lg sm:text-xl text-secondary-text font-open-sans max-w-3xl mx-auto leading-relaxed">
             We are democratizing personalized exercise science by using modern AI to generate intelligent,
-            safe, and sustainable home workout and meal schedules for everyone.
+            adaptable, and sustainable home workout and meal schedules for everyone.
           </p>
         </section>
 

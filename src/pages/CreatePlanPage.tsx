@@ -222,9 +222,16 @@ const CreatePlanPage = () => {
       }
       toast({ title: 'Plan Ready!', description: 'Your personalized fitness plan is ready.' })
       navigate('/weekly-plan')
-    } catch {
+    } catch (err: unknown) {
       if (seq !== generationSeqRef.current) return
-      toast({ title: 'Error', description: 'Failed to generate plan. Please try again.', variant: 'destructive' })
+      const isOffline = typeof navigator !== 'undefined' && !navigator.onLine
+      toast({
+        title: isOffline ? 'Offline — Network Required' : 'Generation Failed',
+        description: isOffline
+          ? 'AI plan generation requires an active internet connection. Your profile inputs are saved, and stored plans or Gym Mode remain fully accessible offline.'
+          : (err instanceof Error && err.message ? err.message : 'Failed to generate plan. Please try again.'),
+        variant: 'destructive',
+      })
     } finally {
       clearTimeout(stageTimer)
       if (seq === generationSeqRef.current) {

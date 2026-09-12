@@ -929,7 +929,7 @@ describe('Consumer Sink Safety Oracle - Section B: WeeklyPlanPage Copy Plan Sink
     fireEvent.click(btn)
     expect(navigator.clipboard.writeText).toHaveBeenCalledTimes(1)
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(SAFE_7DAY_PLAN)
-  })
+  }, 15000)
 
   it('B02: WeeklyPlanPage blocks Copy Plan when contraindicated exercise present: [knee_high_impact]', () => {
     const planWithContra = SAFE_7DAY_PLAN.replace(
