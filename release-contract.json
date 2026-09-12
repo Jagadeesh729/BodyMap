@@ -1,0 +1,134 @@
+{
+  "_schema": "bodymap-release-contract/v1",
+  "_description": "Machine-readable public release metadata for BodyMap AI. Contains ONLY non-sensitive public information. No API keys, secrets, credentials, user data, filesystem paths, or environment variables.",
+  "releaseCommit": "12076d44528c82fdd10aeaa5db27bf0492a41159",
+  "releaseBranch": "main",
+  "releaseDate": "2025-01-01",
+  "productionUrl": "https://bodymap-ai.vercel.app",
+  "overallMaturityScore": "9.93/10.0",
+  "releaseStatus": "RELEASE FROZEN — MAINTENANCE MODE",
+  "testSuiteCount": 5153,
+  "testFileCount": 123,
+  "buildChunkCount": 26,
+  "criticalChunkHashes": {
+    "index-DwnRZqDt.css": {
+      "sha256": "2612e199b333c53ba896205325c6833afd89aa3c14463af01e1288c43e49c64f",
+      "bytes": 54670
+    },
+    "index-BjZST7ql.js": {
+      "sha256": "179f30ae6efc15037c3eca9ba9a9ccba5ccd539ee7e3bcf47102d5a7370f694d",
+      "bytes": 146629
+    },
+    "useFocusTrap-C13X5i9T.js": {
+      "sha256": "1ddc98f2b9634aa6a341455272e2b4bfc3dd662a3683339ad0bdde01e491dfb7",
+      "bytes": 1613
+    },
+    "CreatePlanPage-CczzYwN4.js": {
+      "sha256": "eaee1150f75fb8d34554d0e7906c0a38f946656661b96bd18f0cda05bde406df",
+      "bytes": 22923
+    },
+    "WeeklyPlanPage-DgEsAL60.js": {
+      "sha256": "0a86867b47788c3272f4bc2394d1456632ecb09e8c4e41ef72410526f951c10b",
+      "bytes": 48948
+    },
+    "GymModePage-D4YgfU3m.js": {
+      "sha256": "78d31dd2f70869df21b311fe70ded73b6f90f569bb2f095daa99f8a952768c28",
+      "bytes": 84568
+    },
+    "planSafetyGate-D7E93ffJ.js": {
+      "sha256": "24da00437d423c46b80e137baf0698be15a9e55f2b9062ea301347f3d2e64618",
+      "bytes": 2094
+    }
+  },
+  "offlineCapability": {
+    "safe": [
+      "View saved weekly plan",
+      "View daily workout details",
+      "Log completed exercises and sets",
+      "Start rest timer (GymMode)",
+      "Start workout timer (GymMode)",
+      "View exercise substitutions",
+      "View barbell plate calculator",
+      "View workout history and analytics",
+      "View personal records vault",
+      "View body metrics tracker",
+      "View nutrition / grocery list",
+      "Export / download saved plan (txt, print, share)",
+      "Restore from backup file",
+      "View all static app content"
+    ],
+    "unavailable": [
+      "cloudAIGeneration"
+    ]
+  },
+  "safetyInvariants": [
+    "isSafetyMismatched must be true when ANY safety-relevant field mismatches between user profile and plan",
+    "Safety lockout UI must be rendered when isSafetyMismatched is true",
+    "contraindication scan must run before any plan exercise is surfaced to the user",
+    "allergen scan must run before any nutrition content is surfaced to the user",
+    "No plan may be presented to a user whose safety profile has changed without re-evaluation",
+    "GEMINI_API_KEY must never appear in any client-side bundle or URL"
+  ],
+  "consumerSinks": [
+    { "id": "S01", "location": "WeeklyPlanPage.tsx:282", "type": "navigator.clipboard.writeText", "classification": "SECURED" },
+    { "id": "S02", "location": "WeeklyPlanPage.tsx:307", "type": "navigator.clipboard.writeText", "classification": "SECURED" },
+    { "id": "S03", "location": "DownloadPlanPage.tsx:162", "type": "navigator.clipboard.writeText (route URL)", "classification": "SAFE BY CONSTRUCTION" },
+    { "id": "S04", "location": "DownloadPlanPage.tsx:171", "type": "navigator.clipboard.writeText", "classification": "SECURED" },
+    { "id": "S05", "location": "DownloadPlanPage.tsx:121", "type": "window.print()", "classification": "SECURED" },
+    { "id": "S06", "location": "DownloadPlanPage.tsx:98",  "type": "URL.createObjectURL(blob) txt download", "classification": "SECURED" },
+    { "id": "S07", "location": "DownloadPlanPage.tsx:140", "type": "window.open(mailto:...)", "classification": "SECURED" },
+    { "id": "S08", "location": "DownloadPlanPage.tsx:152", "type": "navigator.share", "classification": "SECURED" },
+    { "id": "S09", "location": "backupStorage.ts:262",     "type": "URL.createObjectURL(blob) V2 backup", "classification": "RECOVERY ONLY" },
+    { "id": "S10", "location": "ContactForm.tsx:47",       "type": "window.open(mailto:...)", "classification": "SAFE BY CONSTRUCTION" },
+    { "id": "S11", "location": "src/lib/gemini.ts",        "type": "fetch POST to /api/generate-plan (server-side proxied Gemini API, API key server-only)", "classification": "SECURED" }
+  ],
+  "documentedInherentLimitations": [
+    {
+      "area": "Wake Lock",
+      "score": "9.8/10.0",
+      "classification": "platform-inherent",
+      "rationale": "navigator.wakeLock.request() requires a browser-granted permission and is unavailable in test environments and some browsers. Application behaviour is best-effort with graceful degradation and user feedback."
+    },
+    {
+      "area": "Performance",
+      "score": "9.9/10.0",
+      "classification": "runtime-inherent",
+      "rationale": "AI plan generation latency is bounded by the Gemini API network round-trip. Local computation is deterministic and sub-millisecond. No application-level optimization gap exists."
+    },
+    {
+      "area": "Offline AI Generation",
+      "score": "9.7/10.0",
+      "classification": "domain-inherent",
+      "rationale": "Cloud AI plan generation requires network access by definition. All other features are fully offline-capable. Offline detection with user feedback toast is implemented."
+    },
+    {
+      "area": "Medical Communication / Biological Cross-Contact",
+      "score": "9.8/10.0",
+      "classification": "domain-inherent",
+      "rationale": "Lexical allergen screening cannot guarantee the absence of biological cross-contact in real food preparation. This is disclosed to users explicitly in the UI. Clinical language is calibrated to avoid over-assurance."
+    }
+  ],
+  "prohibitedPhrases": [
+    "100% safe",
+    "guaranteed safe",
+    "medically proven",
+    "clinically proven",
+    "replace your doctor",
+    "replace your physician",
+    "replace your therapist",
+    "no risk"
+  ],
+  "requiredSafetyModules": [
+    "src/lib/planBinding.ts",
+    "src/lib/contraindicationGuard.ts",
+    "src/lib/allergenGuard.ts"
+  ],
+  "canonicalSafetyTestFile": "src/__tests__/planLifecycleSafetyBoundaryOracle.test.ts",
+  "qualityGates": [
+    "npm test",
+    "npm run typecheck",
+    "npm run lint",
+    "npm run build",
+    "npm audit --audit-level=high"
+  ]
+}

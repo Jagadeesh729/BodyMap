@@ -763,11 +763,22 @@ describe('Section B: Screen Wake-Lock Lifecycle & Resilience', () => {
 // ============================================================================
 describe('Section C: Performance Invariants & Scaling Bounds', () => {
   it('C1: Barbell plate loading calculator executes in sub-millisecond time (< 1ms)', () => {
-    const t0 = performance.now()
-    const result = calculateBarbellPlates(142.5, 20)
-    const elapsed = performance.now() - t0
+    // Warmup JIT to avoid cold module-evaluation / OS thread-quantum jitter
+    calculateBarbellPlates(142.5, 20)
 
-    expect(elapsed).toBeLessThan(10.0) // 91
+    // Multi-sample measurement: take median of 5 samples
+    // to filter out single-quantum OS preemption spikes during parallel suite execution
+    const samples: number[] = []
+    let result = calculateBarbellPlates(142.5, 20)
+    for (let s = 0; s < 5; s++) {
+      const t0 = performance.now()
+      result = calculateBarbellPlates(142.5, 20)
+      samples.push(performance.now() - t0)
+    }
+    samples.sort((a, b) => a - b)
+    const medianElapsed = samples[Math.floor(samples.length / 2)]
+
+    expect(medianElapsed).toBeLessThan(10.0) // 91
     expect(result.hasValidConfiguration).toBe(true) // 92
     expect(result.perSidePlates.length).toBeGreaterThan(0) // 93
     expect(result.targetWeightKg).toBe(142.5) // 94
@@ -776,30 +787,54 @@ describe('Section C: Performance Invariants & Scaling Bounds', () => {
     expect(result.explanation).toBeDefined()
     expect(result.summaryLabel).toBeDefined()
 
-    const warmStart = performance.now()
-    for (let i = 0; i < 100; i++) {
-      calculateBarbellPlates(100 + (i % 40) * 2.5, 20)
+    // Multi-batch warm sampling: median across 5 batches of 50 iterations
+    // Filters out OS scheduler preemption (~15.6ms Windows scheduling quantum)
+    const batchAverages: number[] = []
+    for (let b = 0; b < 5; b++) {
+      const warmStart = performance.now()
+      for (let i = 0; i < 50; i++) {
+        calculateBarbellPlates(100 + (i % 40) * 2.5, 20)
+      }
+      batchAverages.push((performance.now() - warmStart) / 50)
     }
-    const warmAvg = (performance.now() - warmStart) / 100
-    expect(warmAvg).toBeLessThan(0.5) // 96
+    batchAverages.sort((a, b) => a - b)
+    const medianWarmAvg = batchAverages[Math.floor(batchAverages.length / 2)]
+    expect(medianWarmAvg).toBeLessThan(0.5) // 96
   })
 
   it('C2: 1RM calculator executes in sub-millisecond time (< 0.2ms)', () => {
-    const t0 = performance.now()
-    const r1 = calculateEstimated1RM(100, 5)
-    const elapsed = performance.now() - t0
+    // Warmup JIT to avoid cold module-evaluation / OS thread-quantum jitter
+    calculateEstimated1RM(100, 5)
 
-    expect(elapsed).toBeLessThan(10.0) // 97
+    const samples: number[] = []
+    let r1 = calculateEstimated1RM(100, 5)
+    for (let s = 0; s < 5; s++) {
+      const t0 = performance.now()
+      r1 = calculateEstimated1RM(100, 5)
+      samples.push(performance.now() - t0)
+    }
+    samples.sort((a, b) => a - b)
+    const medianElapsed = samples[Math.floor(samples.length / 2)]
+
+    expect(medianElapsed).toBeLessThan(10.0) // 97
     expect(r1.hasValidEstimate).toBe(true) // 98
     expect(r1.estimated1rmKg).toBeGreaterThan(100) // 99
     expect(r1.workingWeights.length).toBeGreaterThan(0) // 100
 
-    const warmStart = performance.now()
-    for (let i = 0; i < 100; i++) {
-      calculateEstimated1RM(80 + (i % 50), 1 + (i % 12))
+    // Multi-batch warm sampling: 5 batches of 50 iterations.
+    // Median batch average filters out single OS thread-quantum preemption (~15-20ms)
+    // while keeping the exact 0.2ms per-call performance contract intact.
+    const batchAverages: number[] = []
+    for (let b = 0; b < 5; b++) {
+      const warmStart = performance.now()
+      for (let i = 0; i < 50; i++) {
+        calculateEstimated1RM(80 + (i % 50), 1 + (i % 12))
+      }
+      batchAverages.push((performance.now() - warmStart) / 50)
     }
-    const warmAvg = (performance.now() - warmStart) / 100
-    expect(warmAvg).toBeLessThan(0.2) // 101
+    batchAverages.sort((a, b) => a - b)
+    const medianWarmAvg = batchAverages[Math.floor(batchAverages.length / 2)]
+    expect(medianWarmAvg).toBeLessThan(0.2) // 101
   })
 
   it('C3: Medical intake classification executes sub-millisecond with zero quadratic paths', () => {

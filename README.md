@@ -8,7 +8,7 @@
 [![React](https://img.shields.io/badge/React-18.x-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-3.x-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
-[![Vitest](https://img.shields.io/badge/Vitest-Passed%205068%2F5068-00FF88?style=for-the-badge&logo=vitest&logoColor=black)](https://vitest.dev/)
+[![Vitest](https://img.shields.io/badge/Vitest-Passed%205153%2F5153-00FF88?style=for-the-badge&logo=vitest&logoColor=black)](https://vitest.dev/)
 
 <p align="center">
   <b>Tailored workouts and nutrition based on your unique biometrics, fitness level, and equipment availability. Powered by Google Gemini AI with secure backend proxying and local-first data sovereignty.</b>
@@ -186,6 +186,34 @@ Open [http://localhost:8080](http://localhost:8080) in your browser.
 - **Production / Runtime**: **0 vulnerabilities** (`npm audit --omit=dev`).
 - **Client Secret Isolation**: **0 API keys** in browser code or `dist/` bundle; Google Gemini API calls are strictly routed through the `/api/generate-plan` serverless backend proxy with 16 KB payload limits and sliding-window rate limiting.
 - **Development Tooling**: **0 vulnerabilities** (`npm audit` exits with 0 vulnerabilities after updating to Vite 6 & esbuild 0.25+).
+
+---
+
+## 📋 Documentation Governance — Contributor Rules
+
+> These rules apply to **every commit** that touches application code, tests, or configuration.
+> All rules are enforced by the release gate (`node scripts/release_gate.mjs`) and the permanent
+> regression contract tests.
+
+1. **Test count must stay synchronized.** If you add or remove tests, update the badge in the README (`Vitest Passed X/X`) and the assertion in `finalProductionQualityOracle.test.ts`. Any mismatch will fail CI.
+
+2. **New consumer sinks require Level 3 change control.** Any new point where content leaves the browser trust boundary (clipboard, download, share, print, email, network POST) must be added to `consumerSinkDiscoveryContract.test.ts` and `CHANGE_CONTROL.md` before merging.
+
+3. **Safety modules are immutable without review.** `src/lib/planBinding.ts`, `src/lib/contraindicationGuard.ts`, and `src/lib/allergenGuard.ts` are Level 3 protected files. Changes to their exported functions, types, or return shapes require explicit review.
+
+4. **Forbidden clinical phrases must not be re-introduced.** The following phrases are permanently banned from all source files: `100% safe`, `guaranteed safe`, `medically proven`, `clinically proven`, `replace your doctor`, `replace your physician`, `replace your therapist`, `no risk`. These are enforced by `clinicalLanguageContract.test.ts`.
+
+5. **No API key may appear in client source.** `GEMINI_API_KEY` (or any Gemini `AIzaSy...` literal) must never appear in `src/` or `dist/`. The Gemini API is proxied exclusively via `api/generate-plan.ts` using `process.env.GEMINI_API_KEY`. Enforced by `privacyContract.test.ts` and the release gate.
+
+6. **`release-contract.json` must be updated on every frozen release commit.** After merging a release commit, update `releaseCommit` in `release-contract.json` and re-run `node scripts/verify_artifact_integrity.mjs` to record the new chunk hashes.
+
+7. **The safety gate test file must not be deleted.** `src/__tests__/planSafetyGate.test.ts` is a permanently required artifact. Its deletion is caught by `safetyInvariantContracts.test.ts` (Contract E). Deleting it will fail CI.
+
+8. **Offline-safe features must remain offline-capable.** Any change that introduces a network dependency into a feature listed in `release-contract.json → offlineCapability.safe` requires explicit documentation of the degradation path and a corresponding test update.
+
+9. **All four inherent limitation areas are documented.** Wake Lock, Performance (AI latency), Offline AI Generation, and Medical Communication / Cross-Contact are classified as domain/platform-inherent limitations. Do not change their classification without evidence-based re-audit.
+
+10. **The release gate must pass before any release commit.** Run `node scripts/release_gate.mjs` (all 11 checks must exit 0) before tagging or merging a release. The gate is the final merge requirement for `main`.
 
 ---
 
