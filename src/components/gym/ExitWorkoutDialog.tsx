@@ -1,6 +1,7 @@
 import React from 'react'
 import { AlertCircle, Play, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 
 interface ExitWorkoutDialogProps {
   isOpen: boolean
@@ -15,22 +16,17 @@ export const ExitWorkoutDialog: React.FC<ExitWorkoutDialogProps> = ({
   onSaveAndExit,
   onDiscardAndExit
 }) => {
-  React.useEffect(() => {
-    if (!isOpen) return
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        onClose()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, onClose])
+  const dialogRef = useFocusTrap<HTMLDivElement>({
+    isActive: isOpen,
+    onEscape: onClose,
+    returnFocus: true,
+  })
 
   if (!isOpen) return null
 
   return (
     <div
+      ref={dialogRef}
       className="fixed inset-0 z-50 bg-bodymap-dark/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in"
       role="dialog"
       aria-label="Exit workout confirmation"

@@ -70,6 +70,7 @@ import { ExerciseSubstitutionModal } from '@/components/gym/ExerciseSubstitution
 import { WorkoutCompletionModal } from '@/components/gym/WorkoutCompletionModal'
 import { ExitWorkoutDialog } from '@/components/gym/ExitWorkoutDialog'
 import { useWakeLock } from '@/hooks/useWakeLock'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 
 export const GymModePage: React.FC = () => {
   const { dayIndex: dayIndexParam } = useParams<{ dayIndex?: string }>()
@@ -190,6 +191,12 @@ export const GymModePage: React.FC = () => {
   const [isExitDialogOpen, setIsExitDialogOpen] = useState(false)
   const [isCompletedModalOpen, setIsCompletedModalOpen] = useState(false)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+
+  const drawerRef = useFocusTrap<HTMLDivElement>({
+    isActive: isDrawerOpen,
+    onEscape: () => setIsDrawerOpen(false),
+    returnFocus: true,
+  })
 
   // Screen Wake Lock: keeps screen awake during active workout on supported mobile devices
   const isWorkoutActive = session.status === 'in-progress' && !isExitDialogOpen && !isCompletedModalOpen
@@ -1462,9 +1469,11 @@ export const GymModePage: React.FC = () => {
       {/* Routine Quick Jump Drawer */}
       {isDrawerOpen && (
         <div
+          ref={drawerRef}
           className="fixed inset-0 z-50 bg-bodymap-dark/80 backdrop-blur-sm flex justify-end"
           role="dialog"
           aria-label="Workout routine overview"
+          aria-modal="true"
         >
           <div className="bg-card-dark border-l border-gray-700 w-full max-w-sm h-full p-6 flex flex-col justify-between shadow-2xl animate-slide-left">
             <div>

@@ -25,6 +25,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/hooks/use-toast'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { usePlan } from '@/context/PlanContext'
 import { parseAndValidatePlan } from '@/lib/planSchema'
 import { evaluatePlanContentSafety, evaluateGroceryContentSafety } from '@/lib/planSafetyGate'
@@ -75,6 +76,18 @@ const WeeklyPlanPage: React.FC = () => {
   const [servingMultiplier, setServingMultiplier] = useState<number>(1)
   const [hidePantryStaples, setHidePantryStaples] = useState<boolean>(false)
   const [selectedMealForSwap, setSelectedMealForSwap] = useState<{ title: string; text: string } | null>(null)
+
+  const groceryModalRef = useFocusTrap<HTMLDivElement>({
+    isActive: isGroceryModalOpen,
+    onEscape: () => setIsGroceryModalOpen(false),
+    returnFocus: true,
+  })
+
+  const mealSwapModalRef = useFocusTrap<HTMLDivElement>({
+    isActive: Boolean(selectedMealForSwap),
+    onEscape: () => setSelectedMealForSwap(null),
+    returnFocus: true,
+  })
   const [checkedGroceryItems, setCheckedGroceryItems] = useState<Record<string, boolean>>(() => {
     try {
       const saved = localStorage.getItem('bodymap_grocery_checked')
@@ -873,6 +886,7 @@ const WeeklyPlanPage: React.FC = () => {
       {/* 7-Day Grocery List Modal Dialog */}
       {isGroceryModalOpen && (
         <div
+          ref={groceryModalRef}
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
@@ -1020,6 +1034,7 @@ const WeeklyPlanPage: React.FC = () => {
       {/* Smart Meal Protein Alternatives Modal */}
       {selectedMealForSwap && (
         <div
+          ref={mealSwapModalRef}
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"

@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react'
 import { X, RefreshCw, CheckCircle2, Dumbbell, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { getExerciseAlternatives, type ExerciseAlternative } from '@/lib/exerciseSubstitution'
 import { getMovementPattern } from '@/lib/movementPatterns'
 import { scanPlanForContraindications } from '@/lib/contraindicationGuard'
@@ -20,6 +21,12 @@ export const ExerciseSubstitutionModal: React.FC<ExerciseSubstitutionModalProps>
   onSelectAlternative,
   medicalIssues
 }) => {
+  const modalRef = useFocusTrap<HTMLDivElement>({
+    isActive: isOpen,
+    onEscape: onClose,
+    returnFocus: true,
+  })
+
   const rawAlternatives = getExerciseAlternatives(currentExerciseName)
   const alternatives = useMemo(() => {
     if (!medicalIssues || !medicalIssues.trim()) return rawAlternatives
@@ -29,22 +36,11 @@ export const ExerciseSubstitutionModal: React.FC<ExerciseSubstitutionModalProps>
     })
   }, [rawAlternatives, medicalIssues])
 
-  React.useEffect(() => {
-    if (!isOpen) return
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        onClose()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, onClose])
-
   if (!isOpen) return null
 
   return (
     <div
+      ref={modalRef}
       className="fixed inset-0 z-50 bg-bodymap-dark/80 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-fade-in"
       role="dialog"
       aria-label="Exercise substitution modal"

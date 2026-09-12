@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { CheckCircle2, Trophy, Clock, Dumbbell, ArrowRight, Award, Flame, Sparkles, Smile } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { STANDARD_REFLECTION_TAGS, type EnergyRating, type PerceivedReadiness, type SessionReflection } from '@/lib/sessionReflectionTaxonomy'
 
 interface WorkoutCompletionModalProps {
@@ -60,8 +61,14 @@ export const WorkoutCompletionModal: React.FC<WorkoutCompletionModalProps> = ({
     else onGoToDashboard()
   }
 
+  const modalRef = useFocusTrap<HTMLDivElement>({
+    isActive: true,
+    returnFocus: true,
+  })
+
   return (
     <div
+      ref={modalRef}
       className="fixed inset-0 z-50 bg-bodymap-dark/90 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 animate-fade-in"
       role="dialog"
       aria-label="Workout completed summary"
