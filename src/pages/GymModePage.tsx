@@ -182,6 +182,14 @@ export const GymModePage: React.FC = () => {
     }
   }, [state.generatedPlan, state.formData.medicalIssues, session?.exercises])
 
+  // Deterministic plan data corruption evaluation
+  const isPlanCorrupted = useMemo(() => {
+    if (!state.isGenerated) return false
+    if (!state.generatedPlan || !state.generatedPlan.trim()) return true
+    const parsed = parseAndValidatePlan(state.generatedPlan, false)
+    return !parsed.success
+  }, [state.isGenerated, state.generatedPlan])
+
   // Track active stopwatch time accumulated across pauses/reloads
   const mountTimeRef = useRef<number>(Date.now())
   const initialElapsedRef = useRef<number>(session.elapsedSeconds)
@@ -212,7 +220,7 @@ export const GymModePage: React.FC = () => {
   }, [session])
 
   // Cross-tab / runtime plan synchronization:
-  // If planId changed, medical profile diverged, or safety binding / contraindications failed
+  // If planId changed, medical profile diverged, or safety binding / contraindications / plan corruption failed
   // while this session was active in-memory, immediately invalidate and cancel the session to prevent
   // executing or persisting obsolete/contraindicated exercises.
   useEffect(() => {
@@ -223,14 +231,14 @@ export const GymModePage: React.FC = () => {
       const isMedicalDiverged = curMed !== snapMed && (
         hasSafetySensitiveMedicalIssues(curMed) || hasSafetySensitiveMedicalIssues(snapMed)
       )
-      const isSafetyViolated = bindingEval.isSafetyMismatched || contraScanResult.hasViolation
+      const isSafetyViolated = bindingEval.isSafetyMismatched || contraScanResult.hasViolation || isPlanCorrupted
 
       if (isPlanMismatch || isMedicalDiverged || isSafetyViolated) {
         clearActiveSession()
         setSession(prev => prev.status === 'in-progress' ? { ...prev, status: 'cancelled' } : prev)
       }
     }
-  }, [state.planId, session.planId, session.medicalSnapshot, session.status, state.formData.medicalIssues, bindingEval.isSafetyMismatched, contraScanResult.hasViolation])
+  }, [state.planId, session.planId, session.medicalSnapshot, session.status, state.formData.medicalIssues, bindingEval.isSafetyMismatched, contraScanResult.hasViolation, isPlanCorrupted])
 
   // Listen for active-session removal from another tab
   useEffect(() => {
@@ -805,20 +813,29 @@ export const GymModePage: React.FC = () => {
   const secsElapsed = session.elapsedSeconds % 60
   const formattedElapsed = `${minsElapsed.toString().padStart(2, '0')}:${secsElapsed.toString().padStart(2, '0')}`
 
-  // Safety Gate: Block execution if safety profile has diverged OR if plan contains contraindicated exercises
-  if (bindingEval.isSafetyMismatched || contraScanResult.hasViolation) {
+  // Safety Gate: Block execution if safety profile has diverged OR if plan contains contraindicated exercises OR if plan data is corrupted
+  if (bindingEval.isSafetyMismatched || contraScanResult.hasViolation || isPlanCorrupted) {
     const isContra = contraScanResult.hasViolation
-    const title = isContra ? 'Workout Safety Lockout — Contraindicated Movement' : 'Workout Safety Lockout'
-    const desc = isContra
+    const isCorrupt = isPlanCorrupted
+    const title = isCorrupt
+      ? 'Workout Safety Lockout — Corrupted Plan Data'
+      : isContra
+      ? 'Workout Safety Lockout — Contraindicated Movement'
+      : 'Workout Safety Lockout'
+    const desc = isCorrupt
+      ? 'The generated plan structure is incomplete, invalid, or could not be parsed safely. Workout execution is locked to protect your training. Please regenerate your plan.'
+      : isContra
       ? 'This plan contains exercises that are contraindicated for your declared medical conditions. Workout execution is locked to prevent injury. Please regenerate your plan to obtain safe alternatives.'
       : 'Your health profile (injuries, medical conditions, or allergies) has changed since this plan was generated. To prevent injury, this workout is locked until you regenerate your plan to accommodate your current health state.'
-    const reasonText = isContra
+    const reasonText = isCorrupt
+      ? 'Plan data failed schema validation or structure is corrupted'
+      : isContra
       ? contraScanResult.violations.map(v => `${v.conditionLabel}: "${v.matchedExercise}" (${v.reason})`).join('; ')
       : bindingEval.reason
 
     return (
       <div className="min-h-screen bg-bodymap-dark text-primary-text flex items-center justify-center p-4">
-        <div className="card-dark max-w-lg w-full text-center space-y-6 border-2 border-bright-coral/50 p-8 shadow-2xl animate-fade-in">
+        <div className="card-dark max-w-lg w-full text-center space-y-6 border-2 border-bright-coral/50 p-8 shadow-2xl animate-fade-in" role="alert">
           <div className="w-16 h-16 rounded-full bg-bright-coral/20 flex items-center justify-center mx-auto">
             <AlertCircle className="w-10 h-10 text-bright-coral" />
           </div>

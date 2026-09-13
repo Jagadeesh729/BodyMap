@@ -265,6 +265,8 @@ const WeeklyPlanPage: React.FC = () => {
     isPlanCorrupted,
   } = safetyEval
 
+  const isExecutionBlocked = isWorkoutLocked || isPlanCorrupted
+
   const grocerySafetyEval = useMemo(() => {
     return evaluateGroceryContentSafety(safetyEval)
   }, [safetyEval])
@@ -402,14 +404,14 @@ const WeeklyPlanPage: React.FC = () => {
         )}
 
         {isPlanCorrupted && (
-          <div className="mb-8 p-4 sm:p-6 bg-bright-coral/10 border-2 border-bright-coral/50 rounded-xl flex items-start gap-4 shadow-lg shadow-bright-coral/10 animate-fade-in">
+          <div className="mb-8 p-4 sm:p-6 bg-bright-coral/10 border-2 border-bright-coral/50 rounded-xl flex items-start gap-4 shadow-lg shadow-bright-coral/10 animate-fade-in" role="alert">
             <AlertCircle className="w-8 h-8 text-bright-coral shrink-0 mt-0.5" />
             <div className="flex-1">
               <h2 className="font-poppins font-semibold text-bright-coral text-base sm:text-lg">
-                Corrupted Plan Data Detected
+                Corrupted or Invalid Plan Data Detected
               </h2>
               <p className="text-secondary-text font-open-sans text-xs sm:text-sm mt-1">
-                The generated plan structure is invalid or could not be parsed safely. Plan export and execution are locked. Please regenerate your plan.
+                The generated plan structure is incomplete, invalid, or could not be parsed safely. Plan export and workout execution are locked to protect your training. Please regenerate your plan.
               </p>
             </div>
             <Link to="/edit-plan" className="btn-primary whitespace-nowrap text-xs sm:text-sm py-2 px-4 self-center sm:self-auto shrink-0">
@@ -438,7 +440,7 @@ const WeeklyPlanPage: React.FC = () => {
           </div>
         )}
 
-        {activeSession && !isWorkoutLocked && (
+        {activeSession && !isExecutionBlocked && (
           <div className="mb-6 p-4 sm:p-5 bg-neon-green/10 border-2 border-neon-green/40 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg shadow-neon-green/5">
             <div className="flex items-center gap-3">
               <div className="w-3 h-3 rounded-full bg-neon-green animate-ping shrink-0" />
@@ -504,7 +506,7 @@ const WeeklyPlanPage: React.FC = () => {
                     Next recommended session: <strong className="text-primary-text">{nextDay.day} &bull; {nextDay.title}</strong>
                   </span>
                 </div>
-                {isWorkoutLocked ? (
+                {isExecutionBlocked ? (
                   <span className="px-3 py-1.5 rounded-lg bg-bright-coral/10 text-bright-coral text-xs font-semibold border border-bright-coral/30 shrink-0">
                     Locked
                   </span>
@@ -709,10 +711,16 @@ const WeeklyPlanPage: React.FC = () => {
 
                     <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
                       {!day.isRest && (
-                        isWorkoutLocked ? (
+                        isExecutionBlocked ? (
                           <span
                             className="px-3 py-1.5 rounded-lg bg-bright-coral/10 border border-bright-coral/30 text-bright-coral text-xs font-semibold"
-                            title={bindingEval.isSafetyMismatched ? "Workouts locked due to health profile changes" : "Workouts locked due to contraindicated exercises"}
+                            title={
+                              isPlanCorrupted
+                                ? "Workouts locked due to invalid plan structure"
+                                : bindingEval.isSafetyMismatched
+                                ? "Workouts locked due to health profile changes"
+                                : "Workouts locked due to contraindicated exercises"
+                            }
                           >
                             Locked
                           </span>

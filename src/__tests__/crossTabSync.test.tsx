@@ -24,6 +24,7 @@ import {
 import { evaluatePlanProfileBinding } from '../lib/planBinding'
 import type { WorkoutSession } from '../types/workoutSession'
 import type { FormData } from '../types/formData'
+import { MOCK_PLAN } from '../lib/gemini'
 
 const sampleProfile: FormData = {
   ...defaultFormData,
@@ -688,7 +689,7 @@ describe('CROSS-TAB SYNCHRONIZATION & ORDERING PROTOCOL', () => {
       ...initialState,
       formData: { ...sampleProfile, medicalIssues: 'None' },
       isGenerated: true,
-      generatedPlan: '# Plan A',
+      generatedPlan: MOCK_PLAN,
       planId: 'plan_A_running',
       boundProfile: { ...sampleProfile, medicalIssues: 'None' },
       stateVersion: { counter: 1, timestamp: 1000, writerId: 'tab_A' },
@@ -719,7 +720,7 @@ describe('CROSS-TAB SYNCHRONIZATION & ORDERING PROTOCOL', () => {
       ...initialState,
       formData: { ...sampleProfile, medicalIssues: 'None' },
       isGenerated: true,
-      generatedPlan: '# Plan B New',
+      generatedPlan: MOCK_PLAN,
       planId: 'plan_B_new_999',
       boundProfile: { ...sampleProfile, medicalIssues: 'None' },
       stateVersion: { counter: 2, timestamp: 2000, writerId: 'tab_B' },
@@ -753,7 +754,7 @@ describe('CROSS-TAB SYNCHRONIZATION & ORDERING PROTOCOL', () => {
       ...initialState,
       formData: { ...sampleProfile, medicalIssues: 'None' },
       isGenerated: true,
-      generatedPlan: '# Plan A',
+      generatedPlan: MOCK_PLAN,
       planId: 'plan_A_running_2',
       boundProfile: { ...sampleProfile, medicalIssues: 'None' },
       stateVersion: { counter: 1, timestamp: 1000, writerId: 'tab_A' },

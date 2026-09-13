@@ -7,36 +7,36 @@
   "productionUrl": "https://bodymap-ai.vercel.app",
   "overallMaturityScore": "9.93/10.0",
   "releaseStatus": "RELEASE FROZEN — MAINTENANCE MODE",
-  "testSuiteCount": 5153,
-  "testFileCount": 123,
+  "testSuiteCount": 5157,
+  "testFileCount": 124,
   "buildChunkCount": 26,
   "criticalChunkHashes": {
     "index-DwnRZqDt.css": {
       "sha256": "2612e199b333c53ba896205325c6833afd89aa3c14463af01e1288c43e49c64f",
       "bytes": 54670
     },
-    "index-BjZST7ql.js": {
-      "sha256": "179f30ae6efc15037c3eca9ba9a9ccba5ccd539ee7e3bcf47102d5a7370f694d",
+    "index-BSoWFU9H.js": {
+      "sha256": "00599c8c66d48661bcb3c7de6964a1b9b7bd38ce33029e25bf0d6a4afe70a582",
       "bytes": 146629
     },
     "useFocusTrap-C13X5i9T.js": {
       "sha256": "1ddc98f2b9634aa6a341455272e2b4bfc3dd662a3683339ad0bdde01e491dfb7",
       "bytes": 1613
     },
-    "CreatePlanPage-CczzYwN4.js": {
-      "sha256": "eaee1150f75fb8d34554d0e7906c0a38f946656661b96bd18f0cda05bde406df",
+    "CreatePlanPage-CFyeWpJ8.js": {
+      "sha256": "9dcd124aec2068996e80542eea179159f8c903be88760c5a033353296c847c06",
       "bytes": 22923
     },
-    "WeeklyPlanPage-DgEsAL60.js": {
-      "sha256": "0a86867b47788c3272f4bc2394d1456632ecb09e8c4e41ef72410526f951c10b",
-      "bytes": 48948
+    "WeeklyPlanPage-dyZw8-gf.js": {
+      "sha256": "c0e3c4b2ee7c97063fea5d5b7d39513961db8a8e6007777efc84d0b6f296a429",
+      "bytes": 49078
     },
-    "GymModePage-D4YgfU3m.js": {
-      "sha256": "78d31dd2f70869df21b311fe70ded73b6f90f569bb2f095daa99f8a952768c28",
-      "bytes": 84568
+    "GymModePage-C3JZZM_U.js": {
+      "sha256": "279723203e6426abdedbea500101bd6b0c38f47c45755ab7ab46704116a73203",
+      "bytes": 85026
     },
-    "planSafetyGate-D7E93ffJ.js": {
-      "sha256": "24da00437d423c46b80e137baf0698be15a9e55f2b9062ea301347f3d2e64618",
+    "planSafetyGate-BgqBF4Mm.js": {
+      "sha256": "464f7db947fe52c0946fcbead18d1407609ec9d4990fa421cd0dc57c5787a5f3",
       "bytes": 2094
     }
   },
