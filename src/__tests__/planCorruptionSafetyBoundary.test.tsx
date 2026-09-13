@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import React from 'react'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -270,5 +270,29 @@ describe('Plan Corruption Safety Boundary & Execution Gate Invariant', () => {
     expect(localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY)).toBeNull()
     // Safety lockout screen rendered
     expect(screen.getByText(/Workout Safety Lockout — Corrupted Plan Data/i)).toBeDefined()
+  })
+
+  it('demo state (isGenerated=false) does not trigger corruption alert and keeps sample plan interactive', () => {
+    seedPlanState({
+      planText: '',
+      isGenerated: false,
+      planId: undefined
+    })
+
+    render(
+      <PlanProvider>
+        <MemoryRouter initialEntries={['/weekly-plan']}>
+          <WeeklyPlanPage />
+        </MemoryRouter>
+      </PlanProvider>
+    )
+
+    // Corruption alert must NOT be present
+    expect(screen.queryByText(/Corrupted or Invalid Plan Data Detected/i)).toBeNull()
+    // Sample plan indicator must be displayed
+    expect(screen.getByText(/Viewing Sample 7-Day Plan/i)).toBeDefined()
+    // Gym Mode links must be active
+    const gymModeLinks = screen.getAllByRole('link', { name: /Gym Mode/i })
+    expect(gymModeLinks.length).toBeGreaterThan(0)
   })
 })
