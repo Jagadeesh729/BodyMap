@@ -694,8 +694,24 @@ describe('Section G: Documentation & Contract Synchronization', () => {
     const readmePath = path.resolve(process.cwd(), 'README.md')
     const readme = fs.readFileSync(readmePath, 'utf-8')
 
-    // Test counts match real suite (> 4,950 tests)
-    expect(readme.includes('4956+') || readme.includes('5068') || readme.includes('5,068') || readme.includes('5153') || readme.includes('5,153')).toBe(true)
+    // Authoritative source of truth for current certified test counts
+    const contractPath = path.resolve(process.cwd(), 'release-contract.json')
+    const contract = JSON.parse(fs.readFileSync(contractPath, 'utf-8'))
+    const expectedTestCount = Number(contract.testSuiteCount)
+    const expectedFileCount = Number(contract.testFileCount)
+    const formattedTestCount = expectedTestCount.toLocaleString('en-US')
+
+    // Strict current-state synchronization: README must match release-contract exactly
+    expect(readme).toContain(`Vitest-Passed%20${expectedTestCount}%2F${expectedTestCount}`)
+    expect(readme).toContain(`${formattedTestCount} automated unit & oracle tests across ${expectedFileCount} suites`)
+    expect(readme).toContain(`${expectedFileCount} Vitest unit test & oracle suites (${formattedTestCount} tests)`)
+    expect(readme).toContain(`Executes ${formattedTestCount} automated Vitest tests across ${expectedFileCount} suites`)
+
+    // Stale counts are strictly forbidden in current documentation
+    expect(readme).not.toContain('5,068')
+    expect(readme).not.toContain('5068')
+    expect(readme).not.toContain('118 suites')
+    expect(readme).not.toContain('118 Vitest')
     expect(readme).not.toContain('1117 unit tests across 100 suites')
     expect(readme).not.toContain('Passed 1117/1117')
 

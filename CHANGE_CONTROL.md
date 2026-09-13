@@ -41,7 +41,7 @@ This document defines the **impact classification** and **approval requirements*
 **Required before merging**:
 - [ ] `npm run lint` passes
 - [ ] `npm run typecheck` passes
-- [ ] `npm test` — full test suite passes (5,068+/5,068+ tests)
+- [ ] `npm test` — full test suite passes (5,153+/5,153+ tests)
 - [ ] README test badge updated if test count changed
 - [ ] `finalProductionQualityOracle.test.ts` assertion updated if README count changed
 
@@ -151,8 +151,26 @@ The following limitations are **classified as domain/platform-inherent** and mus
 
 ---
 
+## Documentation Governance — Current vs. Historical Artifact Semantics
+
+To maintain immutable audit history while strictly enforcing present-day truthfulness, BodyMap AI distinguishes between two documentation classifications:
+
+1. **Current Documentation (Strictly Synchronized)**:
+   - `README.md` (badges, tech stack, project structure, scripts table)
+   - `release-contract.json` (authoritative release metadata and test totals)
+   - Current release status, artifact chunk hashes, and consumer sink registers
+   - *Governance Rule*: Must match current verified test counts (`5,153` tests across `123` suites) and build outputs. Enforced by `finalProductionQualityOracle.test.ts` (Section G) and `scripts/release_gate.mjs`. Stale counts (`5,068`, `118 suites`, etc.) in current documentation cause CI test failure.
+
+2. **Historical Audit Records (Preserved Forensic Evidence)**:
+   - Prior audit walkthrough sections (`walkthrough.md` sections 1–21)
+   - Prior commit messages, PR notes, and historical benchmark logs
+   - *Governance Rule*: Immutable. Historical references to earlier test baselines (e.g. `4,873`, `5,068`) are forensic records of earlier certification milestones and must not be retroactively altered.
+
+---
+
 ## Revision History
 
 | Date | Author | Change | Level |
 |---|---|---|---|
 | 2025-01-01 | Principal Release Engineer | Initial `CHANGE_CONTROL.md` created at certified baseline `12076d4` | — |
+| 2026-09-13 | Principal Release Engineer | Governance synchronization: update stale 5,068/118 metrics to current 5,153/123 in README and CHANGE_CONTROL; working commit `a78124a` | 0 |

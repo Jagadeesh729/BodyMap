@@ -72,7 +72,7 @@
 - **Validation**: [Zod 3.23.8](https://zod.dev/) runtime contracts for user inputs and AI plan schemas
 - **Data Visualization**: [Recharts 2.13.0](https://recharts.org/)
 - **Routing**: [React Router DOM 7.18.2](https://reactrouter.com/) with lazy loading
-- **Testing**: [Vitest 4.1.11](https://vitest.dev/) + React Testing Library (5,068 automated unit & oracle tests across 118 suites)
+- **Testing**: [Vitest 4.1.11](https://vitest.dev/) + React Testing Library (5,153 automated unit & oracle tests across 123 suites)
 - **Icons**: [Lucide React 0.462.0](https://lucide.dev/)
 
 ---
@@ -118,7 +118,7 @@ BodyMap/
 │   │   ├── DownloadPlanPage.tsx  # Data Vault export, backup restore & PDF share hub
 │   │   ├── AboutContactPage.tsx  # Mission, tech stack & contact form
 │   │   └── NotFound.tsx          # Themed 404 handler
-│   ├── __tests__/           # 118 Vitest unit test & oracle suites (5,068 tests)
+│   ├── __tests__/           # 123 Vitest unit test & oracle suites (5,153 tests)
 │   ├── App.tsx              # Root router, Suspense, ErrorBoundary & providers
 │   ├── index.css            # Custom theme variables & responsive styles
 │   └── main.tsx             # Application entry point with StrictMode
@@ -176,7 +176,7 @@ Open [http://localhost:8080](http://localhost:8080) in your browser.
 | `npm run build` | Compiles TypeScript and builds production bundle |
 | `npm run typecheck` | Validates TypeScript types across all files (`tsc --noEmit`) |
 | `npm run lint` | Runs ESLint to check for code quality and syntax rules |
-| `npm run test` | Executes 5,068 automated Vitest tests across 118 suites |
+| `npm run test` | Executes 5,153 automated Vitest tests across 123 suites |
 | `npm run preview` | Serves production build locally for verification |
 
 ---
