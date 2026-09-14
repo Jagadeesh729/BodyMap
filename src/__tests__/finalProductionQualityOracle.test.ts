@@ -664,7 +664,7 @@ describe('Section F: Performance & Offline Reality Guarantees', () => {
     const plateRes = calculateBarbellPlates(142.5, 20)
     const plateTime = performance.now() - t4
     expect(plateRes.hasValidConfiguration).toBe(true)
-    expect(plateTime).toBeLessThan(20)
+    expect(plateTime).toBeLessThan(10)
   })
 
   it('F16-F30: Local-first data architecture contracts and offline classification', () => {
