@@ -102,10 +102,21 @@ const EditPlanPage = () => {
   const handleRegeneratePlan = async () => {
     if (isRegenerating) return
 
+    const merged = { ...state.formData, ...localForm }
+
+    if (!merged.age || !merged.gender || !merged.height || !merged.weight) {
+      toast({
+        title: 'Profile Information Required',
+        description: 'Age, gender, height, and weight are required to generate an AI plan. Please complete the setup questionnaire first.',
+        variant: 'destructive',
+      })
+      navigate('/create-plan')
+      return
+    }
+
     const seq = ++generationSeqRef.current
     setIsRegenerating(true)
     try {
-      const merged = { ...state.formData, ...localForm }
       toast({ title: 'Regenerating Your Plan', description: 'AI is creating your new plan...' })
       const plan = await callGeminiWithFormData(merged)
 
@@ -149,6 +160,16 @@ const EditPlanPage = () => {
           description: 'Could not safely generate a plan omitting all declared allergens. Please adjust your requests and try again.',
           variant: 'destructive',
         })
+        return
+      }
+
+      if ((err as Error)?.message?.includes('API error (400)')) {
+        toast({
+          title: 'Invalid Profile Data',
+          description: 'The provided profile data is incomplete or invalid. Please complete the plan setup questionnaire.',
+          variant: 'destructive',
+        })
+        navigate('/create-plan')
         return
       }
 

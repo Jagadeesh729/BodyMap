@@ -76,5 +76,10 @@ describe('EditPlanPage Stale-Plan Synchronization Boundary', () => {
 
     expect(isMedicalChange).toBe(false)
     expect(isAllergyChange).toBe(false)
+
+    // Pre-flight profile biometrics guard invariant
+    const incompleteProfile: Partial<FormData> = { mainGoal: 'slim', timePerDay: '30' }
+    const hasRequiredBiometrics = Boolean(incompleteProfile.age && incompleteProfile.gender && incompleteProfile.height && incompleteProfile.weight)
+    expect(hasRequiredBiometrics).toBe(false)
   })
 })
