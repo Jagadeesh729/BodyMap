@@ -2,6 +2,7 @@ import type { SavedPlan } from '@/types/savedPlan'
 import type { PlanState } from '@/context/PlanContext'
 import { buildSafeState } from '@/context/planStorage'
 import { computeProfileFingerprint } from '@/lib/planBinding'
+import { isStorageQuotaError, notifyStorageQuotaExceeded } from '@/lib/storageQuotaHandler'
 
 export const SAVED_PLANS_STORAGE_KEY = 'bodymap_saved_plans'
 
@@ -85,6 +86,9 @@ export function persistSavedPlans(plans: SavedPlan[]): boolean {
     localStorage.setItem(SAVED_PLANS_STORAGE_KEY, serialized)
     return true
   } catch (err) {
+    if (isStorageQuotaError(err)) {
+      notifyStorageQuotaExceeded('plan')
+    }
     console.error('Error persisting saved plans:', err)
     return false
   }

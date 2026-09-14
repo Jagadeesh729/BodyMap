@@ -115,4 +115,58 @@ describe('DashboardPage & Chronological Weight Sorting System', () => {
     expect(screen.getByText(/No saved plans in your library yet/i)).toBeDefined()
     expect(screen.getAllByText(/Save Current Plan/i).length).toBeGreaterThan(0)
   })
+
+  it('renders PR Load Progression & 1RM Trajectory when history with weights exists', () => {
+    const mockLogs = [
+      {
+        id: 'dash_log_1',
+        sessionId: 'dash_sess_1',
+        dayIndex: 0,
+        dayTitle: 'Chest Day',
+        dayType: 'Hypertrophy',
+        completedAt: '2026-03-01T10:00:00.000Z',
+        durationSeconds: 3000,
+        totalSetsCompleted: 10,
+        totalExercises: 2,
+        exercisesSummary: [
+          {
+            name: 'Barbell Bench Press',
+            setsCompleted: 4,
+            totalSets: 4,
+            peakWeightKg: 100,
+            avgCompletedReps: 5
+          }
+        ]
+      },
+      {
+        id: 'dash_log_2',
+        sessionId: 'dash_sess_2',
+        dayIndex: 0,
+        dayTitle: 'Chest Day 2',
+        dayType: 'Strength',
+        completedAt: '2026-03-10T10:00:00.000Z',
+        durationSeconds: 3000,
+        totalSetsCompleted: 10,
+        totalExercises: 2,
+        exercisesSummary: [
+          {
+            name: 'Barbell Bench Press',
+            setsCompleted: 4,
+            totalSets: 4,
+            peakWeightKg: 105,
+            avgCompletedReps: 5
+          }
+        ]
+      }
+    ]
+    localStorage.setItem('bodymap_workout_history', JSON.stringify(mockLogs))
+
+    renderDashboard()
+
+    expect(screen.getByText(/PR Load Progression & 1RM Trajectory/i)).toBeDefined()
+    expect(screen.getAllByText(/All-Time Peak/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/105/i).length).toBeGreaterThan(0)
+    expect(screen.getByLabelText(/Select exercise for progression trajectory/i)).toBeDefined()
+    expect(screen.getByText(/View Tabular History/i)).toBeDefined()
+  })
 })

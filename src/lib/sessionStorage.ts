@@ -1,6 +1,7 @@
 import type { WorkoutSession, CompletedWorkoutLog } from '@/types/workoutSession'
 import { scanPlanForContraindications } from '@/lib/contraindicationGuard'
 import { hasSafetySensitiveMedicalIssues } from '@/lib/validation'
+import { isStorageQuotaError, notifyStorageQuotaExceeded } from '@/lib/storageQuotaHandler'
 
 export const ACTIVE_SESSION_STORAGE_KEY = 'bodymap_active_session'
 export const WORKOUT_HISTORY_STORAGE_KEY = 'bodymap_workout_history'
@@ -16,6 +17,9 @@ export function saveActiveSession(session: WorkoutSession): void {
     })
     localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, payload)
   } catch (err) {
+    if (isStorageQuotaError(err)) {
+      notifyStorageQuotaExceeded('session')
+    }
     console.warn('[SessionStorage] Failed to save active workout session:', err)
   }
 }
@@ -129,6 +133,9 @@ export function saveCompletedWorkoutLog(log: CompletedWorkoutLog): void {
     const updated = [log, ...history.filter(item => item.id !== log.id)].slice(0, MAX_STORED_WORKOUTS)
     localStorage.setItem(WORKOUT_HISTORY_STORAGE_KEY, JSON.stringify(updated))
   } catch (err) {
+    if (isStorageQuotaError(err)) {
+      notifyStorageQuotaExceeded('history')
+    }
     console.warn('[SessionStorage] Failed to save completed workout log:', err)
   }
 }
@@ -196,6 +203,9 @@ export function saveReflectionForSession(
     localStorage.setItem(WORKOUT_HISTORY_STORAGE_KEY, JSON.stringify(history))
     return true
   } catch (err) {
+    if (isStorageQuotaError(err)) {
+      notifyStorageQuotaExceeded('history')
+    }
     console.warn('[SessionStorage] Failed to save session reflection:', err)
     return false
   }

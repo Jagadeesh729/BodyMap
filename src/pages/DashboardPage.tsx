@@ -66,6 +66,13 @@ import {
 } from '@/lib/bodyMetricsStorage'
 import { calculateMilestones, type Milestone } from '@/lib/milestoneTracker'
 import { extractPersonalRecords, type PersonalRecord } from '@/lib/personalRecords'
+import {
+  extractExercisePRTrajectory,
+  getAvailableExercisesForTrajectory,
+  type ExercisePRTrajectory,
+  type AvailableTrajectoryExercise
+} from '@/lib/prProgressionTrajectory'
+import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion'
 import { aggregateCrossSessionExercises, type ExerciseCrossSessionSummary } from '@/lib/exerciseCrossSessionEngine'
 import { calculateVolumeAnalytics, type VolumeAnalyticsResult } from '@/lib/volumeAnalytics'
 import { calculateEstimated1RM } from '@/lib/oneRepMax'
@@ -126,6 +133,8 @@ const DashboardPage: React.FC = () => {
   const [selectedDayFilter, setSelectedDayFilter] = useState<number | 'all'>('all')
   const [historySortBy, setHistorySortBy] = useState<'newest' | 'oldest' | 'duration' | 'sets'>('newest')
   const [analyticsTimeWindow, setAnalyticsTimeWindow] = useState<AnalyticsTimeWindow>('all')
+  const [selectedPrExercise, setSelectedPrExercise] = useState<string>('')
+  const prefersReducedMotion = usePrefersReducedMotion()
 
   const filteredHistoryResult = useMemo(() => {
     return filterWorkoutHistory(workoutHistory, {
@@ -204,6 +213,14 @@ const DashboardPage: React.FC = () => {
   const personalRecords: PersonalRecord[] = useMemo(() => {
     return extractPersonalRecords(workoutHistory)
   }, [workoutHistory])
+  const availablePrExercises: AvailableTrajectoryExercise[] = useMemo(() => {
+    return getAvailableExercisesForTrajectory(workoutHistory)
+  }, [workoutHistory])
+  const effectivePrExercise = selectedPrExercise || (availablePrExercises.length > 0 ? availablePrExercises[0].name : '')
+  const prTrajectory: ExercisePRTrajectory | null = useMemo(() => {
+    if (!effectivePrExercise) return null
+    return extractExercisePRTrajectory(workoutHistory, effectivePrExercise)
+  }, [workoutHistory, effectivePrExercise])
   const crossSessionExercises: ExerciseCrossSessionSummary[] = useMemo(() => {
     return aggregateCrossSessionExercises(workoutHistory)
   }, [workoutHistory])
@@ -676,6 +693,202 @@ const DashboardPage: React.FC = () => {
             <p className="text-xs text-secondary-text text-center bg-bodymap-dark/50 p-4 rounded-xl border border-dashed border-gray-800">
               No personal records logged yet. Complete weighted sets in Gym Mode to build your all-time PR vault.
             </p>
+          )}
+
+          {/* PR Load Progression & 1RM Trajectory (E6) */}
+          {availablePrExercises.length > 0 && prTrajectory && (
+            <div className="mt-6 pt-5 border-t border-gray-800/80">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-neon-green shrink-0" />
+                  <div>
+                    <h3 className="text-sm font-poppins font-semibold text-primary-text">
+                      PR Load Progression &amp; 1RM Trajectory
+                    </h3>
+                    <p className="text-[11px] text-secondary-text">
+                      Chronological peak working weight and estimated 1RM across logged workouts.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Exercise Selector */}
+                <div className="flex items-center gap-2">
+                  <label htmlFor="pr-trajectory-select" className="sr-only">
+                    Select exercise for progression trajectory
+                  </label>
+                  <select
+                    id="pr-trajectory-select"
+                    value={effectivePrExercise}
+                    onChange={(e) => setSelectedPrExercise(e.target.value)}
+                    className="bg-bodymap-dark border border-gray-800 rounded-lg text-xs font-poppins px-3 py-1.5 text-primary-text focus:outline-none focus:border-bright-coral"
+                  >
+                    {availablePrExercises.map((ex) => (
+                      <option key={ex.normalized} value={ex.name}>
+                        {ex.name} ({ex.count} sessions · {ex.peakWeightKg} kg peak)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Trajectory Stats Badges */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+                <div className="bg-bodymap-dark/70 border border-gray-800/80 rounded-lg p-2.5">
+                  <span className="text-[10px] uppercase font-mono text-gray-400 block">All-Time Peak</span>
+                  <span className="text-base font-poppins font-bold text-bright-coral">
+                    {prTrajectory.allTimePeakWeightKg} <span className="text-xs text-secondary-text font-normal">kg</span>
+                  </span>
+                </div>
+                <div className="bg-bodymap-dark/70 border border-gray-800/80 rounded-lg p-2.5">
+                  <span className="text-[10px] uppercase font-mono text-gray-400 block">Est. Peak 1RM</span>
+                  <span className="text-base font-poppins font-bold text-neon-green">
+                    {prTrajectory.allTimePeak1rmKg ? `~${prTrajectory.allTimePeak1rmKg}` : '—'}{' '}
+                    <span className="text-xs text-secondary-text font-normal">{prTrajectory.allTimePeak1rmKg ? 'kg' : ''}</span>
+                  </span>
+                </div>
+                <div className="bg-bodymap-dark/70 border border-gray-800/80 rounded-lg p-2.5">
+                  <span className="text-[10px] uppercase font-mono text-gray-400 block">Net Progress</span>
+                  <span className={`text-base font-poppins font-bold ${prTrajectory.netWeightGainKg > 0 ? 'text-neon-green' : prTrajectory.netWeightGainKg < 0 ? 'text-bright-coral' : 'text-primary-text'}`}>
+                    {prTrajectory.netWeightGainKg > 0 ? `+${prTrajectory.netWeightGainKg}` : `${prTrajectory.netWeightGainKg}`}{' '}
+                    <span className="text-xs text-secondary-text font-normal">kg</span>
+                  </span>
+                </div>
+                <div className="bg-bodymap-dark/70 border border-gray-800/80 rounded-lg p-2.5">
+                  <span className="text-[10px] uppercase font-mono text-gray-400 block">Sessions Logged</span>
+                  <span className="text-base font-poppins font-bold text-primary-text">
+                    {prTrajectory.totalDataPoints}{' '}
+                    <span className="text-xs text-secondary-text font-normal">pts</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Trajectory Recharts Chart */}
+              <div className="h-56 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart
+                    data={prTrajectory.points}
+                    margin={{ top: 10, right: 15, left: -20, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#2D3748" />
+                    <XAxis dataKey="displayDate" stroke="#9CA3AF" fontSize={11} tickLine={false} />
+                    <YAxis
+                      domain={['dataMin - 5', 'dataMax + 5']}
+                      stroke="#9CA3AF"
+                      fontSize={11}
+                      tickLine={false}
+                      unit="kg"
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#1E1E1E',
+                        border: '1px solid #374151',
+                        borderRadius: '8px',
+                        color: '#FFFFFF',
+                        fontSize: '12px'
+                      }}
+                      formatter={(value: unknown, name: string) => {
+                        if (name === 'weightKg') return [`${value} kg`, 'Peak Load']
+                        if (name === 'estimated1rmKg') return [`~${value} kg`, 'Est. 1RM']
+                        return [value, name]
+                      }}
+                      labelFormatter={(label) => `Date: ${label}`}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="weightKg"
+                      stroke="#FF5733"
+                      strokeWidth={2.5}
+                      isAnimationActive={!prefersReducedMotion}
+                      dot={(props) => {
+                        const { cx, cy, payload } = props
+                        const isBreakthrough = payload?.isPRBreakthrough
+                        return (
+                          <circle
+                            key={`${cx}-${cy}`}
+                            cx={cx}
+                            cy={cy}
+                            r={isBreakthrough ? 5.5 : 3.5}
+                            fill={isBreakthrough ? '#00FF88' : '#FF5733'}
+                            stroke="#121212"
+                            strokeWidth={2}
+                          />
+                        )
+                      }}
+                      activeDot={{ r: 7, fill: '#FF5733' }}
+                      name="weightKg"
+                    />
+                    {prTrajectory.allTimePeak1rmKg !== null && (
+                      <Line
+                        type="monotone"
+                        dataKey="estimated1rmKg"
+                        stroke="#00FF88"
+                        strokeWidth={1.5}
+                        strokeDasharray="4 4"
+                        isAnimationActive={!prefersReducedMotion}
+                        dot={false}
+                        name="estimated1rmKg"
+                      />
+                    )}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Chart Legend & Accessible Summary */}
+              <div className="flex flex-wrap items-center justify-between gap-2 mt-2 pt-2 border-t border-gray-800/60 text-[11px] text-secondary-text">
+                <div className="flex items-center gap-4">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-3 h-0.5 bg-bright-coral inline-block rounded-full" />
+                    Peak Load
+                  </span>
+                  {prTrajectory.allTimePeak1rmKg !== null && (
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-3 h-0.5 bg-neon-green border-dashed inline-block" />
+                      Est. 1RM
+                    </span>
+                  )}
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-neon-green inline-block" />
+                    PR Breakthrough
+                  </span>
+                </div>
+
+                <details className="text-[11px] text-gray-400">
+                  <summary className="cursor-pointer hover:text-primary-text transition-colors">
+                    View Tabular History ({prTrajectory.points.length})
+                  </summary>
+                  <div className="mt-2 overflow-x-auto max-h-36 border border-gray-800 rounded-lg">
+                    <table className="w-full text-left text-[10px] font-mono">
+                      <thead className="bg-gray-900/80 text-gray-400 border-b border-gray-800">
+                        <tr>
+                          <th className="p-1.5">Date</th>
+                          <th className="p-1.5">Peak Load</th>
+                          <th className="p-1.5">Reps</th>
+                          <th className="p-1.5">Est. 1RM</th>
+                          <th className="p-1.5">PR</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-800/60">
+                        {prTrajectory.points.map((pt, idx) => (
+                          <tr key={idx} className="hover:bg-gray-800/30">
+                            <td className="p-1.5 text-gray-300">{pt.displayDate}</td>
+                            <td className="p-1.5 font-bold text-bright-coral">{pt.weightKg} kg</td>
+                            <td className="p-1.5 text-gray-400">{pt.reps ?? '—'}</td>
+                            <td className="p-1.5 text-neon-green">{pt.estimated1rmKg ? `~${pt.estimated1rmKg} kg` : '—'}</td>
+                            <td className="p-1.5">
+                              {pt.isPRBreakthrough ? (
+                                <span className="px-1 py-0.5 rounded bg-neon-green/20 text-neon-green font-semibold text-[9px]">PR</span>
+                              ) : (
+                                <span className="text-gray-600">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
+              </div>
+            </div>
           )}
 
           {/* Cross-Session Movement Frequency Strip */}

@@ -2,6 +2,7 @@ import { PlanState, initialState, StateVersion } from './PlanContext'
 import { hasSafetySensitiveMedicalIssues } from '../lib/validation'
 import { getActiveAllergenCategories } from '../lib/allergenGuard'
 import { computeProfileFingerprint } from '../lib/planBinding'
+import { isStorageQuotaError, notifyStorageQuotaExceeded } from '../lib/storageQuotaHandler'
 
 export const STORAGE_KEY = 'bodymap_plan_v2'
 
@@ -380,7 +381,10 @@ export function savePersistedStateWithVersion(
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
     return { success: true, version: nextVersion }
-  } catch {
+  } catch (err) {
+    if (isStorageQuotaError(err)) {
+      notifyStorageQuotaExceeded('plan')
+    }
     return { success: false }
   }
 }

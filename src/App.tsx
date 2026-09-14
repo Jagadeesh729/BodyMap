@@ -4,6 +4,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { useEffect } from 'react'
 import Navbar from './components/Navbar'
+import { StorageQuotaBanner } from './components/StorageQuotaBanner'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { PlanProvider } from './context/PlanContext'
 
@@ -47,6 +48,7 @@ const App = () => (
           <ScrollToTop />
           <div className="min-h-screen bg-bodymap-dark">
             <Navbar />
+            <StorageQuotaBanner />
             <main id="main-content">
               <Suspense fallback={<PageSkeleton />}>
                 <Routes>

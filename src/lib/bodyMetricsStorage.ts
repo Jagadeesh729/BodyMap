@@ -4,6 +4,7 @@ import type {
   BodyMetricKey,
   MetricUnit
 } from '@/types/bodyMetrics'
+import { isStorageQuotaError, notifyStorageQuotaExceeded } from '@/lib/storageQuotaHandler'
 
 export const BODY_METRICS_STORAGE_KEY = 'bodymap_body_metrics'
 export const BODY_METRICS_UNIT_KEY = 'bodymap_body_metrics_unit'
@@ -92,6 +93,9 @@ export function persistBodyMetrics(entries: BodyMeasurementEntry[]): boolean {
     localStorage.setItem(BODY_METRICS_STORAGE_KEY, serialized)
     return true
   } catch (err) {
+    if (isStorageQuotaError(err)) {
+      notifyStorageQuotaExceeded('metrics')
+    }
     console.error('Error persisting body metrics:', err)
     return false
   }
