@@ -129,3 +129,40 @@
   }
 }
 
+/* ===================================================================
+   Accessibility: Reduced Motion
+   Respects the OS/browser "prefers-reduced-motion: reduce" setting.
+   Decorative animations (pulse, ping, fade-in, slide) are disabled.
+   Functional animations (animate-spin on load spinners) are slowed
+   because they communicate meaningful application loading state.
+   =================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  /* Disable decorative pulsing badges and status indicators */
+  .animate-pulse {
+    animation: none !important;
+  }
+
+  /* Disable decorative ping dot indicators (live status, nav badges) */
+  .animate-ping {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+
+  /* Disable decorative entrance fade-ins */
+  .animate-fade-in {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+
+  /* Disable decorative panel slide transitions */
+  .animate-slide-left {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  /* Preserve animate-spin but slow it: communicates meaningful loading progress */
+  .animate-spin {
+    animation-duration: 2s !important;
+  }
+}
+
