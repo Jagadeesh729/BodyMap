@@ -27,7 +27,7 @@ import { Button } from '@/components/ui/button'
 import { toast } from '@/hooks/use-toast'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { usePlan } from '@/context/PlanContext'
-import { parseAndValidatePlan } from '@/lib/planSchema'
+import { parseAndValidatePlan, cleanSectionContent } from '@/lib/planSchema'
 import { evaluatePlanContentSafety, evaluateGroceryContentSafety } from '@/lib/planSafetyGate'
 import { hasSafetySensitiveMedicalIssues } from '@/lib/validation'
 import { DEFAULT_WEEKLY_PLAN, type DayPlan } from '@/types/plan'
@@ -132,9 +132,6 @@ const WeeklyPlanPage: React.FC = () => {
     setHydrationLogged(0)
   }
 
-  const completedCount = state.completedDays.length
-  const progressPercent = Math.min(100, Math.round((completedCount / 7) * 100))
-
   const parsedAiPlan = state.generatedPlan ? parseAndValidatePlan(state.generatedPlan, false) : null
   const displayDays: DayPlan[] = (parsedAiPlan?.success && parsedAiPlan.data && parsedAiPlan.data.days.length > 0)
     ? parsedAiPlan.data.days.map((d, i) => ({
@@ -144,11 +141,11 @@ const WeeklyPlanPage: React.FC = () => {
         focus: d.isRestDay ? ['Recovery', 'Mobility'] : (state.formData.bodyFocus.length > 0 ? state.formData.bodyFocus : ['Full Body']),
         isRest: d.isRestDay,
         workout: {
-          warmup: d.workout?.warmup ? [d.workout.warmup] : ['5-minute dynamic mobility warm-up'],
+          warmup: d.workout?.warmup ? [cleanSectionContent(d.workout.warmup) || d.workout.warmup] : ['5-minute dynamic mobility warm-up'],
           main: d.workout?.exercises && d.workout.exercises.length > 0
             ? d.workout.exercises.map(e => `${e.name}${e.sets ? `: ${e.sets} sets` : ''}${e.reps ? ` x ${e.reps} reps` : ''}${e.rest ? ` (${e.rest} rest)` : ''}`)
             : [d.rawContent],
-          cooldown: d.workout?.cooldown ? [d.workout.cooldown] : ['5-minute static cooldown stretching']
+          cooldown: d.workout?.cooldown ? [cleanSectionContent(d.workout.cooldown) || d.workout.cooldown] : ['5-minute static cooldown stretching']
         },
         meals: {
           breakfast: d.nutrition?.breakfast || 'High-protein breakfast',
@@ -159,6 +156,10 @@ const WeeklyPlanPage: React.FC = () => {
         totalCalories: d.nutrition?.estimatedCalories ? parseInt(d.nutrition.estimatedCalories, 10) || 1800 : 1800
       }))
     : DEFAULT_WEEKLY_PLAN
+
+  const totalDaysCount = displayDays.length > 0 ? displayDays.length : 7
+  const completedCount = state.completedDays.length
+  const progressPercent = totalDaysCount > 0 ? Math.min(100, Math.round((completedCount / totalDaysCount) * 100)) : 0
 
   // Extract all meal strings across 7 days for the grocery aggregator
   const allMealTexts = useMemo(() => {
@@ -479,7 +480,7 @@ const WeeklyPlanPage: React.FC = () => {
             <div className="flex items-center gap-2">
               <Calendar className="w-5 h-5 text-neon-green" />
               <span className="font-poppins font-semibold text-primary-text text-sm sm:text-base">
-                Weekly Completion: {completedCount} of 7 Days Done
+                Weekly Completion: {completedCount} of {totalDaysCount} Days Done
               </span>
             </div>
             <span className="text-neon-green font-bold text-sm font-poppins">{progressPercent}% Completed</span>
@@ -492,7 +493,7 @@ const WeeklyPlanPage: React.FC = () => {
           </div>
 
           {/* Schedule Recovery Assistant */}
-          {completedCount > 0 && completedCount < 7 && (() => {
+          {completedCount > 0 && completedCount < totalDaysCount && (() => {
             const nextIdx = displayDays.findIndex((_, idx) => !isDayCompleted(idx))
             if (nextIdx === -1) return null
             const nextDay = displayDays[nextIdx]

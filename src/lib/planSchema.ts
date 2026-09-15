@@ -52,6 +52,98 @@ export type WeeklyPlan = z.infer<typeof WeeklyPlanSchema>
 import { parseCanonicalExerciseLine } from './canonicalExerciseParser'
 
 /**
+ * Normalizes section content by stripping markdown bold/italic tags,
+ * header markers, and stray leading/trailing delimiter artifacts,
+ * while strictly preserving legitimate internal punctuation (e.g. "5 mins", "chest & tricep").
+ */
+export function cleanSectionContent(raw: string | undefined): string | undefined {
+  if (!raw || typeof raw !== 'string') return undefined
+  let text = raw.trim()
+  if (!text) return undefined
+
+  // Replace internal markdown bold/italic tags e.g. **5 mins** -> 5 mins, *text* -> text
+  text = text.replace(/\*\*(.*?)\*\*/g, '$1').replace(/\*(.*?)\*/g, '$1')
+
+  // Remove leading markdown artifacts, bullets, hyphens, colons, or stray asterisks
+  // e.g. "** 5 mins...", "• ** 5 mins...", ": 5 mins..."
+  text = text.replace(/^[#*•\-_:\s]+/, '')
+
+  // Remove trailing markdown artifacts
+  text = text.replace(/[#*•\-_:\s]+$/, '')
+
+  // Collapse multiple whitespace/tabs
+  text = text.replace(/\s+/g, ' ').trim()
+
+  return text.length > 0 ? text : undefined
+}
+
+/**
+ * Extracts the daily calorie total from nutrition text.
+ * Prioritizes an explicit daily target/total (e.g. "Total Calories: 1800 kcal", "Daily Target: 1738 kcal").
+ * If no explicit day-level total exists, derives the total by summing valid meal calorie entries.
+ * Avoids misattributing the first meal's calories as the daily total, and avoids workout burn metrics.
+ */
+export function extractDailyCalories(nutritionText: string): string | undefined {
+  if (!nutritionText || typeof nutritionText !== 'string' || !nutritionText.trim()) {
+    return undefined
+  }
+
+  // 1. Explicit day-level total or target
+  const explicitRegex = /(?:total\s+calories?|daily\s+target|daily\s+calories?|calorie\s+target|target\s+calories?|daily\s+total|total\s+intake|total\s+daily\s+calories?)\s*[:=~]?\s*(?:~?\s*)(\d{3,4})\s*(?:kcal|calories)?/i
+  const explicitMatch = nutritionText.match(explicitRegex)
+  if (explicitMatch) {
+    const val = parseInt(explicitMatch[1], 10)
+    if (val >= 800 && val <= 6000) {
+      return `${val} kcal`
+    }
+  }
+
+  // Also check lines starting with "Total: 1800 kcal" within nutrition text
+  const totalLineMatch = nutritionText.match(/^[*-•\s]*\**Total\**\s*[:=~]?\s*(\d{3,4})\s*(?:kcal|calories)/im)
+  if (totalLineMatch) {
+    const val = parseInt(totalLineMatch[1], 10)
+    if (val >= 800 && val <= 6000) {
+      return `${val} kcal`
+    }
+  }
+
+  // 2. Derive by summing individual meal calories if present across meals
+  const lines = nutritionText.split('\n')
+  const mealCalories: number[] = []
+  const mealPrefixRegex = /^[*-•\d.)\s]*\**(?:breakfast|lunch|dinner|snacks?|morning\s+snack|afternoon\s+snack|evening\s+snack|post[- ]workout|pre[- ]workout)\b/i
+
+  for (const line of lines) {
+    if (mealPrefixRegex.test(line.trim())) {
+      const match = line.match(/(?:\(|\b)(\d{2,4})\s*(?:kcal|calories)\b/i)
+      if (match) {
+        const cal = parseInt(match[1], 10)
+        if (cal >= 50 && cal <= 2500) {
+          mealCalories.push(cal)
+        }
+      }
+    }
+  }
+
+  if (mealCalories.length > 0) {
+    const sum = mealCalories.reduce((a, b) => a + b, 0)
+    if (sum >= 500 && sum <= 6000) {
+      return `${sum} kcal`
+    }
+  }
+
+  // 3. Standalone calorie match (>= 1000 kcal), excluding workout burn context
+  const standaloneMatch = nutritionText.match(/(?<!burn(?:ed|ing)?\s+)(?<!expend(?:ed|iture)?\s+)(?<!deficit\s+of\s+)(\d{4})\s*(?:kcal|calories)/i)
+  if (standaloneMatch) {
+    const val = parseInt(standaloneMatch[1], 10)
+    if (val >= 1000 && val <= 6000) {
+      return `${val} kcal`
+    }
+  }
+
+  return undefined
+}
+
+/**
  * Extracts exercise items from markdown bullet points like:
  * - Push-ups: 3 sets x 12 reps
  * - Overhead Press: 3 sets x 10 reps
@@ -192,16 +284,21 @@ export function parseAndValidatePlan(markdown: string, requireSevenDays = true):
 
 
     // Parse warm-up, cool-down, and exercises from workout section
-    const warmupMatch = workoutText.match(/Warm-up:?\s*([^\n]+)/i)
-    const cooldownMatch = workoutText.match(/Cool-down:?\s*([^\n]+)/i)
+    const warmupMatch = workoutText.match(/^[-*•#\s]*\**Warm[- ]?up\**[:\s*]*([^\n]+)/im)
+      || workoutText.match(/Warm-up:?\s*([^\n]+)/i)
+    const cooldownMatch = workoutText.match(/^[-*•#\s]*\**Cool[- ]?down\**[:\s*]*([^\n]+)/im)
+      || workoutText.match(/Cool-down:?\s*([^\n]+)/i)
     const exercises = parseExercises(workoutText)
+
+    const cleanedWarmup = cleanSectionContent(warmupMatch ? warmupMatch[1] : undefined)
+    const cleanedCooldown = cleanSectionContent(cooldownMatch ? cooldownMatch[1] : undefined)
 
     // Parse meals from nutrition section
     const breakfastMatch = nutritionText.match(/Breakfast:?\s*([^\n]+)/i)
     const lunchMatch = nutritionText.match(/Lunch:?\s*([^\n]+)/i)
     const dinnerMatch = nutritionText.match(/Dinner:?\s*([^\n]+)/i)
     const snacksMatch = nutritionText.match(/Snacks?:?\s*([^\n]+)/i)
-    const caloriesMatch = nutritionText.match(/(\d{3,4})\s*(?:kcal|calories)/i)
+    const estimatedCalories = extractDailyCalories(nutritionText)
 
     const daySchedule: DaySchedule = {
       dayNumber,
@@ -209,16 +306,16 @@ export function parseAndValidatePlan(markdown: string, requireSevenDays = true):
       isRestDay: isRest,
       rawContent: dayContent,
       workout: !isRest || exercises.length > 0 ? {
-        warmup: warmupMatch ? warmupMatch[1].trim() : '5-minute dynamic mobility warm-up',
+        warmup: cleanedWarmup || '5-minute dynamic mobility warm-up',
         exercises,
-        cooldown: cooldownMatch ? cooldownMatch[1].trim() : '5-minute static cooldown stretching',
+        cooldown: cleanedCooldown || '5-minute static cooldown stretching',
       } : undefined,
       nutrition: (breakfastMatch && lunchMatch && dinnerMatch) ? {
-        breakfast: breakfastMatch[1].trim(),
-        lunch: lunchMatch[1].trim(),
-        dinner: dinnerMatch[1].trim(),
-        snacks: snacksMatch ? snacksMatch[1].trim() : undefined,
-        estimatedCalories: caloriesMatch ? `${caloriesMatch[1]} kcal` : undefined,
+        breakfast: cleanSectionContent(breakfastMatch[1]) || breakfastMatch[1].trim(),
+        lunch: cleanSectionContent(lunchMatch[1]) || lunchMatch[1].trim(),
+        dinner: cleanSectionContent(dinnerMatch[1]) || dinnerMatch[1].trim(),
+        snacks: snacksMatch ? (cleanSectionContent(snacksMatch[1]) || snacksMatch[1].trim()) : undefined,
+        estimatedCalories,
       } : undefined,
     }
 
