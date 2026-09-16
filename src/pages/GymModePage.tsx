@@ -59,7 +59,10 @@ import { extractPersonalRecords, normalizeExerciseName } from '@/lib/personalRec
 import { calculateBarbellPlates } from '@/lib/plateLoadingCalculator'
 import { extractPreviousSetPerformance } from '@/lib/exerciseSetProgress'
 import { getRecommendedRepTempo } from '@/lib/setTempoGuidance'
-import { calculateRIRFromRPE } from '@/lib/rpePacingEngine'
+import {
+  getHeuristicRpeRecommendation,
+  type RpeRecommendation
+} from '@/lib/rpePacingEngine'
 import { getStandardWorkoutTags, toggleTagInNote } from '@/lib/workoutTagTaxonomy'
 import { calculateSessionDebrief } from '@/lib/sessionDebrief'
 import { calculateRecoveryHydration } from '@/lib/recoveryHydrationReplenishment'
@@ -199,6 +202,7 @@ export const GymModePage: React.FC = () => {
   const [isExitDialogOpen, setIsExitDialogOpen] = useState(false)
   const [isCompletedModalOpen, setIsCompletedModalOpen] = useState(false)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+  const [userRpeOverride, setUserRpeOverride] = useState<number | null>(null)
 
   const drawerRef = useFocusTrap<HTMLDivElement>({
     isActive: isDrawerOpen,
@@ -397,9 +401,9 @@ export const GymModePage: React.FC = () => {
     return getRecommendedRepTempo(state.formData.mainGoal, currentExercise?.focus)
   }, [state.formData.mainGoal, currentExercise])
 
-  const rpeGuidance = useMemo(() => {
-    return calculateRIRFromRPE(8.0)
-  }, [])
+  const rpeGuidance: RpeRecommendation = useMemo(() => {
+    return getHeuristicRpeRecommendation(currentExercise?.name, userRpeOverride)
+  }, [currentExercise?.name, userRpeOverride])
 
   const handleStartEditNote = () => {
     setNoteDraft(currentExerciseNote || '')
@@ -437,13 +441,21 @@ export const GymModePage: React.FC = () => {
   }
 
   const handleUpdateSetWeight = (setIndex: number, weightVal: string) => {
-    const parsedWeight = parseFloat(weightVal)
     const updatedExercises = [...session.exercises]
     const ex = { ...updatedExercises[session.currentExerciseIndex] }
     const sets = [...ex.sets]
     const s = { ...sets[setIndex - 1] }
 
-    s.weightKg = isNaN(parsedWeight) ? null : parsedWeight
+    const trimmed = weightVal.trim()
+    if (trimmed === '') {
+      s.weightKg = null
+    } else {
+      const parsed = parseFloat(trimmed)
+      if (!isNaN(parsed) && parsed >= 0) {
+        s.weightKg = Math.min(999.75, Math.round(parsed * 100) / 100)
+      }
+    }
+
     sets[setIndex - 1] = s
     ex.sets = sets
     updatedExercises[session.currentExerciseIndex] = ex
@@ -456,10 +468,15 @@ export const GymModePage: React.FC = () => {
     const ex = { ...updatedExercises[session.currentExerciseIndex] }
     const sets = [...ex.sets]
     const s = { ...sets[setIndex - 1] }
-    const currentWeight = typeof s.weightKg === 'number' ? s.weightKg : 0
-    const nextWeight = Math.max(0, Number((currentWeight + delta).toFixed(1)))
 
-    s.weightKg = nextWeight === 0 && currentWeight === 0 ? null : nextWeight
+    if (s.weightKg === null) {
+      if (delta <= 0) return
+      s.weightKg = Math.min(999.75, Math.max(0, Math.round(delta * 100) / 100))
+    } else {
+      const rawNext = s.weightKg + delta
+      s.weightKg = Math.min(999.75, Math.max(0, Math.round(rawNext * 100) / 100))
+    }
+
     sets[setIndex - 1] = s
     ex.sets = sets
     updatedExercises[session.currentExerciseIndex] = ex
@@ -1088,10 +1105,38 @@ export const GymModePage: React.FC = () => {
                   <span className="font-mono text-electric-purple font-semibold">{tempoGuidance.tempoString}</span>
                 </span>
                 <span className="text-gray-600">•</span>
-                <span className="flex items-center gap-1">
+                <span className="flex flex-wrap items-center gap-1">
                   <span>💡 Target Effort:</span>
                   <span className="font-mono text-neon-green font-semibold">{rpeGuidance.summaryLabel}</span>
+                  <span className="text-[10px] text-gray-500 font-mono">({rpeGuidance.movementClassification})</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextRpe = userRpeOverride === null ? 8.5 : (userRpeOverride >= 9.5 ? 7.0 : userRpeOverride + 0.5)
+                      setUserRpeOverride(nextRpe)
+                    }}
+                    className="ml-1 px-1.5 py-0.5 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-neon-green text-[10px] font-mono border border-gray-700 active:scale-95 transition-colors"
+                    aria-label="Cycle custom target exertion RPE"
+                    title="Click to adjust target RPE"
+                  >
+                    {userRpeOverride !== null ? `Custom: ${userRpeOverride} RPE` : 'Adjust'}
+                  </button>
+                  {userRpeOverride !== null && (
+                    <button
+                      type="button"
+                      onClick={() => setUserRpeOverride(null)}
+                      className="text-[10px] text-gray-400 hover:text-white underline font-sans ml-1"
+                      aria-label="Reset target effort to recommended heuristic"
+                    >
+                      Reset
+                    </button>
+                  )}
                 </span>
+              </div>
+
+              {/* RPE Heuristic Guidance Disclaimer */}
+              <div className="mt-1 text-[10px] text-gray-500 font-open-sans leading-relaxed">
+                <span>ℹ️ {rpeGuidance.disclaimer}</span>
               </div>
             </div>
 
@@ -1299,93 +1344,134 @@ export const GymModePage: React.FC = () => {
           {currentExercise?.sets.map((set) => (
             <div
               key={set.setIndex}
-              className={`p-4 rounded-xl border transition-all duration-200 flex items-center justify-between gap-3 ${
+              className={`p-3 sm:p-4 rounded-xl border transition-all duration-200 flex flex-col gap-2.5 ${
                 set.isCompleted
                   ? 'bg-neon-green/10 border-neon-green/50 text-primary-text'
                   : 'bg-card-dark border-gray-800'
               }`}
             >
-              {/* Set Label */}
-              <div className="flex items-center gap-3 shrink-0">
-                <span className={`w-8 h-8 rounded-full flex items-center justify-center font-poppins font-bold text-xs ${
-                  set.isCompleted ? 'bg-neon-green text-bodymap-dark' : 'bg-gray-800 text-secondary-text'
-                }`}>
-                  {set.setIndex}
-                </span>
-                <span className="font-poppins font-semibold text-sm">
-                  SET {set.setIndex}
-                </span>
-                {set.weightKg && currentExercisePr && set.weightKg > currentExercisePr.value && (
-                  <span className="hidden sm:inline-block px-2 py-0.5 rounded bg-bright-coral/20 text-bright-coral border border-bright-coral/40 text-[10px] font-poppins font-bold animate-pulse">
-                    🎯 PR Attempt (+{(set.weightKg - currentExercisePr.value).toFixed(1)} kg)
+              {/* Top Row: Set Index, PR Badge & Action Button */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <span className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-poppins font-bold text-xs ${
+                    set.isCompleted ? 'bg-neon-green text-bodymap-dark' : 'bg-gray-800 text-secondary-text'
+                  }`}>
+                    {set.setIndex}
                   </span>
-                )}
-              </div>
+                  <span className="font-poppins font-semibold text-xs sm:text-sm">
+                    SET {set.setIndex}
+                  </span>
+                  {set.weightKg && currentExercisePr && set.weightKg > currentExercisePr.value && (
+                    <span className="px-1.5 sm:px-2 py-0.5 rounded bg-bright-coral/20 text-bright-coral border border-bright-coral/40 text-[9px] sm:text-[10px] font-poppins font-bold animate-pulse">
+                      🎯 PR (+{(set.weightKg - currentExercisePr.value).toFixed(1)} kg)
+                    </span>
+                  )}
+                </div>
 
-              {/* Reps Stepper */}
-              <div className="flex items-center gap-1.5 bg-bodymap-dark p-1 rounded-lg border border-gray-800">
+                {/* Complete / Log Set Button */}
                 <button
-                  onClick={() => handleUpdateSetReps(set.setIndex, -1)}
-                  className="w-7 h-7 rounded bg-gray-800 text-secondary-text hover:text-primary-text flex items-center justify-center active:scale-95"
-                  aria-label={`Decrease reps for set ${set.setIndex}`}
+                  type="button"
+                  onClick={() => handleToggleSetComplete(set.setIndex)}
+                  className={`h-9 sm:h-10 px-3 sm:px-5 rounded-lg sm:rounded-xl font-poppins font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 sm:gap-2 transition-all duration-200 active:scale-95 shrink-0 ${
+                    set.isCompleted
+                      ? 'bg-neon-green text-bodymap-dark shadow-md shadow-neon-green/20'
+                      : 'bg-gray-800 text-secondary-text hover:bg-neon-green hover:text-bodymap-dark'
+                  }`}
+                  aria-label={set.isCompleted ? `Mark set ${set.setIndex} incomplete` : `Complete set ${set.setIndex}`}
                 >
-                  <Minus className="w-3.5 h-3.5" />
-                </button>
-                <span className="w-10 text-center font-poppins font-bold text-sm tabular-nums">
-                  {set.completedReps}
-                </span>
-                <button
-                  onClick={() => handleUpdateSetReps(set.setIndex, 1)}
-                  className="w-7 h-7 rounded bg-gray-800 text-secondary-text hover:text-primary-text flex items-center justify-center active:scale-95"
-                  aria-label={`Increase reps for set ${set.setIndex}`}
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                </button>
-                <span className="text-[10px] text-gray-500 uppercase px-1">reps</span>
-              </div>
-
-              {/* Weight Input & Steppers */}
-              <div className="hidden sm:flex items-center gap-1 bg-bodymap-dark px-1.5 py-1 rounded-lg border border-gray-800">
-                <button
-                  onClick={() => handleStepWeight(set.setIndex, -2.5)}
-                  className="px-1.5 py-0.5 rounded bg-gray-800 text-[10px] text-gray-400 hover:text-primary-text font-mono hover:bg-gray-700 active:scale-95"
-                  title="Decrease 2.5 kg"
-                  aria-label={`Decrease weight by 2.5 kg for set ${set.setIndex}`}
-                >
-                  -2.5
-                </button>
-                <Input
-                  type="number"
-                  placeholder="kg"
-                  value={set.weightKg !== null ? set.weightKg : ''}
-                  onChange={(e) => handleUpdateSetWeight(set.setIndex, e.target.value)}
-                  className="bg-transparent border-0 text-xs p-0 text-center text-primary-text focus:ring-0 w-12"
-                  aria-label={`Weight in kg for set ${set.setIndex}`}
-                />
-                <span className="text-[10px] text-gray-500 pr-0.5">kg</span>
-                <button
-                  onClick={() => handleStepWeight(set.setIndex, 2.5)}
-                  className="px-1.5 py-0.5 rounded bg-gray-800 text-[10px] text-neon-green hover:bg-gray-700 font-mono active:scale-95"
-                  title="Increase 2.5 kg"
-                  aria-label={`Increase weight by 2.5 kg for set ${set.setIndex}`}
-                >
-                  +2.5
+                  <Check className="w-4 h-4 sm:w-5 sm:h-5 stroke-[3]" />
+                  <span>{set.isCompleted ? 'DONE' : 'LOG'}</span>
                 </button>
               </div>
 
-              {/* Large Checkmark Action Button */}
-              <button
-                onClick={() => handleToggleSetComplete(set.setIndex)}
-                className={`h-12 px-5 rounded-xl font-poppins font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all duration-200 active:scale-95 shrink-0 ${
-                  set.isCompleted
-                    ? 'bg-neon-green text-bodymap-dark shadow-md shadow-neon-green/20'
-                    : 'bg-gray-800 text-secondary-text hover:bg-neon-green hover:text-bodymap-dark'
-                }`}
-                aria-label={set.isCompleted ? `Mark set ${set.setIndex} incomplete` : `Complete set ${set.setIndex}`}
-              >
-                <Check className="w-5 h-5 stroke-[3]" />
-                <span>{set.isCompleted ? 'DONE' : 'LOG'}</span>
-              </button>
+              {/* Middle Row: Reps Stepper + Weight Input & Primary Steppers */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-gray-800/60">
+                {/* Reps Stepper */}
+                <div className="flex items-center gap-1.5 bg-bodymap-dark p-1 rounded-lg border border-gray-800">
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateSetReps(set.setIndex, -1)}
+                    className="w-7 h-7 rounded bg-gray-800 text-secondary-text hover:text-primary-text flex items-center justify-center active:scale-95 touch-manipulation"
+                    aria-label={`Decrease reps for set ${set.setIndex}`}
+                  >
+                    <Minus className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="w-8 sm:w-10 text-center font-poppins font-bold text-xs sm:text-sm tabular-nums">
+                    {set.completedReps}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateSetReps(set.setIndex, 1)}
+                    className="w-7 h-7 rounded bg-gray-800 text-secondary-text hover:text-primary-text flex items-center justify-center active:scale-95 touch-manipulation"
+                    aria-label={`Increase reps for set ${set.setIndex}`}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="text-[10px] text-gray-500 uppercase px-1">reps</span>
+                </div>
+
+                {/* Weight Input & Steppers (Available across all screen sizes) */}
+                <div className="flex items-center gap-1 bg-bodymap-dark px-1.5 py-1 rounded-lg border border-gray-800">
+                  <button
+                    type="button"
+                    onClick={() => handleStepWeight(set.setIndex, -2.5)}
+                    className="px-1.5 py-0.5 rounded bg-gray-800 text-[10px] text-gray-400 hover:text-primary-text font-mono hover:bg-gray-700 active:scale-95 touch-manipulation"
+                    title="Decrease 2.5 kg"
+                    aria-label={`Decrease weight by 2.5 kg for set ${set.setIndex}`}
+                  >
+                    -2.5
+                  </button>
+                  <Input
+                    type="number"
+                    placeholder="kg"
+                    step="0.25"
+                    min="0"
+                    max="999.75"
+                    value={set.weightKg !== null ? set.weightKg : ''}
+                    onChange={(e) => handleUpdateSetWeight(set.setIndex, e.target.value)}
+                    className="bg-transparent border-0 text-xs p-0 text-center text-primary-text focus:ring-0 w-12"
+                    aria-label={`Weight in kg for set ${set.setIndex}`}
+                  />
+                  <span className="text-[10px] text-gray-500 pr-0.5">kg</span>
+                  <button
+                    type="button"
+                    onClick={() => handleStepWeight(set.setIndex, 2.5)}
+                    className="px-1.5 py-0.5 rounded bg-gray-800 text-[10px] text-neon-green hover:bg-gray-700 font-mono active:scale-95 touch-manipulation"
+                    title="Increase 2.5 kg"
+                    aria-label={`Increase weight by 2.5 kg for set ${set.setIndex}`}
+                  >
+                    +2.5
+                  </button>
+                </div>
+              </div>
+
+              {/* Quick Stepper Chips Bar (E14) */}
+              <div className="flex flex-wrap items-center gap-1 pt-1 text-[10px] font-mono select-none">
+                <span className="text-gray-500 mr-1 text-[9px] uppercase tracking-wider font-sans font-medium">Quick Step:</span>
+                {[-10, -5, -2.5, -1.25].map((delta) => (
+                  <button
+                    key={delta}
+                    type="button"
+                    onClick={() => handleStepWeight(set.setIndex, delta)}
+                    className="px-1.5 py-0.5 rounded bg-gray-800/90 hover:bg-gray-700 text-gray-400 hover:text-primary-text border border-gray-700/60 active:scale-95 touch-manipulation transition-colors"
+                    aria-label={`Quick step ${delta} kg for set ${set.setIndex}`}
+                  >
+                    {delta}
+                  </button>
+                ))}
+                <span className="text-gray-700 mx-0.5">|</span>
+                {[1.25, 2.5, 5, 10].map((delta) => (
+                  <button
+                    key={delta}
+                    type="button"
+                    onClick={() => handleStepWeight(set.setIndex, delta)}
+                    className="px-1.5 py-0.5 rounded bg-gray-800/90 hover:bg-gray-700 text-neon-green hover:text-white border border-gray-700/60 active:scale-95 touch-manipulation transition-colors"
+                    aria-label={`Quick step +${delta} kg for set ${set.setIndex}`}
+                  >
+                    +{delta}
+                  </button>
+                ))}
+              </div>
             </div>
           ))}
 

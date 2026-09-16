@@ -339,20 +339,84 @@ export const PANTRY_STAPLE_PATTERNS = [
 
 /**
  * Filters out in-pantry staple items when athlete toggles pantry exclusion.
+ * Clinical Safety Rule: NEVER filters out an item if it carries active allergen significance.
  * Does NOT mutate baseline grocery list.
  */
 export function filterPantryStaples(
   groups: GroceryCategoryGroup[],
-  hidePantry: boolean
+  hidePantry: boolean,
+  activeAllergens?: string | string[]
 ): GroceryCategoryGroup[] {
   if (!hidePantry || !Array.isArray(groups)) return groups
+
+  const rawList = typeof activeAllergens === 'string'
+    ? activeAllergens.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean)
+    : (Array.isArray(activeAllergens) ? activeAllergens : [])
+
+  const categories = rawList.length > 0
+    ? getActiveAllergenCategories(rawList)
+    : []
 
   return groups
     .map(group => ({
       category: group.category,
       items: group.items.filter(item => {
-        return !PANTRY_STAPLE_PATTERNS.some(p => p.test(item.name))
+        const isStaple = PANTRY_STAPLE_PATTERNS.some(p => p.test(item.name))
+        if (!isStaple) return true
+
+        // Safety Invariant: Never remove an item if it triggers an active allergen
+        if (rawList.length > 0) {
+          if (categories.length > 0) {
+            const scan = scanMealTextForAllergens(item.name, categories)
+            if (scan.hasViolation) return true
+          }
+          const lowerName = item.name.toLowerCase()
+          if (rawList.some(a => typeof a === 'string' && a.trim().length > 1 && lowerName.includes(a.toLowerCase().trim()))) {
+            return true
+          }
+        }
+        return false // Safe to hide
       })
     }))
     .filter(group => group.items.length > 0)
+}
+
+/**
+ * Deterministically calculates the number of staple items currently hidden from view.
+ * Accounts for allergen-bearing items that must remain visible.
+ */
+export function countHiddenPantryStaples(
+  groups: GroceryCategoryGroup[],
+  activeAllergens?: string | string[]
+): number {
+  if (!Array.isArray(groups)) return 0
+
+  const rawList = typeof activeAllergens === 'string'
+    ? activeAllergens.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean)
+    : (Array.isArray(activeAllergens) ? activeAllergens : [])
+
+  const categories = rawList.length > 0
+    ? getActiveAllergenCategories(rawList)
+    : []
+
+  let hiddenCount = 0
+  for (const group of groups) {
+    for (const item of group.items) {
+      const isStaple = PANTRY_STAPLE_PATTERNS.some(p => p.test(item.name))
+      if (isStaple) {
+        if (rawList.length > 0) {
+          if (categories.length > 0) {
+            const scan = scanMealTextForAllergens(item.name, categories)
+            if (scan.hasViolation) continue
+          }
+          const lowerName = item.name.toLowerCase()
+          if (rawList.some(a => typeof a === 'string' && a.trim().length > 1 && lowerName.includes(a.toLowerCase().trim()))) {
+            continue
+          }
+        }
+        hiddenCount++
+      }
+    }
+  }
+  return hiddenCount
 }

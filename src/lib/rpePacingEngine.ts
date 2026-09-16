@@ -57,3 +57,69 @@ export function calculateRIRFromRPE(
     explanation: `At ${normalizedRpe} RPE, estimated proximity to failure is approximately ${estimatedRIR} reps in reserve (RIR).`
   }
 }
+
+export interface RpeRecommendation extends RpePacingResult {
+  movementClassification: string
+  isUserOverride: boolean
+  disclaimer: string
+}
+
+/**
+ * Deterministically derives an evidence-aligned general training RPE heuristic based on exercise type.
+ * Allows user override. Formulated as non-medical training guidance.
+ */
+export function getHeuristicRpeRecommendation(
+  rawExerciseName: string | null | undefined,
+  userOverrideRpe?: number | string | null
+): RpeRecommendation {
+  const disclaimer = 'General training exertion heuristic for resistance exercise programming. Not individualized medical guidance. Adjust effort based on personal fatigue, recovery, and form integrity.'
+
+  // 1. Check user override first
+  if (userOverrideRpe !== undefined && userOverrideRpe !== null && userOverrideRpe !== '') {
+    const overrideResult = calculateRIRFromRPE(userOverrideRpe)
+    if (overrideResult.isValid) {
+      return {
+        ...overrideResult,
+        movementClassification: 'User Custom Target',
+        isUserOverride: true,
+        disclaimer
+      }
+    }
+  }
+
+  const name = (rawExerciseName || '').toLowerCase().trim()
+
+  // 2. Classify movement pattern heuristics conservatively
+  let targetRpe = 8.0
+  let classification = 'General Working Exercise'
+
+  if (/squat|deadlift|bench press|overhead press|military press|barbell row/i.test(name)) {
+    // Primary heavy multi-joint compound: RPE 7.5–8.0 (2–2.5 RIR to maintain technical form integrity under axial load)
+    targetRpe = 8.0
+    classification = 'Primary Compound (High Axial Load)'
+  } else if (/lunge|split squat|leg press|romanian|rdl|hip thrust|dumbbell row|cable row|lat pulldown|incline press|push-up|pull-up|dip/i.test(name)) {
+    // Secondary compound / accessory: RPE 8.0–8.5 (1.5–2 RIR)
+    targetRpe = 8.0
+    classification = 'Secondary Compound / Accessory'
+  } else if (/curl|extension|lateral raise|fly|flye|calf|shrug|face pull|crunch|plank/i.test(name)) {
+    // Single-joint isolation / finisher: RPE 8.5 (1.5 RIR; safe to train closer to failure)
+    targetRpe = 8.5
+    classification = 'Isolation / Accessory Finisher'
+  } else if (/mobility|stretch|dynamic|warmup|warm-up|cooldown|cool-down|walk|jog|yoga/i.test(name)) {
+    // Active recovery / mobility: RPE 6.0 (Submaximal restorative effort)
+    targetRpe = 6.0
+    classification = 'Mobility / Active Recovery'
+  } else {
+    // Default fallback
+    targetRpe = 8.0
+    classification = 'Standard Resistance Exercise'
+  }
+
+  const baseResult = calculateRIRFromRPE(targetRpe)
+  return {
+    ...baseResult,
+    movementClassification: classification,
+    isUserOverride: false,
+    disclaimer
+  }
+}

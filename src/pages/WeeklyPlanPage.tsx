@@ -38,6 +38,7 @@ import {
   aggregateGroceryList,
   scaleGroceryList,
   filterPantryStaples,
+  countHiddenPantryStaples,
   type FoodAlternative,
   type GroceryCategoryGroup
 } from '@/lib/nutritionAlternatives'
@@ -75,7 +76,22 @@ const WeeklyPlanPage: React.FC = () => {
   // Nutrition & Grocery Modal States
   const [isGroceryModalOpen, setIsGroceryModalOpen] = useState(false)
   const [servingMultiplier, setServingMultiplier] = useState<number>(1)
-  const [hidePantryStaples, setHidePantryStaples] = useState<boolean>(false)
+  const [hidePantryStaples, setHidePantryStaples] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('bodymap_hide_pantry_staples') === 'true'
+    } catch {
+      return false
+    }
+  })
+
+  const handleToggleHidePantryStaples = (checked: boolean) => {
+    setHidePantryStaples(checked)
+    try {
+      localStorage.setItem('bodymap_hide_pantry_staples', String(checked))
+    } catch {
+      // Ignore local storage write errors
+    }
+  }
   const [selectedMealForSwap, setSelectedMealForSwap] = useState<{ title: string; text: string } | null>(null)
 
   const groceryModalRef = useFocusTrap<HTMLDivElement>({
@@ -178,10 +194,17 @@ const WeeklyPlanPage: React.FC = () => {
     return aggregateGroceryList(allMealTexts)
   }, [allMealTexts])
 
+  const scaledGroceryCategories: GroceryCategoryGroup[] = useMemo(() => {
+    return scaleGroceryList(groceryCategories, servingMultiplier)
+  }, [groceryCategories, servingMultiplier])
+
+  const hiddenPantryCount: number = useMemo(() => {
+    return countHiddenPantryStaples(scaledGroceryCategories, state.formData.allergies)
+  }, [scaledGroceryCategories, state.formData.allergies])
+
   const displayGroceryCategories: GroceryCategoryGroup[] = useMemo(() => {
-    const scaled = scaleGroceryList(groceryCategories, servingMultiplier)
-    return filterPantryStaples(scaled, hidePantryStaples)
-  }, [groceryCategories, servingMultiplier, hidePantryStaples])
+    return filterPantryStaples(scaledGroceryCategories, hidePantryStaples, state.formData.allergies)
+  }, [scaledGroceryCategories, hidePantryStaples, state.formData.allergies])
 
   const handleToggleGroceryItem = (itemId: string) => {
     const updated = {
@@ -960,14 +983,20 @@ const WeeklyPlanPage: React.FC = () => {
                   </div>
                 </div>
 
-                <label className="flex items-center gap-2 cursor-pointer text-xs text-secondary-text hover:text-primary-text">
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-secondary-text hover:text-primary-text select-none">
                   <input
                     type="checkbox"
                     checked={hidePantryStaples}
-                    onChange={(e) => setHidePantryStaples(e.target.checked)}
-                    className="w-3.5 h-3.5 rounded border-gray-700 text-neon-green focus:ring-neon-green bg-gray-900"
+                    onChange={(e) => handleToggleHidePantryStaples(e.target.checked)}
+                    className="w-3.5 h-3.5 rounded border-gray-700 text-neon-green focus:ring-neon-green bg-gray-900 cursor-pointer"
+                    aria-label={`Hide In-Pantry Staples${hiddenPantryCount > 0 ? ` (${hiddenPantryCount} items hidden)` : ''}`}
                   />
                   <span>Hide In-Pantry Staples</span>
+                  {hiddenPantryCount > 0 && hidePantryStaples && (
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-gray-800 text-neon-green border border-gray-700">
+                      ({hiddenPantryCount} hidden)
+                    </span>
+                  )}
                 </label>
               </div>
 
