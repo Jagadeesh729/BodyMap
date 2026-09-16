@@ -1,3 +1,9 @@
+export interface MacroPercentages {
+  proteinPct: number
+  carbPct: number
+  fatPct: number
+}
+
 export interface DailyMacroEstimate {
   hasData: boolean
   proteinGrams: number
@@ -7,7 +13,52 @@ export interface DailyMacroEstimate {
   carbKcal: number
   fatKcal: number
   totalKcal: number
+  percentages?: MacroPercentages
   disclaimer: string
+}
+
+/**
+ * Calculates exact integer percentages of daily macronutrient caloric contribution
+ * using the Largest Remainder Method (Hamilton-Hare) to guarantee sum === 100%.
+ */
+export function calculateMacroPercentages(
+  proteinKcal: number,
+  carbKcal: number,
+  fatKcal: number
+): MacroPercentages {
+  const total = proteinKcal + carbKcal + fatKcal
+  if (total <= 0 || isNaN(total)) {
+    return { proteinPct: 0, carbPct: 0, fatPct: 0 }
+  }
+
+  const pRaw = (proteinKcal / total) * 100
+  const cRaw = (carbKcal / total) * 100
+  const fRaw = (fatKcal / total) * 100
+
+  let pFloor = Math.floor(pRaw)
+  let cFloor = Math.floor(cRaw)
+  let fFloor = Math.floor(fRaw)
+
+  const remainder = 100 - (pFloor + cFloor + fFloor)
+
+  const remainders = [
+    { key: 'p', rem: pRaw - pFloor },
+    { key: 'c', rem: cRaw - cFloor },
+    { key: 'f', rem: fRaw - fFloor },
+  ]
+  remainders.sort((a, b) => b.rem - a.rem)
+
+  for (let i = 0; i < remainder; i++) {
+    if (remainders[i].key === 'p') pFloor++
+    else if (remainders[i].key === 'c') cFloor++
+    else if (remainders[i].key === 'f') fFloor++
+  }
+
+  return {
+    proteinPct: pFloor,
+    carbPct: cFloor,
+    fatPct: fFloor
+  }
 }
 
 /**
@@ -31,6 +82,7 @@ export function estimateDailyMacros(
       carbKcal: 0,
       fatKcal: 0,
       totalKcal: 0,
+      percentages: { proteinPct: 0, carbPct: 0, fatPct: 0 },
       disclaimer: 'Estimated daily macro targets based on training goal and profile.'
     }
   }
@@ -70,6 +122,7 @@ export function estimateDailyMacros(
   const carbKcal = carbG * 4
 
   const reconciledTotalKcal = proteinKcal + fatKcal + carbKcal
+  const percentages = calculateMacroPercentages(proteinKcal, carbKcal, fatKcal)
 
   return {
     hasData: true,
@@ -80,6 +133,7 @@ export function estimateDailyMacros(
     carbKcal,
     fatKcal,
     totalKcal: reconciledTotalKcal,
+    percentages,
     disclaimer: 'Estimated daily macro targets based on training goal and body weight. Non-medical guidance.'
   }
 }

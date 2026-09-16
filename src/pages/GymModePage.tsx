@@ -1243,10 +1243,17 @@ export const GymModePage: React.FC = () => {
                   </p>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {warmupProtocol.sets.map((wSet) => (
-                      <div key={wSet.setNumber} className="p-2 rounded bg-black/40 border border-gray-800/80 text-center">
-                        <span className="text-[10px] text-gray-400 block font-mono">Set {wSet.setNumber} &bull; {wSet.repsLabel}</span>
-                        <span className="text-xs font-poppins font-bold text-neon-green block mt-0.5">{wSet.calculatedWeightKg} kg</span>
-                        <span className="text-[9px] text-gray-500 block truncate mt-0.5">{wSet.percentageLabel}</span>
+                      <div key={wSet.setNumber} className="p-2 rounded bg-black/40 border border-gray-800/80 text-center flex flex-col justify-between">
+                        <div>
+                          <span className="text-[10px] text-gray-400 block font-mono">Set {wSet.setNumber} &bull; {wSet.repsLabel}</span>
+                          <span className="text-xs font-poppins font-bold text-neon-green block mt-0.5">{wSet.calculatedWeightKg} kg</span>
+                          <span className="text-[9px] text-gray-500 block truncate mt-0.5">{wSet.percentageLabel}</span>
+                        </div>
+                        {wSet.platesSummary && (
+                          <span className="text-[9px] text-blue-400/90 font-mono block mt-1.5 pt-1 border-t border-gray-800/60 truncate" title={wSet.platesSummary}>
+                            {wSet.platesSummary}
+                          </span>
+                        )}
                       </div>
                     ))}
                   </div>

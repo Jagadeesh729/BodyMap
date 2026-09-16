@@ -1,9 +1,13 @@
+import { calculateBarbellPlates, type PlateLoadingResult } from './plateLoadingCalculator'
+
 export interface WarmupSet {
   setNumber: number
   percentageLabel: string
   calculatedWeightKg: number
   repsLabel: string
   note: string
+  plates?: PlateLoadingResult
+  platesSummary?: string
 }
 
 export interface WarmupProtocolResult {
@@ -18,7 +22,8 @@ export interface WarmupProtocolResult {
  * Labeled strictly as preparation guidance, not added to completed workout volume.
  */
 export function generateWarmupProtocol(
-  workingWeightKg: number | null | undefined
+  workingWeightKg: number | null | undefined,
+  barWeightKg: number = 20
 ): WarmupProtocolResult {
   if (
     typeof workingWeightKg !== 'number' ||
@@ -34,7 +39,7 @@ export function generateWarmupProtocol(
     }
   }
 
-  const baseBarLoad = 20 // standard Olympic barbell baseline
+  const baseBarLoad = barWeightKg > 0 ? barWeightKg : 20 // standard Olympic barbell baseline
 
   // Step 1: Empty Bar / Initial mobility load
   const set1Weight = workingWeightKg > 40 ? baseBarLoad : Math.round(workingWeightKg * 0.4 * 2) / 2
@@ -45,36 +50,34 @@ export function generateWarmupProtocol(
   // Step 4: 85% Working Load (Potentiation / Primer)
   const set4Weight = Math.round(workingWeightKg * 0.85 * 2) / 2
 
-  const sets: WarmupSet[] = [
-    {
-      setNumber: 1,
-      percentageLabel: 'Unloaded / Mobility',
-      calculatedWeightKg: set1Weight,
-      repsLabel: '8–10 reps',
-      note: 'Focus on full range of motion & joint lubrication'
-    },
-    {
-      setNumber: 2,
-      percentageLabel: '50% Load',
-      calculatedWeightKg: set2Weight,
-      repsLabel: '5 reps',
-      note: 'Controlled tempo & groove the motor pattern'
-    },
-    {
-      setNumber: 3,
-      percentageLabel: '70% Load',
-      calculatedWeightKg: set3Weight,
-      repsLabel: '3 reps',
-      note: 'Moderate speed & explosive concentric'
-    },
-    {
-      setNumber: 4,
-      percentageLabel: '85% Load',
-      calculatedWeightKg: set4Weight,
-      repsLabel: '1–2 reps',
-      note: 'Neuromuscular primer without generating fatigue'
-    }
+  const rawWeights = [
+    { num: 1, weight: set1Weight, label: 'Unloaded / Mobility', reps: '8–10 reps', note: 'Focus on full range of motion & joint lubrication' },
+    { num: 2, weight: set2Weight, label: '50% Load', reps: '5 reps', note: 'Controlled tempo & groove the motor pattern' },
+    { num: 3, weight: set3Weight, label: '70% Load', reps: '3 reps', note: 'Moderate speed & explosive concentric' },
+    { num: 4, weight: set4Weight, label: '85% Load', reps: '1–2 reps', note: 'Neuromuscular primer without generating fatigue' }
   ]
+
+  const sets: WarmupSet[] = rawWeights.map(step => {
+    const plateResult = calculateBarbellPlates(step.weight, baseBarLoad)
+    let platesSummary = plateResult.summaryLabel
+    if (plateResult.hasValidConfiguration) {
+      if (plateResult.perSidePlates.length === 0) {
+        platesSummary = 'Empty Bar'
+      }
+    } else if (step.weight < baseBarLoad) {
+      platesSummary = 'Light DBs / Bar'
+    }
+
+    return {
+      setNumber: step.num,
+      percentageLabel: step.label,
+      calculatedWeightKg: step.weight,
+      repsLabel: step.reps,
+      note: step.note,
+      plates: plateResult,
+      platesSummary
+    }
+  })
 
   return {
     hasProtocol: true,

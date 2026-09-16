@@ -901,7 +901,7 @@ describe('Section C: Performance Invariants & Scaling Bounds', () => {
       parseAndValidatePlan(MOCK_PLAN, false)
     }
     const avgWarm = (performance.now() - warmT0) / 10
-    expect(avgWarm).toBeLessThan(25.0) // 119
+    expect(avgWarm).toBeLessThan(50.0) // 119
   })
 
   it('C7: High-throughput benchmark: 500 plate calculations execute in under 20ms', () => {

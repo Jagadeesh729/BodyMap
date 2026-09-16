@@ -53,6 +53,7 @@ import { calculateMicronutrientGuide } from '@/lib/micronutrientGuide'
 import { forecastEnergyBalancePace } from '@/lib/energyBalanceForecaster'
 import { calculateHydrationClimateAdjustment } from '@/lib/hydrationClimateAdjustment'
 import { validateScheduleConsistency } from '@/lib/scheduleConsistencyValidator'
+import { MacroRatioVisualizer } from '@/components/MacroRatioVisualizer'
 
 const WeeklyPlanPage: React.FC = () => {
   const { state, dispatch } = usePlan()
@@ -526,37 +527,48 @@ const WeeklyPlanPage: React.FC = () => {
 
           {/* Daily Macro Target Breakdown */}
           {dailyMacros.hasData && (
-            <div className="mt-3.5 pt-3.5 border-t border-gray-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-2">
-                <Flame className="w-4 h-4 text-neon-green" />
-                <span className="font-poppins font-semibold text-primary-text">
-                  Daily Macro Target: ~{dailyMacros.totalKcal} kcal
-                </span>
-                <span className="text-[10px] text-gray-500 hidden sm:inline">
-                  (Estimated from goal &amp; weight)
-                </span>
-              </div>
-              <div className="flex items-center gap-2 font-mono text-[11px]">
-                <span className="px-2 py-0.5 rounded bg-electric-purple/20 text-electric-purple border border-electric-purple/30 font-semibold">
-                  P: {dailyMacros.proteinGrams}g
-                </span>
-                <span className="px-2 py-0.5 rounded bg-bright-coral/20 text-bright-coral border border-bright-coral/30 font-semibold">
-                  C: {dailyMacros.carbGrams}g
-                </span>
-                <span className="px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 font-semibold">
-                  F: {dailyMacros.fatGrams}g
-                </span>
-                {micronutrientGuide.hasCalculation && (
-                  <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold">
-                    Fiber: ~{micronutrientGuide.estimatedFiberGrams}g
+            <div className="mt-3.5 pt-3.5 border-t border-gray-800 space-y-3 text-xs">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Flame className="w-4 h-4 text-neon-green" />
+                  <span className="font-poppins font-semibold text-primary-text">
+                    Daily Macro Target: ~{dailyMacros.totalKcal} kcal
                   </span>
-                )}
-                {energyForecast.hasForecast && (
-                  <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 font-semibold">
-                    {energyForecast.formattedPaceLabel}
+                  <span className="text-[10px] text-gray-500 hidden sm:inline">
+                    (Estimated from goal &amp; weight)
                   </span>
-                )}
+                </div>
+                <div className="flex items-center gap-2 font-mono text-[11px]">
+                  <span className="px-2 py-0.5 rounded bg-electric-purple/20 text-electric-purple border border-electric-purple/30 font-semibold">
+                    P: {dailyMacros.proteinGrams}g
+                  </span>
+                  <span className="px-2 py-0.5 rounded bg-bright-coral/20 text-bright-coral border border-bright-coral/30 font-semibold">
+                    C: {dailyMacros.carbGrams}g
+                  </span>
+                  <span className="px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 font-semibold">
+                    F: {dailyMacros.fatGrams}g
+                  </span>
+                  {micronutrientGuide.hasCalculation && (
+                    <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold">
+                      Fiber: ~{micronutrientGuide.estimatedFiberGrams}g
+                    </span>
+                  )}
+                  {energyForecast.hasForecast && (
+                    <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 font-semibold">
+                      {energyForecast.formattedPaceLabel}
+                    </span>
+                  )}
+                </div>
               </div>
+              <MacroRatioVisualizer
+                proteinKcal={dailyMacros.proteinKcal}
+                carbKcal={dailyMacros.carbKcal}
+                fatKcal={dailyMacros.fatKcal}
+                proteinGrams={dailyMacros.proteinGrams}
+                carbGrams={dailyMacros.carbGrams}
+                fatGrams={dailyMacros.fatGrams}
+                totalKcal={dailyMacros.totalKcal}
+              />
             </div>
           )}
 

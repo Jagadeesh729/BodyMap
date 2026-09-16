@@ -9,36 +9,36 @@
   "productionUrl": "https://bodymap-ai.vercel.app",
   "overallMaturityScore": "9.93/10.0",
   "releaseStatus": "RELEASE FROZEN — MAINTENANCE MODE",
-  "testSuiteCount": 5231,
-  "testFileCount": 129,
+  "testSuiteCount": 5247,
+  "testFileCount": 130,
   "buildChunkCount": 24,
   "criticalChunkHashes": {
-    "index-CU6PxuGr.css": {
-      "sha256": "d76f128020e49dcdf55508f07c8dfd45fc5f73292709375dac34f47541cace50",
-      "bytes": 56361
+    "index-cbp2iv9I.css": {
+      "sha256": "3d391bc4555b017fef1e6237e429e902653344a13460711cae7ca9ec06a65f28",
+      "bytes": 57229
     },
-    "index-Cqu1fGfA.js": {
-      "sha256": "7e6450e2c5e5992e950608045e4f3670ec1b313e582f645a7105829b13b4cb8c",
+    "index-B1iYMz2E.js": {
+      "sha256": "fb4455baf205fdea0faf11c6b3d2a34b9264fc6bf0c092888622d593a5430cad",
       "bytes": 159618
     },
     "useFocusTrap-DQCoTo7t.js": {
       "sha256": "3765cded2fe6d4a77168bcf9e2259a4103d3161e6981dbc89965629737e8ae16",
       "bytes": 1613
     },
-    "CreatePlanPage-CR-VBy99.js": {
-      "sha256": "b63dea1b9b9e659c499f16d65b71285284a35edda85c4370d884a7e2ef19716b",
+    "CreatePlanPage-BNxvVfyM.js": {
+      "sha256": "f47a76b8cf6e0eba2a5dde1f83ec9cf6846090407145e09b79b0bcab8e79f72c",
       "bytes": 22889
     },
-    "WeeklyPlanPage-9GrVWfXt.js": {
-      "sha256": "59f7f1f694b8b71f48a5faab06a8af495a0b279398f71f4c88c8e35515868b62",
-      "bytes": 49135
+    "WeeklyPlanPage-DiRhw4i6.js": {
+      "sha256": "c41fd3ac947301c6317134d8b4aa578b4d5f87c3e00af92690c3d9c86f5e94aa",
+      "bytes": 52123
     },
-    "GymModePage-CrBFvRCF.js": {
-      "sha256": "6dad9b803bc3b4c25bb59fb0f2749868aecca39f62b0e6895993b152f03e6b38",
-      "bytes": 85000
+    "GymModePage-BZNDGgSq.js": {
+      "sha256": "d0315ffd9ac5d657cc2756367a7c0e1a40b576bb0009313dd76c74e7b9cfba89",
+      "bytes": 85416
     },
-    "planSafetyGate-DllJpt3x.js": {
-      "sha256": "338a6092fc188539f8df55fb8bf08c3c93e15ca6dba94c926bed91767764b27d",
+    "planSafetyGate-CKcKY1LX.js": {
+      "sha256": "1a54dcae9883642676e3cd58e14ca918f1c5cccd96f313ea0ba249976270c9b8",
       "bytes": 2094
     }
   },

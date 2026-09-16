@@ -15,7 +15,8 @@ import {
   Database,
   Upload,
   Activity,
-  AlertCircle
+  AlertCircle,
+  Calendar
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -33,6 +34,7 @@ import { analyzeBackupDiagnostics } from '@/lib/backupDiagnostics'
 import { generateVaultManifest } from '@/lib/vaultManifestEngine'
 import { auditVaultIntegrity } from '@/lib/vaultIntegrityEngine'
 import { sanitizeDownloadFilename } from '@/lib/downloadSecurity'
+import { generateICalendarSchedule } from '@/lib/icalendarGenerator'
 
 const DownloadPlanPage = () => {
   const { state } = usePlan()
@@ -114,6 +116,57 @@ const DownloadPlanPage = () => {
       title: 'Plan Downloaded!',
       description: 'Your markdown fitness plan is saved to your downloads.'
     })
+  }
+
+  const handleDownloadICalendar = () => {
+    if (isSafetyViolated) return
+    try {
+      const icsContent = generateICalendarSchedule(
+        displayDays.map((d, i) => ({
+          dayNumber: i + 1,
+          title: d.day,
+          isRestDay: d.isRest,
+          durationMinutes: parseInt(d.duration, 10) || 45,
+          warmup: d.workout.warmup,
+          mainExercises: d.workout.main,
+          cooldown: d.workout.cooldown,
+          nutritionSummary: `${d.meals.breakfast} | ${d.meals.lunch} | ${d.meals.dinner} (~${d.totalCalories} kcal)`
+        })),
+        {
+          planTitle: formData.mainGoal ? `BodyMap ${formData.mainGoal} Plan` : 'BodyMap 7-Day Fitness Plan',
+          goal: formData.mainGoal || 'Full Body Fitness',
+          defaultDurationMinutes: parseInt(formData.timePerDay, 10) || 45
+        }
+      )
+
+      const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = sanitizeDownloadFilename(
+        formData.mainGoal ? `bodymap-schedule-${formData.mainGoal}` : 'bodymap-schedule',
+        'bodymap-schedule',
+        'ics'
+      )
+
+      document.body.appendChild(link)
+      link.click()
+      setTimeout(() => {
+        document.body.removeChild(link)
+        URL.revokeObjectURL(url)
+      }, 150)
+
+      toast({
+        title: 'Calendar Schedule Exported! 📅',
+        description: 'Your 7-day workout schedule is ready to import into Apple, Google, or Outlook Calendar.'
+      })
+    } catch {
+      toast({
+        title: 'Export Failed',
+        description: 'Unable to generate calendar schedule from current plan.',
+        variant: 'destructive'
+      })
+    }
   }
 
   const handlePrint = () => {
@@ -277,7 +330,7 @@ const DownloadPlanPage = () => {
           </div>
 
           {/* Action Options Grid */}
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-8">
 
             {/* Print / Save PDF Button */}
             <div className="card-dark text-center flex flex-col justify-between p-5 border-neon-green/40 hover:border-neon-green transition-all shadow-neon-green/10 shadow-lg">
@@ -324,6 +377,30 @@ const DownloadPlanPage = () => {
               >
                 <Download className="w-4 h-4 mr-1.5" aria-hidden="true" />
                 Save .MD File
+              </Button>
+            </div>
+
+            {/* iCalendar (.ics) Schedule Export */}
+            <div className="card-dark text-center flex flex-col justify-between p-5 hover:border-blue-500/50 transition-all">
+              <div>
+                <div className="w-12 h-12 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <Calendar className="w-6 h-6 text-blue-400" aria-hidden="true" />
+                </div>
+                <h2 className="text-base font-poppins font-semibold text-primary-text mb-1">
+                  Add to Calendar
+                </h2>
+                <p className="text-secondary-text font-open-sans text-xs mb-4">
+                  Export standard RFC 5545 .ics schedule for Apple, Google, or Outlook.
+                </p>
+              </div>
+              <Button
+                onClick={handleDownloadICalendar}
+                disabled={isSafetyViolated}
+                className="w-full text-xs font-bold py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title={isSafetyViolated ? 'Plan export locked due to safety violations' : 'Export .ICS Calendar Schedule'}
+              >
+                <Calendar className="w-4 h-4 mr-1.5" aria-hidden="true" />
+                Export .ICS File
               </Button>
             </div>
 
