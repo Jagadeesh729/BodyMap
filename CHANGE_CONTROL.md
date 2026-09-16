@@ -174,3 +174,4 @@ To maintain immutable audit history while strictly enforcing present-day truthfu
 |---|---|---|---|
 | 2025-01-01 | Principal Release Engineer | Initial `CHANGE_CONTROL.md` created at certified baseline `12076d4` | — |
 | 2026-09-13 | Principal Release Engineer | Governance synchronization: update stale 5,068/118 metrics to current 5,153/123 in README and CHANGE_CONTROL; working commit `a78124a` | 0 |
+| 2026-09-15 | Principal Release Engineer | Runtime defect remediation (warm-up delimiter cleanup, daily calorie aggregation, 7-day fallback contract) & doc sync to 5,231/129; working commit `46c188f` | 1 |
