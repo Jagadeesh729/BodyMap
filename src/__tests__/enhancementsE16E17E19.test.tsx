@@ -6,6 +6,7 @@ import { analyzeBackupDiagnostics } from '@/lib/backupDiagnostics'
 import { generateVaultManifest } from '@/lib/vaultManifestEngine'
 import { findPreviousPerformance } from '@/lib/progressionEngine'
 import { ExitWorkoutDialog } from '@/components/gym/ExitWorkoutDialog'
+import type { CompletedWorkoutLog } from '@/types/workoutSession'
 
 describe('Enhancement E16: Rest Timer Quick Adjust & Bounded Presets', () => {
   it('E16-01: Renders -15s, +15s, +30s, and +60s quick step buttons with accessible labels', () => {
@@ -215,14 +216,18 @@ describe('Enhancement E19: Data Vault Storage Partition Breakdown Gauge', () => 
 
 describe('E15 & E20 Verification Audit', () => {
   it('E15: Ghost history lookup produces factual summary without prescriptive language', () => {
-    const mockHistory = [
+    const mockHistory: CompletedWorkoutLog[] = [
       {
         id: 'session-1',
+        sessionId: 'sess-abc',
+        dayIndex: 0,
         dayTitle: 'Upper Body',
+        dayType: 'Upper Strength',
         startedAt: new Date(Date.now() - 3600000).toISOString(),
         completedAt: new Date().toISOString(),
         durationSeconds: 1800,
-        status: 'completed' as const,
+        totalSetsCompleted: 3,
+        totalExercises: 1,
         exercisesSummary: [
           {
             name: 'Barbell Bench Press',
@@ -233,7 +238,7 @@ describe('E15 & E20 Verification Audit', () => {
           }
         ]
       }
-    ] as any
+    ]
 
     const perf = findPreviousPerformance('Barbell Bench Press', mockHistory)
     expect(perf).not.toBeNull()
