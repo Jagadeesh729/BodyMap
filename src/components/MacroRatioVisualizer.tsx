@@ -66,7 +66,7 @@ export const MacroRatioVisualizer: React.FC<MacroRatioVisualizerProps> = ({
       </div>
 
       {/* Accessible Non-Color-Dependent Percentage Badges */}
-      <div className="flex items-center justify-between gap-2 text-[10px] font-mono text-secondary-text">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono text-secondary-text">
         <span className="flex items-center gap-1">
           <span className="w-2 h-2 rounded-full bg-electric-purple inline-block shrink-0" aria-hidden="true" />
           <span className="text-gray-300 font-medium">P:</span>

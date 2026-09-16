@@ -362,8 +362,8 @@ export const GymModePage: React.FC = () => {
   }, [currentExercise])
 
   const warmupProtocol = useMemo(() => {
-    return generateWarmupProtocol(targetWorkingWeight)
-  }, [targetWorkingWeight])
+    return generateWarmupProtocol(targetWorkingWeight, 20, currentExercise?.equipment || currentExercise?.name)
+  }, [targetWorkingWeight, currentExercise])
 
   const recommendedRest = useMemo(() => {
     return calculateRecommendedRestSeconds(currentExercise?.name || '', targetWorkingWeight ? 8 : 10)

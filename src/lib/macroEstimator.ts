@@ -26,14 +26,17 @@ export function calculateMacroPercentages(
   carbKcal: number,
   fatKcal: number
 ): MacroPercentages {
-  const total = proteinKcal + carbKcal + fatKcal
-  if (total <= 0 || isNaN(total)) {
+  const pSafe = Math.max(0, typeof proteinKcal === 'number' && !isNaN(proteinKcal) ? proteinKcal : 0)
+  const cSafe = Math.max(0, typeof carbKcal === 'number' && !isNaN(carbKcal) ? carbKcal : 0)
+  const fSafe = Math.max(0, typeof fatKcal === 'number' && !isNaN(fatKcal) ? fatKcal : 0)
+  const total = pSafe + cSafe + fSafe
+  if (total <= 0) {
     return { proteinPct: 0, carbPct: 0, fatPct: 0 }
   }
 
-  const pRaw = (proteinKcal / total) * 100
-  const cRaw = (carbKcal / total) * 100
-  const fRaw = (fatKcal / total) * 100
+  const pRaw = (pSafe / total) * 100
+  const cRaw = (cSafe / total) * 100
+  const fRaw = (fSafe / total) * 100
 
   let pFloor = Math.floor(pRaw)
   let cFloor = Math.floor(cRaw)

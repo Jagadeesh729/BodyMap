@@ -23,7 +23,8 @@ export interface WarmupProtocolResult {
  */
 export function generateWarmupProtocol(
   workingWeightKg: number | null | undefined,
-  barWeightKg: number = 20
+  barWeightKg: number = 20,
+  equipmentOrExerciseName?: string
 ): WarmupProtocolResult {
   if (
     typeof workingWeightKg !== 'number' ||
@@ -39,10 +40,18 @@ export function generateWarmupProtocol(
     }
   }
 
+  const equipStr = (equipmentOrExerciseName || '').toLowerCase()
+  const isDumbbell = equipStr.includes('dumbbell') || equipStr.includes('db ') || equipStr.endsWith(' db')
+  const isCable = equipStr.includes('cable')
+  const isMachine = equipStr.includes('machine') || equipStr.includes('smith')
+  const isBodyweight = equipStr.includes('bodyweight') || equipStr.includes('body weight') || equipStr.includes('push-up') || equipStr.includes('pull-up')
+
   const baseBarLoad = barWeightKg > 0 ? barWeightKg : 20 // standard Olympic barbell baseline
 
   // Step 1: Empty Bar / Initial mobility load
-  const set1Weight = workingWeightKg > 40 ? baseBarLoad : Math.round(workingWeightKg * 0.4 * 2) / 2
+  const set1Weight = workingWeightKg > 40 && !isDumbbell && !isCable && !isMachine && !isBodyweight
+    ? baseBarLoad
+    : Math.round(workingWeightKg * 0.4 * 2) / 2
   // Step 2: 50% Working Load
   const set2Weight = Math.round(workingWeightKg * 0.5 * 2) / 2
   // Step 3: 70% Working Load
@@ -58,6 +67,51 @@ export function generateWarmupProtocol(
   ]
 
   const sets: WarmupSet[] = rawWeights.map(step => {
+    if (isDumbbell) {
+      return {
+        setNumber: step.num,
+        percentageLabel: step.label,
+        calculatedWeightKg: step.weight,
+        repsLabel: step.reps,
+        note: step.note,
+        platesSummary: step.num === 1 ? 'Light DBs / Mobility' : `~${step.weight}kg DBs`
+      }
+    }
+
+    if (isCable) {
+      return {
+        setNumber: step.num,
+        percentageLabel: step.label,
+        calculatedWeightKg: step.weight,
+        repsLabel: step.reps,
+        note: step.note,
+        platesSummary: `~${step.weight}kg Cable Stack`
+      }
+    }
+
+    if (isMachine) {
+      return {
+        setNumber: step.num,
+        percentageLabel: step.label,
+        calculatedWeightKg: step.weight,
+        repsLabel: step.reps,
+        note: step.note,
+        platesSummary: `~${step.weight}kg Machine Load`
+      }
+    }
+
+    if (isBodyweight) {
+      return {
+        setNumber: step.num,
+        percentageLabel: step.label,
+        calculatedWeightKg: step.weight,
+        repsLabel: step.reps,
+        note: step.note,
+        platesSummary: 'Bodyweight / Mobility'
+      }
+    }
+
+    // Standard Barbell Olympic Plate loading
     const plateResult = calculateBarbellPlates(step.weight, baseBarLoad)
     let platesSummary = plateResult.summaryLabel
     if (plateResult.hasValidConfiguration) {

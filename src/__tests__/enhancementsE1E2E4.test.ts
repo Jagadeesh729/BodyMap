@@ -194,6 +194,31 @@ describe('Enhancement Suite: E2 (iCalendar), E1 (Warm-up Ramp), E4 (Macro Visual
       expect(generateWarmupProtocol(NaN).hasProtocol).toBe(false)
       expect(generateWarmupProtocol(null).hasProtocol).toBe(false)
     })
+
+    it('contextualizes guidance for dumbbell, cable, machine, and bodyweight exercises without nonsensical barbell plates', () => {
+      // Dumbbells
+      const dbRes = generateWarmupProtocol(30, 20, 'Dumbbell Incline Bench Press')
+      expect(dbRes.hasProtocol).toBe(true)
+      expect(dbRes.sets[0].platesSummary).toBe('Light DBs / Mobility')
+      expect(dbRes.sets[1].platesSummary).toBe('~15kg DBs')
+      expect(dbRes.sets[3].platesSummary).toBe('~25.5kg DBs')
+      expect(dbRes.sets[0].plates).toBeUndefined()
+
+      // Cable movement
+      const cableRes = generateWarmupProtocol(40, 20, 'Seated Cable Row')
+      expect(cableRes.hasProtocol).toBe(true)
+      expect(cableRes.sets[1].platesSummary).toBe('~20kg Cable Stack')
+
+      // Machine movement
+      const machineRes = generateWarmupProtocol(80, 20, 'Leg Press Machine')
+      expect(machineRes.hasProtocol).toBe(true)
+      expect(machineRes.sets[1].platesSummary).toBe('~40kg Machine Load')
+
+      // Bodyweight movement
+      const bwRes = generateWarmupProtocol(20, 20, 'Push-ups')
+      expect(bwRes.hasProtocol).toBe(true)
+      expect(bwRes.sets[0].platesSummary).toBe('Bodyweight / Mobility')
+    })
   })
 
   // =========================================================================
@@ -229,6 +254,11 @@ describe('Enhancement Suite: E2 (iCalendar), E1 (Warm-up Ramp), E4 (Macro Visual
 
       const nan = calculateMacroPercentages(NaN, 0, 0)
       expect(nan).toEqual({ proteinPct: 0, carbPct: 0, fatPct: 0 })
+
+      // Negative inputs are safely clamped
+      const negativeClamped = calculateMacroPercentages(-100, 200, 200)
+      expect(negativeClamped.proteinPct).toBe(0)
+      expect(negativeClamped.carbPct + negativeClamped.fatPct).toBe(100)
     })
 
     it('estimateDailyMacros integrates normalized percentages in output estimate', () => {
