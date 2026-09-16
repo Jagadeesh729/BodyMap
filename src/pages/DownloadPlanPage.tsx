@@ -530,6 +530,59 @@ const DownloadPlanPage = () => {
                         </span>
                       ))}
                     </div>
+
+                    {/* Storage Partition Breakdown Gauge (E19) */}
+                    <div className="w-full mt-2 pt-2.5 border-t border-gray-800/60 space-y-1.5">
+                      <div className="flex items-center justify-between text-[11px] text-gray-400">
+                        <span>Partition Distribution (Estimated Bytes):</span>
+                        <span className="font-mono text-[10px] text-gray-500">100% device-local storage</span>
+                      </div>
+                      <div className="w-full bg-gray-900 rounded-full h-2 overflow-hidden flex" role="progressbar" aria-label="Storage partition breakdown">
+                        {diag.categories.map((c, idx) => {
+                          const pct = diag.totalEstimatedBytes > 0
+                            ? Math.max(2, Math.round((c.estimatedBytes / diag.totalEstimatedBytes) * 100))
+                            : 0
+                          const colors = [
+                            'bg-neon-green',
+                            'bg-electric-purple',
+                            'bg-bright-coral',
+                            'bg-blue-400',
+                            'bg-amber-400',
+                            'bg-teal-400'
+                          ]
+                          const color = colors[idx % colors.length]
+                          return (
+                            <div
+                              key={c.name}
+                              className={`${color} h-full transition-all duration-300`}
+                              style={{ width: `${pct}%` }}
+                              title={`${c.name}: ~${Math.round(c.estimatedBytes / 1024 * 10) / 10} KB (${c.count} records)`}
+                            />
+                          )
+                        })}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-gray-400 font-mono pt-0.5">
+                        {diag.categories.map((c, idx) => {
+                          const colors = [
+                            'bg-neon-green',
+                            'bg-electric-purple',
+                            'bg-bright-coral',
+                            'bg-blue-400',
+                            'bg-amber-400',
+                            'bg-teal-400'
+                          ]
+                          const dotBg = colors[idx % colors.length]
+                          const kb = Math.round(c.estimatedBytes / 1024 * 10) / 10
+                          return (
+                            <span key={c.name} className="flex items-center gap-1">
+                              <span className={`w-1.5 h-1.5 rounded-full ${dotBg} inline-block`} />
+                              <span>{c.name}:</span>
+                              <strong className="text-gray-200">~{kb} KB</strong>
+                            </span>
+                          )
+                        })}
+                      </div>
+                    </div>
                   </div>
                 )
               } catch {

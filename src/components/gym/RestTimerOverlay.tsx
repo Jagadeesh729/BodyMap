@@ -1,4 +1,4 @@
-﻿import React from 'react'
+import React from 'react'
 import { Play, Pause, SkipForward, Plus, Minus, Volume2, VolumeX, Bell } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -9,6 +9,7 @@ interface RestTimerOverlayProps {
   soundEnabled: boolean
   onTogglePause: () => void
   onAddSeconds: (seconds: number) => void
+  onSetDuration?: (seconds: number) => void
   onSkip: () => void
   onToggleSound: () => void
 }
@@ -20,6 +21,7 @@ export const RestTimerOverlay: React.FC<RestTimerOverlayProps> = ({
   soundEnabled,
   onTogglePause,
   onAddSeconds,
+  onSetDuration,
   onSkip,
   onToggleSound
 }) => {
@@ -113,7 +115,7 @@ export const RestTimerOverlay: React.FC<RestTimerOverlayProps> = ({
         </div>
 
         {/* Quick adjust time buttons */}
-        <div className="flex items-center gap-3 mt-6">
+        <div className="flex flex-wrap items-center justify-center gap-2.5 mt-6">
           <Button
             onClick={() => onAddSeconds(-15)}
             variant="outline"
@@ -147,7 +149,40 @@ export const RestTimerOverlay: React.FC<RestTimerOverlayProps> = ({
             <Plus className="w-3.5 h-3.5 mr-1" />
             30s
           </Button>
+
+          <Button
+            onClick={() => onAddSeconds(60)}
+            variant="outline"
+            size="sm"
+            className="border-gray-700 bg-card-dark text-xs px-3 py-1.5 text-secondary-text hover:border-neon-green"
+            aria-label="Add 60 seconds"
+          >
+            <Plus className="w-3.5 h-3.5 mr-1" />
+            60s
+          </Button>
         </div>
+
+        {/* Rest Presets Chips */}
+        {onSetDuration && (
+          <div className="flex flex-wrap items-center justify-center gap-1.5 mt-3">
+            <span className="text-[11px] text-gray-500 font-medium mr-1">Presets:</span>
+            {[60, 90, 120, 180].map((presetSec) => (
+              <button
+                key={presetSec}
+                type="button"
+                onClick={() => onSetDuration(presetSec)}
+                className={`px-2.5 py-1 rounded-full text-xs font-mono border transition-colors ${
+                  safeRemaining === presetSec
+                    ? 'bg-neon-green/20 text-neon-green border-neon-green font-bold'
+                    : 'bg-card-dark text-gray-400 border-gray-700 hover:text-white hover:border-gray-500'
+                }`}
+                aria-label={`Set rest timer to ${presetSec} seconds`}
+              >
+                {presetSec >= 60 ? `${presetSec / 60}m` : `${presetSec}s`}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Bottom Action Controls */}

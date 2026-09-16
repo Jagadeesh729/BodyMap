@@ -219,6 +219,34 @@ const WeeklyPlanPage: React.FC = () => {
     }
   }
 
+  const totalGroceryCount = useMemo(() => {
+    return displayGroceryCategories.reduce((acc, cat) => acc + cat.items.length, 0)
+  }, [displayGroceryCategories])
+
+  const checkedGroceryCount = useMemo(() => {
+    return displayGroceryCategories.reduce(
+      (acc, cat) => acc + cat.items.filter(item => Boolean(checkedGroceryItems[item.id])).length,
+      0
+    )
+  }, [displayGroceryCategories, checkedGroceryItems])
+
+  const cartProgressPercent = totalGroceryCount > 0
+    ? Math.round((checkedGroceryCount / totalGroceryCount) * 100)
+    : 0
+
+  const handleClearCheckedGrocery = () => {
+    setCheckedGroceryItems({})
+    try {
+      localStorage.removeItem('bodymap_grocery_checked')
+    } catch {
+      // Ignore storage error
+    }
+    toast({
+      title: 'Checklist Reset 🛒',
+      description: 'All checked grocery items have been cleared.'
+    })
+  }
+
   const mealAlternatives: FoodAlternative[] = useMemo(() => {
     if (!selectedMealForSwap) return []
     return findMealAlternatives(
@@ -999,6 +1027,35 @@ const WeeklyPlanPage: React.FC = () => {
                   )}
                 </label>
               </div>
+
+              {/* Cart Progress Bar & Clear Action */}
+              {totalGroceryCount > 0 && (
+                <div className="mt-3 p-3 bg-bodymap-dark rounded-lg border border-gray-800 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-gray-300 flex items-center gap-1.5">
+                      <span>🛒 Cart Progress:</span>
+                      <strong className="text-neon-green font-mono">{checkedGroceryCount} / {totalGroceryCount}</strong>
+                      <span className="text-gray-500 font-mono">({cartProgressPercent}%)</span>
+                    </span>
+                    {checkedGroceryCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleClearCheckedGrocery}
+                        className="text-[11px] text-gray-400 hover:text-bright-coral underline font-sans transition-colors"
+                        aria-label="Clear all checked grocery items"
+                      >
+                        Clear Checked
+                      </button>
+                    )}
+                  </div>
+                  <div className="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className="bg-neon-green h-full rounded-full transition-all duration-300"
+                      style={{ width: `${cartProgressPercent}%` }}
+                    />
+                  </div>
+                </div>
+              )}
 
               {grocerySafetyEval.isGrocerySafetyViolated && (
                 <div className="p-3 bg-red-500/10 border border-red-500/40 rounded-lg text-xs text-red-400 flex items-center gap-2 mt-3">

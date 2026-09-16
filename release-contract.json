@@ -9,36 +9,36 @@
   "productionUrl": "https://bodymap-ai.vercel.app",
   "overallMaturityScore": "9.93/10.0",
   "releaseStatus": "RELEASE FROZEN — MAINTENANCE MODE",
-  "testSuiteCount": 5269,
-  "testFileCount": 131,
+  "testSuiteCount": 5278,
+  "testFileCount": 132,
   "buildChunkCount": 24,
   "criticalChunkHashes": {
-    "index-zaqycAtF.css": {
-      "sha256": "45f4f6fae4eb97ab9143058100865e69e4c6562da3273be383ff09e806f964d6",
-      "bytes": 57766
+    "index-CoQUWvtj.css": {
+      "sha256": "fe5262aab3d8d19a6f51b42c23f84c7246d0432832c7731569d2130c10626468",
+      "bytes": 58143
     },
-    "index-CwwABrb7.js": {
-      "sha256": "92f0ea015827dbb230c7d2828b2748abc9b8b38222c861e49c9ba64ece5b9f6a",
+    "index-_l0j6Weq.js": {
+      "sha256": "1dfd97ed6030e5559800a98ab3ce9aacb43868774ec6ea96eb0794940928384a",
       "bytes": 159618
     },
     "useFocusTrap-DQCoTo7t.js": {
       "sha256": "3765cded2fe6d4a77168bcf9e2259a4103d3161e6981dbc89965629737e8ae16",
       "bytes": 1613
     },
-    "CreatePlanPage-Cs3ZAObh.js": {
-      "sha256": "ee1ade5df2c843422d7f0bc36f9fe68ec6f17b9d292c315f862ec9e13cf98fe9",
+    "CreatePlanPage---4sRycb.js": {
+      "sha256": "745d2e83bb46f2b6098e7c7aacd9ad0ab222b251041d20327ed180affec3f891",
       "bytes": 22889
     },
-    "WeeklyPlanPage-DxLnx9rS.js": {
-      "sha256": "9605b61ee42f6549d9857f7ab0c067ad8fc0157f03ee803e6a3c5725ede7b84f",
-      "bytes": 53627
+    "WeeklyPlanPage-CkUWArJS.js": {
+      "sha256": "49923fa9ce8829e57e0bcd018c24f30692ba8318701b953a24cbb37faff4fd1d",
+      "bytes": 54884
     },
-    "GymModePage-C3lK5He1.js": {
-      "sha256": "c256c736d371194fd330ebc7113048cacd736dd3b2eea39131e85d72db613889",
-      "bytes": 90019
+    "GymModePage-3dzgzybJ.js": {
+      "sha256": "828da0ccc99ba00df45384ab8178b74e45465b08d884c49edc9c71350b4a987f",
+      "bytes": 91119
     },
-    "planSafetyGate-Ds8t67OK.js": {
-      "sha256": "c17280067c5878075704c47b611d0809b65e5dde2bf7299e48af92e6c0638407",
+    "planSafetyGate-NFzTY9TW.js": {
+      "sha256": "4ae94383bacfec75be216c3ad9cae7964b63908372a62c8b8dc557e74fa45c84",
       "bytes": 2094
     }
   },

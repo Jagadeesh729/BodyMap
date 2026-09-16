@@ -569,8 +569,8 @@ export const GymModePage: React.FC = () => {
 
   const handleAddTimerSeconds = (sec: number) => {
     setSession(prev => {
-      const nextRemaining = Math.max(5, prev.restTimer.remainingSeconds + sec)
-      const nextTotal = Math.max(nextRemaining, prev.restTimer.durationSeconds + (sec > 0 ? sec : 0))
+      const nextRemaining = Math.max(15, Math.min(600, prev.restTimer.remainingSeconds + sec))
+      const nextTotal = Math.max(nextRemaining, Math.min(600, prev.restTimer.durationSeconds + (sec > 0 ? sec : 0)))
       return {
         ...prev,
         restTimer: {
@@ -581,6 +581,19 @@ export const GymModePage: React.FC = () => {
         }
       }
     })
+  }
+
+  const handleSetTimerDuration = (sec: number) => {
+    const clamped = Math.max(15, Math.min(600, sec))
+    setSession(prev => ({
+      ...prev,
+      restTimer: {
+        ...prev.restTimer,
+        remainingSeconds: clamped,
+        durationSeconds: clamped,
+        targetEndTime: prev.restTimer.isPaused ? null : Date.now() + clamped * 1000
+      }
+    }))
   }
 
   const handleSkipTimer = () => {
@@ -1650,6 +1663,7 @@ export const GymModePage: React.FC = () => {
           soundEnabled={session.soundEnabled}
           onTogglePause={handleToggleTimerPause}
           onAddSeconds={handleAddTimerSeconds}
+          onSetDuration={handleSetTimerDuration}
           onSkip={handleSkipTimer}
           onToggleSound={() => setSession(prev => ({ ...prev, soundEnabled: !prev.soundEnabled }))}
         />
