@@ -56,7 +56,7 @@ import {
 import { generateWarmupProtocol } from '@/lib/warmupProtocol'
 import { calculateRecommendedRestSeconds } from '@/lib/restIntervalEngine'
 import { extractPersonalRecords, normalizeExerciseName } from '@/lib/personalRecords'
-import { calculateBarbellPlates } from '@/lib/plateLoadingCalculator'
+import { calculateBarbellPlates, formatPlateChips } from '@/lib/plateLoadingCalculator'
 import { extractPreviousSetPerformance } from '@/lib/exerciseSetProgress'
 import { getRecommendedRepTempo } from '@/lib/setTempoGuidance'
 import {
@@ -1307,11 +1307,63 @@ export const GymModePage: React.FC = () => {
                           <span className="text-xs font-poppins font-bold text-neon-green block mt-0.5">{wSet.calculatedWeightKg} kg</span>
                           <span className="text-[9px] text-gray-500 block truncate mt-0.5">{wSet.percentageLabel}</span>
                         </div>
-                        {wSet.platesSummary && (
-                          <span className="text-[9px] text-blue-400/90 font-mono block mt-1.5 pt-1 border-t border-gray-800/60 truncate" title={wSet.platesSummary}>
+                        {/* E21: Warm-Up Plate Loading Breakdown */}
+                        {wSet.plates && wSet.plates.hasValidConfiguration && wSet.plates.perSidePlates.length > 0 ? (
+                          <div
+                            className="mt-1.5 pt-1 border-t border-gray-800/60 flex flex-col items-center gap-1"
+                            title={wSet.plates.explanation}
+                            aria-label={`Set ${wSet.setNumber} plate loading: ${wSet.plates.summaryLabel}`}
+                          >
+                            <span className="text-[9px] text-blue-400 font-mono font-medium">
+                              Per side: {wSet.plates.plateWeightPerSideKg}kg
+                            </span>
+                            <div className="flex flex-wrap justify-center gap-1">
+                              {formatPlateChips(wSet.plates.perSidePlates).map((chip, idx) => (
+                                <span
+                                  key={idx}
+                                  className="px-1 py-0.5 bg-blue-950/70 border border-blue-700/50 text-blue-300 rounded font-mono text-[8.5px] leading-none"
+                                >
+                                  {chip}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ) : wSet.plates && wSet.plates.hasValidConfiguration && wSet.plates.perSidePlates.length === 0 ? (
+                          <div
+                            className="mt-1.5 pt-1 border-t border-gray-800/60 text-center"
+                            title={wSet.plates.explanation}
+                            aria-label={`Set ${wSet.setNumber} plate loading: Empty bar only`}
+                          >
+                            <span className="text-[9px] text-cyan-400/90 font-mono block">
+                              🏋️ Bar only (0kg/side)
+                            </span>
+                          </div>
+                        ) : wSet.plates && !wSet.plates.hasValidConfiguration && wSet.calculatedWeightKg < wSet.plates.barWeightKg ? (
+                          <div
+                            className="mt-1.5 pt-1 border-t border-gray-800/60 text-center"
+                            title={wSet.plates.explanation}
+                          >
+                            <span className="text-[9px] text-amber-400/90 font-mono block">
+                              Light DBs (&lt;{wSet.plates.barWeightKg}kg)
+                            </span>
+                          </div>
+                        ) : wSet.plates && !wSet.plates.hasValidConfiguration ? (
+                          <div
+                            className="mt-1.5 pt-1 border-t border-gray-800/60 text-center"
+                            title={wSet.plates.explanation}
+                          >
+                            <span className="text-[9px] text-amber-400/80 font-mono block truncate">
+                              {wSet.plates.summaryLabel}
+                            </span>
+                          </div>
+                        ) : wSet.platesSummary ? (
+                          <span
+                            className="text-[9px] text-blue-400/90 font-mono block mt-1.5 pt-1 border-t border-gray-800/60 truncate"
+                            title={wSet.platesSummary}
+                          >
                             {wSet.platesSummary}
                           </span>
-                        )}
+                        ) : null}
                       </div>
                     ))}
                   </div>

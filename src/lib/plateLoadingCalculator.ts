@@ -114,3 +114,23 @@ export function calculateBarbellPlates(
     explanation: `Load ${plateDescriptions} on each side of the ${bar} kg bar (${plateWeightPerSide} kg per side).`
   }
 }
+
+/**
+ * Formats a PlateCount array into a list of concise plate chip labels.
+ * e.g. [{ denominationKg: 25, count: 2 }, { denominationKg: 10, count: 1 }] -> ["2×25kg", "10kg"]
+ */
+export function formatPlateChips(plates: PlateCount[]): string[] {
+  if (!Array.isArray(plates) || plates.length === 0) return []
+  return plates.map(p => (p.count > 1 ? `${p.count}×${p.denominationKg}kg` : `${p.denominationKg}kg`))
+}
+
+/**
+ * Mathematically validates that bar weight + 2 * sum(plate weight) strictly equals the target weight.
+ */
+export function verifyPlateLoadingInvariant(result: PlateLoadingResult): boolean {
+  if (!result || typeof result.targetWeightKg !== 'number') return false
+  if (!result.hasValidConfiguration) return true // unrepresentable or error states don't violate plate sum
+  if (result.perSidePlates.length === 0) return result.targetWeightKg === result.barWeightKg
+  const perSideTotal = result.perSidePlates.reduce((acc, p) => acc + p.count * p.denominationKg, 0)
+  return Math.abs((result.barWeightKg + perSideTotal * 2) - result.targetWeightKg) < 0.001
+}

@@ -24,7 +24,8 @@ export interface WarmupProtocolResult {
 export function generateWarmupProtocol(
   workingWeightKg: number | null | undefined,
   barWeightKg: number = 20,
-  equipmentOrExerciseName?: string
+  equipmentOrExerciseName?: string,
+  availableDenominationsKg?: number[]
 ): WarmupProtocolResult {
   if (
     typeof workingWeightKg !== 'number' ||
@@ -112,7 +113,7 @@ export function generateWarmupProtocol(
     }
 
     // Standard Barbell Olympic Plate loading
-    const plateResult = calculateBarbellPlates(step.weight, baseBarLoad)
+    const plateResult = calculateBarbellPlates(step.weight, baseBarLoad, availableDenominationsKg)
     let platesSummary = plateResult.summaryLabel
     if (plateResult.hasValidConfiguration) {
       if (plateResult.perSidePlates.length === 0) {
