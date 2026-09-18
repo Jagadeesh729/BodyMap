@@ -180,3 +180,4 @@ To maintain immutable audit history while strictly enforcing present-day truthfu
 | 2026-09-16 | Principal Release Engineer | Real-world enhancement cycle: E16 (rest timer quick adjust +60s & bounded presets), E17 (grocery checklist cart progress & reset), E19 (data vault storage partition gauge) & doc sync to 5,278/132 | 1 |
 | 2026-09-18 | Senior Release Engineer | Enhancement E21: Warm-Up Plate Loading Breakdown (per-side plate configurations, chips & bar-only badges) & doc sync to 5,287/133 | 1 |
 | 2026-09-18 | Senior Release Engineer | Enhancement E22: CSV Workout History Export (RFC 4180 compliant, formula injection sanitized, UTF-8 BOM) & doc sync to 5,305/134 | 1 |
+| 2026-09-18 | Senior Release Engineer | Enhancement E23: Target Heart-Rate Intensity Zone Calculator (Karvonen HRR & Tanaka formulas, strict input validation & fail-closed alerts) & doc sync to 5,334/135 | 1 |

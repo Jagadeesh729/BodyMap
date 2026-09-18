@@ -9,36 +9,36 @@
   "productionUrl": "https://bodymap-ai.vercel.app",
   "overallMaturityScore": "9.93/10.0",
   "releaseStatus": "RELEASE FROZEN — MAINTENANCE MODE",
-  "testSuiteCount": 5305,
-  "testFileCount": 134,
+  "testSuiteCount": 5334,
+  "testFileCount": 135,
   "buildChunkCount": 24,
   "criticalChunkHashes": {
-    "index-D7HHWWCZ.css": {
-      "sha256": "13faceb8d9a079904137fcf6b2e1b013fad4f01727e53073f1351468e3437def",
-      "bytes": 58574
+    "index-CQc_JpcW.css": {
+      "sha256": "d9d3be4ce33cd5d23907529f29497ef32c82f49e0e94d7d5e612c8c167209ac9",
+      "bytes": 58871
     },
-    "index-_9_yn9or.js": {
-      "sha256": "27970c69ee7b0a34d8f485d15e6d5c50810f51c64484e2b0ec9cd64f9a21b22a",
+    "index-BADDZ4Fa.js": {
+      "sha256": "b0c83ad88218de47683a0d2e34085381f32ebb555731b91a78eaf7fd666eb850",
       "bytes": 159618
     },
-    "useFocusTrap-CDQK9gG6.js": {
-      "sha256": "22fb14cd0367453771cebee39d9682791ae5b27971c31a324de9b54864dcccc7",
+    "useFocusTrap-euujLLs4.js": {
+      "sha256": "deade96fd04d58ec1aca926943af7c0e9ab632813b061a986b99a568b4c875e2",
       "bytes": 1613
     },
-    "CreatePlanPage-Bm0LPCPj.js": {
-      "sha256": "4ae70163342cf0045780f429f3821751f45dbbea6511de5e1271e105cb23139a",
+    "CreatePlanPage-DZUEMoUT.js": {
+      "sha256": "0f46070ae5c89ff43e8a4c611aabb34296762b3ec23f4c11d270883ca6ed2ac9",
       "bytes": 22889
     },
-    "WeeklyPlanPage-Chb5nvYx.js": {
-      "sha256": "594e9d2c9a01ba532e423e54c70b6a57122e1007e304e048b1304c3374d0baf1",
+    "WeeklyPlanPage-BQu0wTTr.js": {
+      "sha256": "e3adf821d3006f22823a945f9bf1f6bf395f0adc2e47719b9dbc007141585887",
       "bytes": 54884
     },
-    "GymModePage-BdBlz7ox.js": {
-      "sha256": "7f0cf392b40ae33a366659220be6476ecef6ee041e0994a7cbb36a5e9e2574c4",
+    "GymModePage-CdPoA_iK.js": {
+      "sha256": "ecbca9e97a0a42ad5f8b3b3e1008820ac52676ce2ecee6323d9fd23de80ae2a1",
       "bytes": 92911
     },
-    "planSafetyGate-DolJFgGK.js": {
-      "sha256": "7842f4d19b0cf044000a46144304c7a0b99ab52dc8532b1e2a99e284d47ca80d",
+    "planSafetyGate-C9fwS-fN.js": {
+      "sha256": "60ff7b0d550cfa8abcdaa33ac190c7401639d2f03dc8727aef24cf46546923e1",
       "bytes": 2094
     }
   },

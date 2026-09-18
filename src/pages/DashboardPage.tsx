@@ -22,10 +22,10 @@ import {
   RotateCcw,
   GitCompare,
   Trophy,
-  Activity,
   X,
   Smile,
-  Search
+  Search,
+  Heart
 } from 'lucide-react'
 import { filterWorkoutHistory } from '@/lib/workoutHistoryFilter'
 import { filterLogsByTimeWindow, type AnalyticsTimeWindow } from '@/lib/analyticsTimeWindow'
@@ -134,6 +134,7 @@ const DashboardPage: React.FC = () => {
   const [historySortBy, setHistorySortBy] = useState<'newest' | 'oldest' | 'duration' | 'sets'>('newest')
   const [analyticsTimeWindow, setAnalyticsTimeWindow] = useState<AnalyticsTimeWindow>('all')
   const [selectedPrExercise, setSelectedPrExercise] = useState<string>('')
+  const [restingHeartRateInput, setRestingHeartRateInput] = useState<number | string>(60)
   const prefersReducedMotion = usePrefersReducedMotion()
 
   const filteredHistoryResult = useMemo(() => {
@@ -252,8 +253,8 @@ const DashboardPage: React.FC = () => {
     return calculateSplitBalance(DEFAULT_WEEKLY_PLAN)
   }, [])
   const heartRateZones = useMemo(() => {
-    return calculateTargetHeartRateZones(formData.age || 30)
-  }, [formData.age])
+    return calculateTargetHeartRateZones(formData.age || 30, restingHeartRateInput)
+  }, [formData.age, restingHeartRateInput])
   const densityProgression = useMemo(() => {
     return calculateTrainingDensityProgression(workoutHistory)
   }, [workoutHistory])
@@ -1271,12 +1272,14 @@ const DashboardPage: React.FC = () => {
         </div>
 
         {/* Target Heart Rate & Intensity Zones Section */}
-        <div className="card-dark">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+        <div className="card-dark" aria-labelledby="heart-rate-zones-heading">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
             <div className="flex items-center gap-2.5">
-              <Activity className="w-5 h-5 text-bright-coral" />
+              <div className="w-10 h-10 rounded-xl bg-bright-coral/15 border border-bright-coral/30 flex items-center justify-center shrink-0">
+                <Heart className="w-5 h-5 text-bright-coral" aria-hidden="true" />
+              </div>
               <div>
-                <h2 className="text-base sm:text-lg font-poppins font-semibold text-primary-text">
+                <h2 id="heart-rate-zones-heading" className="text-base sm:text-lg font-poppins font-semibold text-primary-text">
                   Target Heart Rate &amp; Intensity Zones
                 </h2>
                 <p className="text-xs text-secondary-text">
@@ -1284,11 +1287,132 @@ const DashboardPage: React.FC = () => {
                 </p>
               </div>
             </div>
-            <span className="text-[11px] font-mono text-gray-400 bg-gray-800/80 px-2.5 py-1 rounded border border-gray-700">
-              Age: {heartRateZones.age} yrs • Est. Max: {heartRateZones.estimatedMaxHr} BPM
+
+            {/* Resting HR Input & Controls */}
+            <div className="flex flex-wrap items-center gap-2 bg-gray-900/90 border border-gray-800 p-2 rounded-xl">
+              <label htmlFor="resting-hr-input" className="text-xs font-semibold text-gray-300 whitespace-nowrap">
+                Resting HR:
+              </label>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const current = typeof restingHeartRateInput === 'number' ? restingHeartRateInput : parseInt(String(restingHeartRateInput), 10) || 60
+                    setRestingHeartRateInput(Math.max(30, current - 5))
+                  }}
+                  className="px-2 py-1 text-xs rounded bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 font-mono transition-colors"
+                  aria-label="Subtract 5 BPM from rest rate"
+                >
+                  -5
+                </button>
+                <input
+                  id="resting-hr-input"
+                  type="number"
+                  min={30}
+                  max={120}
+                  step={1}
+                  value={restingHeartRateInput}
+                  onChange={(e) => setRestingHeartRateInput(e.target.value)}
+                  className="w-16 px-2 py-1 text-xs text-center font-mono rounded bg-gray-950 border border-gray-700 text-primary-text focus:outline-none focus:border-neon-green"
+                  aria-label="Rest Heart Rate BPM"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const current = typeof restingHeartRateInput === 'number' ? restingHeartRateInput : parseInt(String(restingHeartRateInput), 10) || 60
+                    setRestingHeartRateInput(Math.min(120, current + 5))
+                  }}
+                  className="px-2 py-1 text-xs rounded bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 font-mono transition-colors"
+                  aria-label="Add 5 BPM to rest rate"
+                >
+                  +5
+                </button>
+                <span className="text-xs font-mono text-gray-400 pl-1">BPM</span>
+              </div>
+
+              {/* Preset chips */}
+              <div className="hidden sm:flex items-center gap-1 pl-2 border-l border-gray-800">
+                <span className="text-[10px] text-gray-500 font-mono">Presets:</span>
+                {[50, 60, 70, 80].map((bpm) => (
+                  <button
+                    key={bpm}
+                    type="button"
+                    onClick={() => setRestingHeartRateInput(bpm)}
+                    className={`px-1.5 py-0.5 text-[10px] rounded font-mono transition-colors ${
+                      Number(restingHeartRateInput) === bpm
+                        ? 'bg-bright-coral/20 text-bright-coral border border-bright-coral/40 font-bold'
+                        : 'bg-gray-800 text-gray-400 hover:text-gray-200 border border-transparent'
+                    }`}
+                    aria-label={`Heart rate preset ${bpm} BPM`}
+                  >
+                    {bpm}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Details & Invariants Strip */}
+          <div className="bg-gray-900/60 border border-gray-800/80 rounded-xl p-3 mb-4 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex flex-wrap items-center gap-3 text-secondary-text font-mono text-[11px]">
+              <span>Age: <strong className="text-gray-200">{heartRateZones.age} yrs</strong></span>
+              <span>•</span>
+              <span>Tanaka Est. Max: <strong className="text-bright-coral">{heartRateZones.estimatedMaxHr} BPM</strong></span>
+              {heartRateZones.restingHr !== null && (
+                <>
+                  <span>•</span>
+                  <span>Resting HR: <strong className="text-neon-green">{heartRateZones.restingHr} BPM</strong></span>
+                  <span>•</span>
+                  <span>HR Reserve (HRR): <strong className="text-electric-purple">{heartRateZones.heartRateReserve} BPM</strong></span>
+                </>
+              )}
+            </div>
+            <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-gray-800 border border-gray-700 text-gray-300 font-semibold">
+              {heartRateZones.calculationMethod === 'karvonen_reserve' ? 'Karvonen Model' : 'Tanaka Percentage'}
             </span>
           </div>
 
+          {/* Validation Error Alert if invalid */}
+          {!heartRateZones.isValid && heartRateZones.validationErrors && heartRateZones.validationErrors.length > 0 && (
+            <div className="p-3 mb-4 rounded-xl bg-bright-coral/15 border border-bright-coral/30 flex items-start gap-2.5 text-xs text-bright-coral">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+              <div>
+                <p className="font-semibold">Calculation Input Alert</p>
+                <p className="text-gray-300 text-[11px] mt-0.5">
+                  {heartRateZones.validationErrors.join('. ')}. Please enter an age between 10–100 years and a resting heart rate between 30–120 BPM that is lower than your estimated maximum heart rate.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Visual Intensity Distribution Bar */}
+          {heartRateZones.isValid && (
+            <div className="mb-4 space-y-1.5" role="region" aria-label="Heart rate intensity zones visual distribution">
+              <div className="flex justify-between items-center text-[10px] font-mono text-gray-400">
+                <span>Intensity Continuum (% HRR)</span>
+                <span>{heartRateZones.zones[0]?.bpmRange.min} BPM → {heartRateZones.zones[4]?.bpmRange.max} BPM</span>
+              </div>
+              <div className="w-full bg-gray-900 rounded-full h-3 overflow-hidden flex" role="progressbar" aria-label="Heart rate zones gradient breakdown">
+                {heartRateZones.zones.map((zone) => (
+                  <div
+                    key={zone.zoneNumber}
+                    style={{ width: '20%' }}
+                    className={`h-full flex items-center justify-center text-[9px] font-mono font-bold text-gray-950 ${
+                      zone.zoneNumber === 1 ? 'bg-blue-400' :
+                      zone.zoneNumber === 2 ? 'bg-neon-green' :
+                      zone.zoneNumber === 3 ? 'bg-amber-400' :
+                      zone.zoneNumber === 4 ? 'bg-bright-coral' : 'bg-electric-purple'
+                    }`}
+                    title={`Zone ${zone.zoneNumber}: ${zone.bpmRange.min}–${zone.bpmRange.max} BPM`}
+                  >
+                    Z{zone.zoneNumber}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Zones Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-1">
             {heartRateZones.zones.map((zone) => (
               <div
