@@ -32,6 +32,9 @@ export function convertLength(value: number, from: MetricUnit, to: MetricUnit): 
   return Number(value.toFixed(1))
 }
 
+/** Canonical alias for E25-D unit normalization contract */
+export const convertMetricValue = convertLength
+
 /**
  * Loads all body measurements from localStorage, chronologically sorted (newest first).
  */

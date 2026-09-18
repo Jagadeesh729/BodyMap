@@ -65,8 +65,10 @@ import type { BodyMeasurementEntry, MetricUnit } from '@/types/bodyMetrics'
 import {
   loadBodyMetrics,
   saveBodyMeasurement,
-  calculateBodyMetricDeltas
+  calculateBodyMetricDeltas,
+  BODY_METRICS_STORAGE_KEY
 } from '@/lib/bodyMetricsStorage'
+import { BodyMeasurementVisualizer } from '@/components/BodyMeasurementVisualizer'
 import { calculateMilestones, type Milestone } from '@/lib/milestoneTracker'
 import { extractPersonalRecords, type PersonalRecord } from '@/lib/personalRecords'
 import {
@@ -167,6 +169,16 @@ const DashboardPage: React.FC = () => {
   useEffect(() => {
     refreshData()
   }, [refreshData])
+
+  useEffect(() => {
+    const handleStorageSync = (e: StorageEvent) => {
+      if (!e.key || e.key === BODY_METRICS_STORAGE_KEY) {
+        setBodyMetrics(loadBodyMetrics())
+      }
+    }
+    window.addEventListener('storage', handleStorageSync)
+    return () => window.removeEventListener('storage', handleStorageSync)
+  }, [])
 
   useEffect(() => {
     if (formData.weight) {
@@ -1291,6 +1303,16 @@ const DashboardPage: React.FC = () => {
                   )
                 })}
               </div>
+
+              {/* E25-D Body Measurement Trend Visualizer & Rate Analytics */}
+              {bodyMetrics.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-gray-800">
+                  <BodyMeasurementVisualizer
+                    entries={bodyMetrics}
+                    unit={metricUnit}
+                  />
+                </div>
+              )}
 
               {bodyMetrics.length === 0 && (
                 <p className="text-xs text-secondary-text text-center mt-4 bg-bodymap-dark/50 p-3 rounded-lg border border-dashed border-gray-800">
