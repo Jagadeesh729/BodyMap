@@ -25,7 +25,8 @@ import {
   X,
   Smile,
   Search,
-  Heart
+  Heart,
+  Droplets
 } from 'lucide-react'
 import { filterWorkoutHistory } from '@/lib/workoutHistoryFilter'
 import { filterLogsByTimeWindow, type AnalyticsTimeWindow } from '@/lib/analyticsTimeWindow'
@@ -85,6 +86,7 @@ import { calculateDeloadAdvisory } from '@/lib/deloadRecommender'
 import { calculateAdherenceTier } from '@/lib/adherenceTiers'
 import { calculateSplitBalance } from '@/lib/splitBalanceMatrix'
 import { calculateTargetHeartRateZones } from '@/lib/targetHeartRateZones'
+import { calculateHydrationTarget, type HydrationClimateContext } from '@/lib/hydrationTarget'
 import { calculateTrainingDensityProgression } from '@/lib/trainingDensityProgression'
 import { calculateMuscleRecoveryTimeline } from '@/lib/muscleRecoveryTimeline'
 import { calculateSessionCaloricExpenditure } from '@/lib/sessionCaloricExpenditure'
@@ -135,6 +137,9 @@ const DashboardPage: React.FC = () => {
   const [analyticsTimeWindow, setAnalyticsTimeWindow] = useState<AnalyticsTimeWindow>('all')
   const [selectedPrExercise, setSelectedPrExercise] = useState<string>('')
   const [restingHeartRateInput, setRestingHeartRateInput] = useState<number | string>(60)
+  const [hydrationWeightInput, setHydrationWeightInput] = useState<string>(() => formData.weight || '70')
+  const [hydrationExerciseMinutes, setHydrationExerciseMinutes] = useState<number>(45)
+  const [hydrationClimate, setHydrationClimate] = useState<HydrationClimateContext>('temperate')
   const prefersReducedMotion = usePrefersReducedMotion()
 
   const filteredHistoryResult = useMemo(() => {
@@ -159,6 +164,12 @@ const DashboardPage: React.FC = () => {
   useEffect(() => {
     refreshData()
   }, [refreshData])
+
+  useEffect(() => {
+    if (formData.weight) {
+      setHydrationWeightInput(formData.weight)
+    }
+  }, [formData.weight])
 
   const initialWeightNum = Number(formData.weight) || 72
   const targetWeightNum = formData.mainGoal === 'slim'
@@ -255,6 +266,12 @@ const DashboardPage: React.FC = () => {
   const heartRateZones = useMemo(() => {
     return calculateTargetHeartRateZones(formData.age || 30, restingHeartRateInput)
   }, [formData.age, restingHeartRateInput])
+  const hydrationGuideline = useMemo(() => {
+    return calculateHydrationTarget(hydrationWeightInput || formData.weight || '70', {
+      activityMinutes: hydrationExerciseMinutes,
+      climate: hydrationClimate
+    })
+  }, [hydrationWeightInput, formData.weight, hydrationExerciseMinutes, hydrationClimate])
   const densityProgression = useMemo(() => {
     return calculateTrainingDensityProgression(workoutHistory)
   }, [workoutHistory])
@@ -1444,6 +1461,236 @@ const DashboardPage: React.FC = () => {
 
           <p className="text-[10px] text-gray-500 italic mt-3 text-center sm:text-left">
             * {heartRateZones.disclaimer}
+          </p>
+        </div>
+
+        {/* Hydration Target Calculator Section (Enhancement E24) */}
+        <div className="card-dark" aria-labelledby="hydration-target-heading">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center shrink-0">
+                <Droplets className="w-5 h-5 text-blue-400" aria-hidden="true" />
+              </div>
+              <div>
+                <h2 id="hydration-target-heading" className="text-base sm:text-lg font-poppins font-semibold text-primary-text">
+                  Hydration Target Calculator
+                </h2>
+                <p className="text-xs text-secondary-text">
+                  Biometric fluid guideline based on body mass, exercise, and climate
+                </p>
+              </div>
+            </div>
+
+            {/* Interactive Controls Strip */}
+            <div className="flex flex-wrap items-center gap-2 bg-gray-900/90 border border-gray-800 p-2 rounded-xl">
+              {/* Weight Adjustment */}
+              <div className="flex items-center gap-1.5">
+                <label htmlFor="hydration-weight-input" className="text-xs font-semibold text-gray-300 whitespace-nowrap">
+                  Weight:
+                </label>
+                <input
+                  id="hydration-weight-input"
+                  type="number"
+                  min={30}
+                  max={300}
+                  step={0.5}
+                  value={hydrationWeightInput}
+                  onChange={(e) => setHydrationWeightInput(e.target.value)}
+                  className="w-16 px-2 py-1 text-xs text-center font-mono rounded bg-gray-950 border border-gray-700 text-primary-text focus:outline-none focus:border-blue-400"
+                  aria-label="Target Weight Kg"
+                />
+                <span className="text-xs font-mono text-gray-400">kg</span>
+              </div>
+
+              {/* Workout Duration Controls */}
+              <div className="flex items-center gap-1 pl-2 border-l border-gray-800">
+                <span className="text-xs font-semibold text-gray-300 whitespace-nowrap">
+                  Exercise:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setHydrationExerciseMinutes((prev) => Math.max(0, prev - 15))}
+                  className="px-2 py-1 text-xs rounded bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 font-mono transition-colors"
+                  aria-label="Step down 15 duration"
+                >
+                  -15
+                </button>
+                <span className="w-10 text-center text-xs font-mono text-primary-text">
+                  {hydrationExerciseMinutes}m
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setHydrationExerciseMinutes((prev) => Math.min(300, prev + 15))}
+                  className="px-2 py-1 text-xs rounded bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 font-mono transition-colors"
+                  aria-label="Step up 15 duration"
+                >
+                  +15
+                </button>
+              </div>
+
+              {/* Climate Context Selector */}
+              <div className="flex items-center gap-1 pl-2 border-l border-gray-800">
+                {(['temperate', 'warm', 'hot'] as const).map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setHydrationClimate(c)}
+                    className={`px-2 py-1 text-[11px] rounded font-mono capitalize transition-colors ${
+                      hydrationClimate === c
+                        ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40 font-bold'
+                        : 'bg-gray-800 text-gray-400 hover:text-gray-200 border border-transparent'
+                    }`}
+                    aria-label={`${c} climate`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Details & Invariants Strip */}
+          <div className="bg-gray-900/60 border border-gray-800/80 rounded-xl p-3 mb-4 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex flex-wrap items-center gap-3 text-secondary-text font-mono text-[11px]">
+              <span>Body Mass: <strong className="text-gray-200">{hydrationGuideline.weightKg ?? '—'} kg</strong></span>
+              <span>•</span>
+              <span>Baseline (30–35 mL/kg): <strong className="text-blue-400">{hydrationGuideline.baselineRangeMl.min.toLocaleString()}–{hydrationGuideline.baselineRangeMl.max.toLocaleString()} mL</strong></span>
+              {hydrationGuideline.activityAdjustmentMl.midpoint > 0 && (
+                <>
+                  <span>•</span>
+                  <span>Exercise ({hydrationGuideline.activityMinutes}m): <strong className="text-neon-green">+{hydrationGuideline.activityAdjustmentMl.min}–{hydrationGuideline.activityAdjustmentMl.max} mL</strong></span>
+                </>
+              )}
+              {hydrationGuideline.climateAdjustmentMl > 0 && (
+                <>
+                  <span>•</span>
+                  <span>Climate ({hydrationGuideline.climate}): <strong className="text-amber-400">+{hydrationGuideline.climateAdjustmentMl} mL</strong></span>
+                </>
+              )}
+            </div>
+            <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-gray-800 border border-gray-700 text-gray-300 font-semibold">
+              EFSA &amp; ACSM Reference
+            </span>
+          </div>
+
+          {/* Validation Error Alert if invalid */}
+          {!hydrationGuideline.isValid && hydrationGuideline.validationErrors && hydrationGuideline.validationErrors.length > 0 && (
+            <div className="p-3 mb-4 rounded-xl bg-bright-coral/15 border border-bright-coral/30 flex items-start gap-2.5 text-xs text-bright-coral">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+              <div>
+                <p className="font-semibold">Calculation Input Alert</p>
+                <p className="text-gray-300 text-[11px] mt-0.5">
+                  {hydrationGuideline.validationErrors.join('. ')}. Please enter a valid body weight between 30 and 300 kg.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Fluid Continuum & Output Cards when valid */}
+          {hydrationGuideline.isValid && (
+            <div className="space-y-4">
+              {/* Proportional Contribution Bar */}
+              <div className="space-y-1.5" role="region" aria-label="Hydration intake guideline component distribution">
+                <div className="flex justify-between items-center text-[10px] font-mono text-gray-400">
+                  <span>Fluid Component Breakdown</span>
+                  <span>Recommended: ~{hydrationGuideline.totalTargetMl.recommended.toLocaleString()} mL ({hydrationGuideline.totalTargetLiters.recommended} L)</span>
+                </div>
+                <div className="w-full bg-gray-900 rounded-full h-3 overflow-hidden flex" role="progressbar" aria-label="Hydration components progress breakdown">
+                  <div
+                    style={{
+                      width: `${Math.round((hydrationGuideline.baselineRangeMl.midpoint / (hydrationGuideline.totalTargetMl.recommended || 1)) * 100)}%`
+                    }}
+                    className="h-full bg-blue-500 flex items-center justify-center text-[9px] font-mono font-bold text-gray-950"
+                    title={`Baseline: ${hydrationGuideline.baselineRangeMl.midpoint} mL`}
+                  >
+                    Base
+                  </div>
+                  {hydrationGuideline.activityAdjustmentMl.midpoint > 0 && (
+                    <div
+                      style={{
+                        width: `${Math.round((hydrationGuideline.activityAdjustmentMl.midpoint / (hydrationGuideline.totalTargetMl.recommended || 1)) * 100)}%`
+                      }}
+                      className="h-full bg-neon-green flex items-center justify-center text-[9px] font-mono font-bold text-gray-950"
+                      title={`Exercise: +${hydrationGuideline.activityAdjustmentMl.midpoint} mL`}
+                    >
+                      Ex
+                    </div>
+                  )}
+                  {hydrationGuideline.climateAdjustmentMl > 0 && (
+                    <div
+                      style={{
+                        width: `${Math.round((hydrationGuideline.climateAdjustmentMl / (hydrationGuideline.totalTargetMl.recommended || 1)) * 100)}%`
+                      }}
+                      className="h-full bg-amber-400 flex items-center justify-center text-[9px] font-mono font-bold text-gray-950"
+                      title={`Climate: +${hydrationGuideline.climateAdjustmentMl} mL`}
+                    >
+                      Heat
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Metric Breakdown Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                {/* Recommended Target */}
+                <div className="p-3.5 rounded-xl border bg-blue-500/10 border-blue-500/30 flex flex-col justify-between">
+                  <div>
+                    <span className="text-[11px] font-poppins font-bold uppercase tracking-wider text-blue-400">
+                      Recommended Baseline Target
+                    </span>
+                    <div className="mt-1 font-mono text-xl font-bold text-primary-text">
+                      ~{hydrationGuideline.totalTargetMl.recommended.toLocaleString()} <span className="text-xs font-normal text-secondary-text">mL/day</span>
+                    </div>
+                    <div className="font-mono text-xs text-blue-300 mt-0.5">
+                      {hydrationGuideline.totalTargetLiters.recommended} Liters
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-2 leading-relaxed">
+                    Midpoint starting target combining resting body mass baseline, planned training, and climate allowance.
+                  </p>
+                </div>
+
+                {/* Estimated Daily Range */}
+                <div className="p-3.5 rounded-xl border bg-gray-900/80 border-gray-800 flex flex-col justify-between">
+                  <div>
+                    <span className="text-[11px] font-poppins font-bold uppercase tracking-wider text-gray-400">
+                      Estimated Daily Range
+                    </span>
+                    <div className="mt-1 font-mono text-xl font-bold text-primary-text">
+                      {hydrationGuideline.totalTargetMl.min.toLocaleString()}–{hydrationGuideline.totalTargetMl.max.toLocaleString()} <span className="text-xs font-normal text-secondary-text">mL</span>
+                    </div>
+                    <div className="font-mono text-xs text-secondary-text mt-0.5">
+                      {hydrationGuideline.totalTargetLiters.min} – {hydrationGuideline.totalTargetLiters.max} Liters
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-2 leading-relaxed">
+                    Accounting for variance in daily metabolic rate and exercise sweat rates (400–800 mL/hr).
+                  </p>
+                </div>
+
+                {/* Serving Breakdown (Glasses) */}
+                <div className="p-3.5 rounded-xl border bg-gray-900/80 border-gray-800 flex flex-col justify-between">
+                  <div>
+                    <span className="text-[11px] font-poppins font-bold uppercase tracking-wider text-gray-400">
+                      Glass Equivalents (~250 mL)
+                    </span>
+                    <div className="mt-1 font-mono text-xl font-bold text-primary-text">
+                      ~{hydrationGuideline.glassesEquivalent.recommended} <span className="text-xs font-normal text-secondary-text">glasses/day</span>
+                    </div>
+                    <div className="font-mono text-xs text-secondary-text mt-0.5">
+                      Range: {hydrationGuideline.glassesEquivalent.min}–{hydrationGuideline.glassesEquivalent.max} standard glasses
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-2 leading-relaxed">
+                    Standard 250 mL glass heuristic to facilitate intuitive pacing across the day.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <p className="text-[10px] text-gray-500 italic mt-3 text-center sm:text-left">
+            * {hydrationGuideline.disclaimer}
           </p>
         </div>
 
