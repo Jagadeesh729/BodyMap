@@ -89,5 +89,6 @@ export interface CompletedWorkoutLog {
     energyRating?: 1 | 2 | 3 | 4 | 5
     perceivedReadiness?: 'high' | 'moderate' | 'low'
     reflectionTags?: string[]
+    notes?: string
   }
 }

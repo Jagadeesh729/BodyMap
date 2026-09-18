@@ -1931,7 +1931,7 @@ const DashboardPage: React.FC = () => {
                 <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <Input
                   type="text"
-                  placeholder="Search exercises, splits, tags..."
+                  placeholder="Search exercises, splits, tags, notes..."
                   value={historySearchQuery}
                   onChange={(e) => setHistorySearchQuery(e.target.value)}
                   className="input-dark pl-9 py-1.5 h-8 text-xs w-full"
@@ -2047,7 +2047,7 @@ const DashboardPage: React.FC = () => {
                         })()}
 
                         {/* Post-Workout Subjective Reflection Display */}
-                        {log.sessionReflection && (log.sessionReflection.energyRating || log.sessionReflection.perceivedReadiness || (log.sessionReflection.reflectionTags && log.sessionReflection.reflectionTags.length > 0)) && (
+                        {log.sessionReflection && (log.sessionReflection.energyRating || log.sessionReflection.perceivedReadiness || (log.sessionReflection.reflectionTags && log.sessionReflection.reflectionTags.length > 0) || log.sessionReflection.notes) && (
                           <div className="mt-2 pt-2 border-t border-gray-850 text-[10px] space-y-1">
                             <div className="flex items-center gap-1.5 text-gray-400">
                               <Smile className="w-3 h-3 text-bright-coral" />
@@ -2071,6 +2071,11 @@ const DashboardPage: React.FC = () => {
                                   </span>
                                 ))}
                               </div>
+                            )}
+                            {log.sessionReflection.notes && (
+                              <p className="text-gray-400 italic text-[10px] pt-0.5 break-words">
+                                &ldquo;{log.sessionReflection.notes}&rdquo;
+                              </p>
                             )}
                           </div>
                         )}
