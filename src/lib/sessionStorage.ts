@@ -210,3 +210,47 @@ export function saveReflectionForSession(
     return false
   }
 }
+
+/**
+ * Deletes a single CompletedWorkoutLog from history by its unique canonical `id`.
+ *
+ * SAFETY & INVARIANTS:
+ * - Precise ID lookup: targets log.id exactly (string comparison).
+ * - Input validation: if logId is null, undefined, empty, or whitespace-only, returns false with zero mutations.
+ * - Non-destructive on missing: if no record matches logId, returns false with zero storage writes.
+ * - Atomicity & Order: removes only matching record(s), preserving the exact relative order of all remaining records.
+ * - Retention integrity: guarantees the resulting collection adheres to MAX_STORED_WORKOUTS.
+ * - Storage Quota & Safe Write: wraps localStorage write in try/catch with quota handling.
+ * - Fail-closed: handles corrupted/tampered localStorage data via loadWorkoutHistory fail-closed recovery.
+ *
+ * @param logId Unique identifier of the CompletedWorkoutLog to delete.
+ * @returns true if an existing record was found and deleted; false otherwise.
+ */
+export function deleteCompletedWorkoutLog(logId: string): boolean {
+  try {
+    if (!logId || typeof logId !== 'string' || logId.trim().length === 0) {
+      return false
+    }
+
+    const trimmedId = logId.trim()
+    const history = loadWorkoutHistory()
+    if (history.length === 0) {
+      return false
+    }
+
+    const targetIndex = history.findIndex(item => item && item.id === trimmedId)
+    if (targetIndex === -1) {
+      return false
+    }
+
+    const updated = history.filter(item => item && item.id !== trimmedId)
+    localStorage.setItem(WORKOUT_HISTORY_STORAGE_KEY, JSON.stringify(updated))
+    return true
+  } catch (err) {
+    if (isStorageQuotaError(err)) {
+      notifyStorageQuotaExceeded('history')
+    }
+    console.warn('[SessionStorage] Failed to delete completed workout log:', err)
+    return false
+  }
+}

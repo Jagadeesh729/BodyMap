@@ -44,9 +44,11 @@ import {
   loadActiveSession,
   loadAndValidateActiveSession,
   clearActiveSession,
+  deleteCompletedWorkoutLog,
   MAX_STORED_WORKOUTS,
   BACKUP_NUDGE_THRESHOLD
 } from '@/lib/sessionStorage'
+import { DeleteWorkoutLogModal } from '@/components/DeleteWorkoutLogModal'
 import type { CompletedWorkoutLog, WorkoutSession } from '@/types/workoutSession'
 import { calculateWorkoutStreak } from '@/lib/streakCalculation'
 import type { SavedPlan } from '@/types/savedPlan'
@@ -140,6 +142,7 @@ const DashboardPage: React.FC = () => {
   const [hydrationWeightInput, setHydrationWeightInput] = useState<string>(() => formData.weight || '70')
   const [hydrationExerciseMinutes, setHydrationExerciseMinutes] = useState<number>(45)
   const [hydrationClimate, setHydrationClimate] = useState<HydrationClimateContext>('temperate')
+  const [workoutToDelete, setWorkoutToDelete] = useState<CompletedWorkoutLog | null>(null)
   const prefersReducedMotion = usePrefersReducedMotion()
 
   const filteredHistoryResult = useMemo(() => {
@@ -393,6 +396,25 @@ const DashboardPage: React.FC = () => {
       setSavedPlans(loadSavedPlans())
       toast({ title: 'Plan Deleted', description: `"${name}" removed from library.` })
     }
+  }
+
+  const handleConfirmDeleteWorkout = (id: string) => {
+    const success = deleteCompletedWorkoutLog(id)
+    if (success) {
+      setWorkoutHistory(prev => prev.filter(item => item.id !== id))
+      toast({
+        title: 'Workout Log Deleted',
+        description: 'The workout record was removed from your history.'
+      })
+    } else {
+      toast({
+        title: 'Deletion Failed',
+        description: 'Could not remove workout log. Please try again.',
+        variant: 'destructive'
+      })
+    }
+    setWorkoutToDelete(null)
+    refreshData()
   }
 
   // --- Body Measurement Handlers ---
@@ -2054,12 +2076,25 @@ const DashboardPage: React.FC = () => {
                         )}
                       </div>
 
-                      <Link
-                        to={`/gym-mode/${log.dayIndex}`}
-                        className="text-[11px] font-semibold text-electric-purple hover:text-neon-green transition-colors inline-flex items-center gap-1 pt-2 border-t border-gray-800"
-                      >
-                        Repeat Session &rarr;
-                      </Link>
+                      <div className="flex items-center justify-between pt-2 border-t border-gray-800">
+                        <Link
+                          to={`/gym-mode/${log.dayIndex}`}
+                          className="text-[11px] font-semibold text-electric-purple hover:text-neon-green transition-colors inline-flex items-center gap-1"
+                        >
+                          Repeat Session &rarr;
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => setWorkoutToDelete(log)}
+                          className="text-[11px] text-gray-400 hover:text-bright-coral transition-colors inline-flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-bright-coral/10 focus:outline-none focus-visible:ring-1 focus-visible:ring-bright-coral"
+                          aria-label={`Delete workout log: ${log.dayTitle}`}
+                          title="Delete this workout log"
+                          data-testid={`delete-workout-btn-${log.id}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Delete</span>
+                        </button>
+                      </div>
                     </div>
                   )
                 })}
@@ -2440,6 +2475,16 @@ const DashboardPage: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Individual Workout Log Deletion Modal */}
+      {workoutToDelete && (
+        <DeleteWorkoutLogModal
+          isOpen={Boolean(workoutToDelete)}
+          log={workoutToDelete}
+          onClose={() => setWorkoutToDelete(null)}
+          onConfirmDelete={handleConfirmDeleteWorkout}
+        />
       )}
 
     </div>
