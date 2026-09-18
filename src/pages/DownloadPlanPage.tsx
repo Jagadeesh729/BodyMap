@@ -16,7 +16,8 @@ import {
   Upload,
   Activity,
   AlertCircle,
-  Calendar
+  Calendar,
+  FileSpreadsheet
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -35,6 +36,8 @@ import { generateVaultManifest } from '@/lib/vaultManifestEngine'
 import { auditVaultIntegrity } from '@/lib/vaultIntegrityEngine'
 import { sanitizeDownloadFilename } from '@/lib/downloadSecurity'
 import { generateICalendarSchedule } from '@/lib/icalendarGenerator'
+import { createWorkoutHistoryCsvBlob, getWorkoutHistoryCsvFilename } from '@/lib/workoutHistoryCsvEngine'
+import { loadWorkoutHistory } from '@/lib/sessionStorage'
 
 const DownloadPlanPage = () => {
   const { state } = usePlan()
@@ -42,6 +45,7 @@ const DownloadPlanPage = () => {
 
   const [emailInput, setEmailInput] = useState('')
   const [copied, setCopied] = useState(false)
+  const [isExportingCsv, setIsExportingCsv] = useState(false)
 
   // Parse structured AI plan or use curated default
   const parsedAiPlan = generatedPlan ? parseAndValidatePlan(generatedPlan, false) : null
@@ -235,6 +239,39 @@ const DownloadPlanPage = () => {
       title: 'Backup Exported! 💾',
       description: 'Your complete plan, workout history, and metrics were saved to JSON.'
     })
+  }
+
+  const handleExportWorkoutHistoryCsv = () => {
+    if (isSafetyViolated || isExportingCsv) return
+    setIsExportingCsv(true)
+    try {
+      const history = loadWorkoutHistory()
+      const blob = createWorkoutHistoryCsvBlob(history)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = getWorkoutHistoryCsvFilename()
+
+      document.body.appendChild(link)
+      link.click()
+      setTimeout(() => {
+        document.body.removeChild(link)
+        URL.revokeObjectURL(url)
+        setIsExportingCsv(false)
+      }, 150)
+
+      toast({
+        title: 'Workout History Exported! 📊',
+        description: `Exported ${history.length} completed session${history.length === 1 ? '' : 's'} as CSV.`
+      })
+    } catch {
+      setIsExportingCsv(false)
+      toast({
+        title: 'Export Failed',
+        description: 'Unable to generate CSV workout history.',
+        variant: 'destructive'
+      })
+    }
   }
 
   const handleImportFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -466,7 +503,17 @@ const DownloadPlanPage = () => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 shrink-0 w-full sm:w-auto">
+              <div className="flex flex-wrap items-center gap-3 shrink-0 w-full sm:w-auto">
+                <Button
+                  onClick={handleExportWorkoutHistoryCsv}
+                  disabled={isExportingCsv || isSafetyViolated}
+                  variant="outline"
+                  className="border-gray-700 bg-bodymap-dark text-secondary-text hover:text-bright-coral hover:border-bright-coral text-xs font-bold py-2.5 px-4 flex-1 sm:flex-initial flex items-center justify-center gap-2"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  Export History (CSV)
+                </Button>
+
                 <Button
                   onClick={handleExportBackup}
                   variant="outline"
