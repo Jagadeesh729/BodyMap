@@ -46,13 +46,15 @@ import { estimateDailyMacros, type DailyMacroEstimate } from '@/lib/macroEstimat
 import {
   getTodayHydration,
   addHydration,
-  resetTodayHydration,
-  calculateHydrationTarget
+  resetTodayHydration
 } from '@/lib/hydrationTracker'
+import {
+  calculateHydrationTarget,
+  type HydrationTargetResult
+} from '@/lib/hydrationTarget'
 import { estimateGroceryPackaging } from '@/lib/groceryCostEstimator'
 import { calculateMicronutrientGuide } from '@/lib/micronutrientGuide'
 import { forecastEnergyBalancePace } from '@/lib/energyBalanceForecaster'
-import { calculateHydrationClimateAdjustment } from '@/lib/hydrationClimateAdjustment'
 import { validateScheduleConsistency } from '@/lib/scheduleConsistencyValidator'
 import { MacroRatioVisualizer } from '@/components/MacroRatioVisualizer'
 
@@ -137,7 +139,10 @@ const WeeklyPlanPage: React.FC = () => {
   }
 
   const [hydrationLogged, setHydrationLogged] = useState<number>(() => getTodayHydration())
-  const hydrationTarget = useMemo(() => calculateHydrationTarget(state.formData.weight), [state.formData.weight])
+  const hydrationGuideline = useMemo<HydrationTargetResult>(() => {
+    return calculateHydrationTarget(state.formData.weight, { climate: 'warm' })
+  }, [state.formData.weight])
+  const hydrationTarget = hydrationGuideline.isValid ? hydrationGuideline.totalTargetMl.recommended : null
 
   const handleAddHydration = (amountMl: number) => {
     const updated = addHydration(amountMl)
@@ -272,8 +277,11 @@ const WeeklyPlanPage: React.FC = () => {
   }, [dailyMacros.totalKcal, state.formData.weight])
 
   const hydrationClimate = useMemo(() => {
-    return calculateHydrationClimateAdjustment(hydrationTarget, 'warm')
-  }, [hydrationTarget])
+    return {
+      climateAdjustmentMl: hydrationGuideline.climateAdjustmentMl,
+      climate: hydrationGuideline.climate
+    }
+  }, [hydrationGuideline.climateAdjustmentMl, hydrationGuideline.climate])
 
   const hasMedicalIssues = useMemo(() => {
     return hasSafetySensitiveMedicalIssues(state.formData.medicalIssues)
@@ -627,11 +635,17 @@ const WeeklyPlanPage: React.FC = () => {
           <div className="mt-3.5 pt-3.5 border-t border-gray-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
             <div className="flex items-center gap-2">
               <span className="text-neon-green font-bold">💧</span>
-              <span className="font-poppins font-semibold text-primary-text">
+              <span
+                className="font-poppins font-semibold text-primary-text"
+                title={hydrationGuideline.isValid ? hydrationGuideline.methodology.summary : hydrationGuideline.disclaimer}
+              >
                 Hydration: {hydrationLogged.toLocaleString()} ml {hydrationTarget ? `/ ~${hydrationTarget.toLocaleString()} ml` : ''}
               </span>
               {hydrationClimate.climateAdjustmentMl > 0 && (
-                <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 text-[10px] font-mono font-semibold hidden md:inline">
+                <span
+                  className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 text-[10px] font-mono font-semibold hidden md:inline"
+                  title={hydrationGuideline.methodology.climateFormula}
+                >
                   +{hydrationClimate.climateAdjustmentMl}ml ({hydrationClimate.climate})
                 </span>
               )}

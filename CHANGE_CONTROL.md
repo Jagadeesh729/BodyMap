@@ -182,3 +182,4 @@ To maintain immutable audit history while strictly enforcing present-day truthfu
 | 2026-09-18 | Senior Release Engineer | Enhancement E22: CSV Workout History Export (RFC 4180 compliant, formula injection sanitized, UTF-8 BOM) & doc sync to 5,305/134 | 1 |
 | 2026-09-18 | Senior Release Engineer | Enhancement E23: Target Heart-Rate Intensity Zone Calculator (Karvonen HRR & Tanaka formulas, strict input validation & fail-closed alerts) & doc sync to 5,334/135 | 1 |
 | 2026-09-18 | Senior Release Engineer | Enhancement E24: Hydration Target Calculator (EFSA & ACSM body mass baseline, exercise & climate allowances, fail-closed validation) & doc sync to 5,366/136 | 1 |
+| 2026-09-18 | Senior Release Engineer | Enhancement E25-B: Weekly Plan Hydration E24 Engine Parity (eliminated legacy 35 mL/kg single-point formula, unified scientific hydrationTarget engine, fail-closed boundaries) & doc sync to 5,383/137 | 1 |
