@@ -159,7 +159,7 @@ To maintain immutable audit history while strictly enforcing present-day truthfu
    - `README.md` (badges, tech stack, project structure, scripts table)
    - `release-contract.json` (authoritative release metadata and test totals)
    - Current release status, artifact chunk hashes, and consumer sink registers
-   - *Governance Rule*: Must match current verified test counts (`5,609` tests across `145` suites) and build outputs. Enforced by `finalProductionQualityOracle.test.ts` (Section G) and `scripts/release_gate.mjs`. Stale counts (`5,571`, `143 suites`, `5,153`, etc.) in current documentation cause CI test failure.
+   - *Governance Rule*: Must match current verified test counts (`5,653` tests across `146` suites) and build outputs. Enforced by `finalProductionQualityOracle.test.ts` (Section G) and `scripts/release_gate.mjs`. Stale counts (`5,609`, `145 suites`, `5,571`, etc.) in current documentation cause CI test failure.
 
 2. **Historical Audit Records (Preserved Forensic Evidence)**:
    - Prior audit walkthrough sections (`walkthrough.md` sections 1–21)
@@ -191,3 +191,4 @@ To maintain immutable audit history while strictly enforcing present-day truthfu
 | 2026-09-19 | Senior Release Engineer | Governance reconciliation: update release-contract.json currentHeadCommit to certified HEAD 3c4b53c and add deterministic currentHeadCommit gate in scripts/release_gate.mjs | 0 |
 | 2026-09-19 | Senior Release Engineer | Enhancement E27-A: Gym Mode Ambient Feedback Preferences Persistence (gymFeedbackStorage engine, lazy state hydration, RestTimerOverlay integration, cross-tab storage sync) & doc sync to 5,609/145 | 1 |
 | 2026-09-19 | Senior Release Engineer | Governance reconciliation: update release-contract.json currentHeadCommit to certified E27-A HEAD 620f7fe & synchronize CHANGE_CONTROL.md documentation rules to 5,609/145 | 0 |
+| 2026-09-19 | Senior Release Engineer | Enhancement E27-B: Dashboard Daily Hydration Intake Logging & Progress Alignment (hydrationTracker hardening, canonical intake state, quick-add & reset, cross-tab sync, progress bar) & doc sync to 5,653/146 | 1 |

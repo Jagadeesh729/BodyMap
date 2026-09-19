@@ -46,7 +46,8 @@ import { estimateDailyMacros, type DailyMacroEstimate } from '@/lib/macroEstimat
 import {
   getTodayHydration,
   addHydration,
-  resetTodayHydration
+  resetTodayHydration,
+  HYDRATION_STORAGE_KEY
 } from '@/lib/hydrationTracker'
 import {
   calculateHydrationTarget,
@@ -153,6 +154,16 @@ const WeeklyPlanPage: React.FC = () => {
     resetTodayHydration()
     setHydrationLogged(0)
   }
+
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (!e.key || e.key === HYDRATION_STORAGE_KEY) {
+        setHydrationLogged(getTodayHydration())
+      }
+    }
+    window.addEventListener('storage', handleStorage)
+    return () => window.removeEventListener('storage', handleStorage)
+  }, [])
 
   const parsedAiPlan = state.generatedPlan ? parseAndValidatePlan(state.generatedPlan, false) : null
   const displayDays: DayPlan[] = (parsedAiPlan?.success && parsedAiPlan.data && parsedAiPlan.data.days.length > 0)

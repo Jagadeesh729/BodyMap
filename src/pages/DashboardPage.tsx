@@ -104,6 +104,12 @@ import { calculateAdherenceTier } from '@/lib/adherenceTiers'
 import { calculateSplitBalance } from '@/lib/splitBalanceMatrix'
 import { calculateTargetHeartRateZones } from '@/lib/targetHeartRateZones'
 import { calculateHydrationTarget, type HydrationClimateContext } from '@/lib/hydrationTarget'
+import {
+  getTodayHydration,
+  addHydration,
+  resetTodayHydration,
+  HYDRATION_STORAGE_KEY
+} from '@/lib/hydrationTracker'
 import { calculateTrainingDensityProgression } from '@/lib/trainingDensityProgression'
 import { calculateMuscleRecoveryTimeline } from '@/lib/muscleRecoveryTimeline'
 import { calculateSessionCaloricExpenditure } from '@/lib/sessionCaloricExpenditure'
@@ -157,6 +163,17 @@ const DashboardPage: React.FC = () => {
   const [hydrationWeightInput, setHydrationWeightInput] = useState<string>(() => formData.weight || '70')
   const [hydrationExerciseMinutes, setHydrationExerciseMinutes] = useState<number>(45)
   const [hydrationClimate, setHydrationClimate] = useState<HydrationClimateContext>('temperate')
+  const [todayHydration, setTodayHydration] = useState<number>(() => getTodayHydration())
+
+  const handleAddHydration = useCallback((amountMl: number) => {
+    const updated = addHydration(amountMl)
+    setTodayHydration(updated)
+  }, [])
+
+  const handleResetHydration = useCallback(() => {
+    resetTodayHydration()
+    setTodayHydration(0)
+  }, [])
   const [workoutToDelete, setWorkoutToDelete] = useState<CompletedWorkoutLog | null>(null)
   const [isExportingCsv, setIsExportingCsv] = useState(false)
   const prefersReducedMotion = usePrefersReducedMotion()
@@ -178,6 +195,7 @@ const DashboardPage: React.FC = () => {
     setActiveSession(loadAndValidateActiveSession(state.planId, state.formData.medicalIssues))
     setSavedPlans(loadSavedPlans())
     setBodyMetrics(loadBodyMetrics())
+    setTodayHydration(getTodayHydration())
   }, [state.planId, state.formData.medicalIssues])
 
   useEffect(() => {
@@ -191,6 +209,9 @@ const DashboardPage: React.FC = () => {
       }
       if (!e.key || e.key === RESTING_HEART_RATE_STORAGE_KEY) {
         setRestingHeartRateInput(loadRestingHeartRate() ?? DEFAULT_RESTING_HEART_RATE_BPM)
+      }
+      if (!e.key || e.key === HYDRATION_STORAGE_KEY) {
+        setTodayHydration(getTodayHydration())
       }
     }
     window.addEventListener('storage', handleStorageSync)
@@ -1871,6 +1892,100 @@ const DashboardPage: React.FC = () => {
                   <p className="text-[10px] text-gray-400 mt-2 leading-relaxed">
                     Standard 250 mL glass heuristic to facilitate intuitive pacing across the day.
                   </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* E27-B — Daily Hydration Intake Logging & Progress Alignment */}
+          {hydrationGuideline.isValid && (
+            <div
+              className="mt-4 pt-4 border-t border-gray-800"
+              aria-labelledby="hydration-intake-heading"
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                {/* Left: progress label block */}
+                <div className="flex-1">
+                  <p
+                    id="hydration-intake-heading"
+                    className="text-[11px] font-poppins font-bold uppercase tracking-wider text-blue-400 mb-1.5"
+                  >
+                    Today&apos;s Intake Progress
+                  </p>
+
+                  {/* Progress bar */}
+                  <div className="relative w-full">
+                    <div
+                      className="w-full bg-gray-900 rounded-full h-3 overflow-hidden"
+                      role="progressbar"
+                      aria-label="Today's hydration intake progress"
+                      aria-valuenow={Math.min(100, Math.round((todayHydration / (hydrationGuideline.totalTargetMl.recommended || 1)) * 100))}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                    >
+                      <div
+                        className="h-full bg-blue-500 rounded-full"
+                        style={{
+                          width: `${Math.min(100, Math.round((todayHydration / (hydrationGuideline.totalTargetMl.recommended || 1)) * 100))}%`,
+                          transition: prefersReducedMotion ? 'none' : 'width 0.25s ease',
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Numeric status — aria-live for dynamic updates */}
+                  <div
+                    className="flex flex-wrap gap-3 mt-1.5 text-xs font-mono"
+                    aria-live="polite"
+                    aria-atomic="true"
+                  >
+                    <span className="text-primary-text">
+                      <strong>{todayHydration.toLocaleString()}</strong>
+                      <span className="text-secondary-text"> / ~{hydrationGuideline.totalTargetMl.recommended.toLocaleString()} mL</span>
+                    </span>
+                    <span className="text-secondary-text">
+                      Remaining:&nbsp;
+                      <strong className="text-blue-300">
+                        {Math.max(0, hydrationGuideline.totalTargetMl.recommended - todayHydration).toLocaleString()} mL
+                      </strong>
+                    </span>
+                    <span className="text-secondary-text">
+                      {Math.min(100, Math.round((todayHydration / (hydrationGuideline.totalTargetMl.recommended || 1)) * 100))}%
+                    </span>
+                  </div>
+                </div>
+
+                {/* Right: quick-add controls */}
+                <div className="flex items-center gap-1.5 font-mono text-[11px] shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleAddHydration(250)}
+                    className="px-2.5 py-1 rounded bg-bodymap-dark hover:bg-gray-800 text-neon-green border border-gray-700 font-semibold transition-colors"
+                    aria-label="Add 250 millilitres of water"
+                    title="Add 250ml water"
+                  >
+                    +250ml
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAddHydration(500)}
+                    className="px-2.5 py-1 rounded bg-bodymap-dark hover:bg-gray-800 text-neon-green border border-gray-700 font-semibold transition-colors"
+                    aria-label="Add 500 millilitres of water"
+                    title="Add 500ml water"
+                  >
+                    +500ml
+                  </button>
+                  {todayHydration > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleResetHydration}
+                      className="px-2 py-1 rounded text-gray-400 hover:text-red-400 text-[10px] font-sans transition-colors"
+                      aria-label="Reset today's hydration intake to zero"
+                      title="Reset today's hydration"
+                    >
+                      Reset
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
