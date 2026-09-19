@@ -754,7 +754,8 @@ describe('Section G: Documentation & Contract Synchronization', () => {
     expect(contract.currentHeadCommit).not.toBe('73abcda646bbce08d907a36cb5aba4546cdb05e1')
     expect(contract.currentHeadCommit).not.toBe('620f7feddce6160d5096b34c21970596b2fad114')
     expect(contract.currentHeadCommit).not.toBe('a3e2f3bd1010eea2b9ba9eac4580482b2632cf67')
-    expect(contract.currentHeadCommit).toBe('d31ee03eefe3dea93815b9f2e8d6de104f60f53e')
+    expect(contract.currentHeadCommit).not.toBe('d31ee03eefe3dea93815b9f2e8d6de104f60f53e')
+    expect(contract.currentHeadCommit).toBe('b244bb559d9e2e47d309fe58cb9f3d7472f1557b')
 
     function validateContractCommits(contractData: { releaseCommit: unknown; currentHeadCommit: unknown }, headSha: string, parentSha?: string) {
       const isAnchor = contractData.releaseCommit === '12076d44528c82fdd10aeaa5db27bf0492a41159'
