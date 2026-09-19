@@ -57,6 +57,7 @@ export function loadBodyMetrics(): BodyMeasurementEntry[] {
         item &&
         typeof item === 'object' &&
         typeof item.id === 'string' &&
+        item.id.trim().length > 0 &&
         typeof item.date === 'string'
       ) {
         const unit: MetricUnit = item.unit === 'in' ? 'in' : 'cm'
@@ -129,6 +130,9 @@ export function saveBodyMeasurement(
  * Deletes a body measurement entry by ID.
  */
 export function deleteBodyMeasurement(id: string): boolean {
+  if (typeof id !== 'string' || !id.trim()) {
+    return false
+  }
   const current = loadBodyMetrics()
   const filtered = current.filter(e => e.id !== id)
   if (filtered.length === current.length) return false

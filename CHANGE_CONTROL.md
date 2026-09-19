@@ -159,7 +159,7 @@ To maintain immutable audit history while strictly enforcing present-day truthfu
    - `README.md` (badges, tech stack, project structure, scripts table)
    - `release-contract.json` (authoritative release metadata and test totals)
    - Current release status, artifact chunk hashes, and consumer sink registers
-   - *Governance Rule*: Must match current verified test counts (`5,661` tests across `146` suites) and build outputs. Enforced by `finalProductionQualityOracle.test.ts` (Section G) and `scripts/release_gate.mjs`. Stale counts (`5,653`, `5,609`, `145 suites`, `5,571`, etc.) in current documentation cause CI test failure.
+   - *Governance Rule*: Must match current verified test counts (`5,694` tests across `147` suites) and build outputs. Enforced by `finalProductionQualityOracle.test.ts` (Section G) and `scripts/release_gate.mjs`. Stale counts (`5,661`, `5,653`, `5,609`, `146 suites`, `145 suites`, `5,571`, etc.) in current documentation cause CI test failure.
 
 2. **Historical Audit Records (Preserved Forensic Evidence)**:
    - Prior audit walkthrough sections (`walkthrough.md` sections 1–21)
@@ -195,3 +195,4 @@ To maintain immutable audit history while strictly enforcing present-day truthfu
 | 2026-09-19 | Senior Release Engineer | Governance reconciliation: update release-contract.json currentHeadCommit to certified E27-B HEAD a3e2f3b & synchronize oracle assertions | 0 |
 | 2026-09-19 | Senior Release Engineer | Post-E27-B Remediation: fix hydration local calendar date semantics in getTodayDateString & add timezone boundary suite (T1-T8) & doc sync to 5,661/146 | 1 |
 | 2026-09-19 | Senior Release Engineer | Governance reconciliation: update release-contract.json currentHeadCommit to certified remediation HEAD b244bb5 & synchronize oracle assertions | 0 |
+| 2026-09-19 | Senior Release Engineer | Enhancement E27-C: Body Measurement Historical Entry Deletion & Pruning UI (deleteBodyMeasurement hardening, DeleteBodyMeasurementModal, list & prune UI, cross-tab sync) & doc sync to 5,694/147 | 1 |

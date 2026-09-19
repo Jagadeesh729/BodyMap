@@ -710,6 +710,10 @@ describe('Section G: Documentation & Contract Synchronization', () => {
     expect(readme).toContain(`Executes ${formattedTestCount} automated Vitest tests across ${expectedFileCount} suites`)
 
     // Stale counts are strictly forbidden in current documentation
+    expect(readme).not.toContain('5,661')
+    expect(readme).not.toContain('5661')
+    expect(readme).not.toContain('146 suites')
+    expect(readme).not.toContain('146 Vitest')
     expect(readme).not.toContain('5,653')
     expect(readme).not.toContain('5653')
     expect(readme).not.toContain('5,609')
@@ -755,7 +759,8 @@ describe('Section G: Documentation & Contract Synchronization', () => {
     expect(contract.currentHeadCommit).not.toBe('620f7feddce6160d5096b34c21970596b2fad114')
     expect(contract.currentHeadCommit).not.toBe('a3e2f3bd1010eea2b9ba9eac4580482b2632cf67')
     expect(contract.currentHeadCommit).not.toBe('d31ee03eefe3dea93815b9f2e8d6de104f60f53e')
-    expect(contract.currentHeadCommit).toBe('b244bb559d9e2e47d309fe58cb9f3d7472f1557b')
+    expect(contract.currentHeadCommit).not.toBe('b244bb559d9e2e47d309fe58cb9f3d7472f1557b')
+    expect(contract.currentHeadCommit).toBe('48a07cb993e408d6d8773fb5cf0444e8ed02fc93')
 
     function validateContractCommits(contractData: { releaseCommit: unknown; currentHeadCommit: unknown }, headSha: string, parentSha?: string) {
       const isAnchor = contractData.releaseCommit === '12076d44528c82fdd10aeaa5db27bf0492a41159'

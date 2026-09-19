@@ -55,6 +55,7 @@ import {
   BACKUP_NUDGE_THRESHOLD
 } from '@/lib/sessionStorage'
 import { DeleteWorkoutLogModal } from '@/components/DeleteWorkoutLogModal'
+import { DeleteBodyMeasurementModal } from '@/components/DeleteBodyMeasurementModal'
 import type { CompletedWorkoutLog, WorkoutSession } from '@/types/workoutSession'
 import { calculateWorkoutStreak } from '@/lib/streakCalculation'
 import type { SavedPlan } from '@/types/savedPlan'
@@ -71,7 +72,9 @@ import type { BodyMeasurementEntry, MetricUnit } from '@/types/bodyMetrics'
 import {
   loadBodyMetrics,
   saveBodyMeasurement,
+  deleteBodyMeasurement,
   calculateBodyMetricDeltas,
+  convertLength,
   BODY_METRICS_STORAGE_KEY
 } from '@/lib/bodyMetricsStorage'
 import { BodyMeasurementVisualizer } from '@/components/BodyMeasurementVisualizer'
@@ -152,6 +155,7 @@ const DashboardPage: React.FC = () => {
     hips: '',
     notes: ''
   })
+  const [measurementToDelete, setMeasurementToDelete] = useState<BodyMeasurementEntry | null>(null)
 
   // Workout History Filter & Search State
   const [historySearchQuery, setHistorySearchQuery] = useState('')
@@ -465,6 +469,24 @@ const DashboardPage: React.FC = () => {
     }
     setWorkoutToDelete(null)
     refreshData()
+  }
+
+  const handleConfirmDeleteMeasurement = (id: string) => {
+    const success = deleteBodyMeasurement(id)
+    if (success) {
+      setBodyMetrics(loadBodyMetrics())
+      toast({
+        title: 'Measurement Entry Deleted',
+        description: 'The measurement record was removed from your history.'
+      })
+    } else {
+      toast({
+        title: 'Deletion Failed',
+        description: 'Could not remove measurement record. Please try again.',
+        variant: 'destructive'
+      })
+    }
+    setMeasurementToDelete(null)
   }
 
   // --- Scoped CSV Export Handlers (E26-A) ---
@@ -1444,6 +1466,64 @@ const DashboardPage: React.FC = () => {
                     entries={bodyMetrics}
                     unit={metricUnit}
                   />
+                </div>
+              )}
+
+              {/* E27-C Historical Body Measurement Entries & Pruning */}
+              {bodyMetrics.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-gray-800">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-secondary-text">
+                      Measurement History ({bodyMetrics.length})
+                    </h3>
+                  </div>
+                  <div className="max-h-56 overflow-y-auto space-y-2 pr-1" data-testid="body-measurement-history-list">
+                    {bodyMetrics.map((entry) => (
+                      <div
+                        key={entry.id}
+                        className="p-2.5 bg-bodymap-dark/80 rounded-lg border border-gray-800 flex items-center justify-between gap-3 text-xs"
+                        data-testid={`measurement-entry-${entry.id}`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-primary-text font-mono">{entry.date}</span>
+                            <span className="text-[10px] text-gray-500 uppercase font-mono">({entry.unit})</span>
+                          </div>
+                          <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-secondary-text mt-1">
+                            {entry.waist !== undefined && (
+                              <span>Waist: <strong className="text-gray-300">{convertLength(entry.waist, entry.unit, metricUnit)} {metricUnit}</strong></span>
+                            )}
+                            {entry.chest !== undefined && (
+                              <span>Chest: <strong className="text-gray-300">{convertLength(entry.chest, entry.unit, metricUnit)} {metricUnit}</strong></span>
+                            )}
+                            {entry.arms !== undefined && (
+                              <span>Arms: <strong className="text-gray-300">{convertLength(entry.arms, entry.unit, metricUnit)} {metricUnit}</strong></span>
+                            )}
+                            {entry.thighs !== undefined && (
+                              <span>Thighs: <strong className="text-gray-300">{convertLength(entry.thighs, entry.unit, metricUnit)} {metricUnit}</strong></span>
+                            )}
+                            {entry.hips !== undefined && (
+                              <span>Hips: <strong className="text-gray-300">{convertLength(entry.hips, entry.unit, metricUnit)} {metricUnit}</strong></span>
+                            )}
+                            {entry.notes && (
+                              <span className="text-gray-400 italic block w-full truncate mt-0.5">&ldquo;{entry.notes}&rdquo;</span>
+                            )}
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setMeasurementToDelete(entry)}
+                          className="text-gray-400 hover:text-bright-coral p-1.5 rounded-lg hover:bg-bright-coral/10 transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-bright-coral shrink-0"
+                          aria-label={`Delete measurement entry for ${entry.date}`}
+                          title={`Delete measurement entry for ${entry.date}`}
+                          data-testid={`delete-measurement-btn-${entry.id}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -2811,6 +2891,17 @@ const DashboardPage: React.FC = () => {
           log={workoutToDelete}
           onClose={() => setWorkoutToDelete(null)}
           onConfirmDelete={handleConfirmDeleteWorkout}
+        />
+      )}
+
+      {/* Individual Body Measurement Entry Deletion Modal (E27-C) */}
+      {measurementToDelete && (
+        <DeleteBodyMeasurementModal
+          isOpen={Boolean(measurementToDelete)}
+          entry={measurementToDelete}
+          unit={metricUnit}
+          onClose={() => setMeasurementToDelete(null)}
+          onConfirmDelete={handleConfirmDeleteMeasurement}
         />
       )}
 
