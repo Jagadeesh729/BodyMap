@@ -26,8 +26,14 @@ import {
   Smile,
   Search,
   Heart,
-  Droplets
+  Droplets,
+  FileSpreadsheet
 } from 'lucide-react'
+import {
+  createWorkoutHistoryCsvBlob,
+  getWorkoutHistoryCsvFilename,
+  type WorkoutHistoryCsvScope
+} from '@/lib/workoutHistoryCsvEngine'
 import { filterWorkoutHistory } from '@/lib/workoutHistoryFilter'
 import { filterLogsByTimeWindow, type AnalyticsTimeWindow } from '@/lib/analyticsTimeWindow'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
@@ -145,6 +151,7 @@ const DashboardPage: React.FC = () => {
   const [hydrationExerciseMinutes, setHydrationExerciseMinutes] = useState<number>(45)
   const [hydrationClimate, setHydrationClimate] = useState<HydrationClimateContext>('temperate')
   const [workoutToDelete, setWorkoutToDelete] = useState<CompletedWorkoutLog | null>(null)
+  const [isExportingCsv, setIsExportingCsv] = useState(false)
   const prefersReducedMotion = usePrefersReducedMotion()
 
   const filteredHistoryResult = useMemo(() => {
@@ -428,6 +435,101 @@ const DashboardPage: React.FC = () => {
     setWorkoutToDelete(null)
     refreshData()
   }
+
+  // --- Scoped CSV Export Handlers (E26-A) ---
+  const triggerCsvDownload = useCallback((blob: Blob, filename: string) => {
+    try {
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+
+      document.body.appendChild(link)
+      link.click()
+      setTimeout(() => {
+        if (link.parentNode) {
+          link.parentNode.removeChild(link)
+        }
+        URL.revokeObjectURL(url)
+        setIsExportingCsv(false)
+      }, 150)
+    } catch {
+      setIsExportingCsv(false)
+      toast({
+        title: 'Export Failed',
+        description: 'Unable to trigger CSV download.',
+        variant: 'destructive'
+      })
+    }
+  }, [])
+
+  const handleExportFilteredCsv = useCallback(() => {
+    if (isExportingCsv) return
+    const logsToExport = filteredHistoryResult.logs
+    if (logsToExport.length === 0) {
+      toast({
+        title: 'No Workouts to Export',
+        description: 'Current filter produced zero matching workout sessions.',
+        variant: 'destructive'
+      })
+      return
+    }
+
+    setIsExportingCsv(true)
+    try {
+      let scope: WorkoutHistoryCsvScope = 'all'
+      if (selectedDayFilter !== 'all' && !historySearchQuery.trim()) {
+        scope = { type: 'day', dayIndex: selectedDayFilter }
+      } else if (selectedDayFilter !== 'all' || historySearchQuery.trim()) {
+        scope = 'filtered'
+      }
+
+      const filename = getWorkoutHistoryCsvFilename(new Date(), scope)
+      const blob = createWorkoutHistoryCsvBlob(logsToExport)
+      triggerCsvDownload(blob, filename)
+
+      toast({
+        title: 'Workout History Exported! 📊',
+        description: `Exported ${logsToExport.length} completed session${logsToExport.length === 1 ? '' : 's'} as CSV.`
+      })
+    } catch {
+      setIsExportingCsv(false)
+      toast({
+        title: 'Export Failed',
+        description: 'Unable to generate CSV workout history.',
+        variant: 'destructive'
+      })
+    }
+  }, [isExportingCsv, filteredHistoryResult.logs, selectedDayFilter, historySearchQuery, triggerCsvDownload])
+
+  const handleExportSingleWorkoutCsv = useCallback((log: CompletedWorkoutLog) => {
+    if (!log || isExportingCsv) return
+
+    setIsExportingCsv(true)
+    try {
+      const logDate = log.completedAt ? new Date(log.completedAt) : new Date()
+      const scope: WorkoutHistoryCsvScope = {
+        type: 'single',
+        title: log.dayTitle,
+        dayIndex: log.dayIndex
+      }
+      const filename = getWorkoutHistoryCsvFilename(logDate, scope)
+      const blob = createWorkoutHistoryCsvBlob([log])
+      triggerCsvDownload(blob, filename)
+
+      toast({
+        title: 'Workout Session Exported! 📊',
+        description: `Exported "${log.dayTitle || `Day ${(log.dayIndex ?? 0) + 1}`}" as CSV.`
+      })
+    } catch {
+      setIsExportingCsv(false)
+      toast({
+        title: 'Export Failed',
+        description: 'Unable to generate CSV for this workout session.',
+        variant: 'destructive'
+      })
+    }
+  }, [isExportingCsv, triggerCsvDownload])
 
   // --- Body Measurement Handlers ---
   const handleLogMeasurementSubmit = (e: React.FormEvent) => {
@@ -2010,6 +2112,34 @@ const DashboardPage: React.FC = () => {
                   <option value="duration">Longest Duration</option>
                   <option value="sets">Most Sets</option>
                 </select>
+
+                {/* Toolbar Export CSV Button (E26-A) */}
+                <Button
+                  onClick={handleExportFilteredCsv}
+                  disabled={filteredHistoryResult.logs.length === 0 || isExportingCsv}
+                  variant="outline"
+                  size="sm"
+                  className="border-gray-700 bg-bodymap-dark text-secondary-text hover:text-neon-green hover:border-neon-green text-xs font-semibold px-2.5 py-1 h-7 flex items-center gap-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  aria-label={
+                    filteredHistoryResult.logs.length === 0
+                      ? 'Export to CSV disabled (0 matching workouts)'
+                      : selectedDayFilter !== 'all' || historySearchQuery.trim()
+                      ? `Export ${filteredHistoryResult.logs.length} filtered workout${filteredHistoryResult.logs.length === 1 ? '' : 's'} to CSV`
+                      : `Export ${filteredHistoryResult.logs.length} workout${filteredHistoryResult.logs.length === 1 ? '' : 's'} to CSV`
+                  }
+                  title={
+                    filteredHistoryResult.logs.length === 0
+                      ? 'No matching workouts to export'
+                      : selectedDayFilter !== 'all' || historySearchQuery.trim()
+                      ? `Export ${filteredHistoryResult.logs.length} filtered session(s) as CSV`
+                      : `Export ${filteredHistoryResult.logs.length} session(s) as CSV`
+                  }
+                  data-testid="toolbar-export-csv-btn"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Export CSV</span>
+                  <span className="sm:hidden">CSV</span>
+                </Button>
               </div>
             </div>
           )}
@@ -2110,17 +2240,31 @@ const DashboardPage: React.FC = () => {
                         >
                           Repeat Session &rarr;
                         </Link>
-                        <button
-                          type="button"
-                          onClick={() => setWorkoutToDelete(log)}
-                          className="text-[11px] text-gray-400 hover:text-bright-coral transition-colors inline-flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-bright-coral/10 focus:outline-none focus-visible:ring-1 focus-visible:ring-bright-coral"
-                          aria-label={`Delete workout log: ${log.dayTitle}`}
-                          title="Delete this workout log"
-                          data-testid={`delete-workout-btn-${log.id}`}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          <span>Delete</span>
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleExportSingleWorkoutCsv(log)}
+                            disabled={isExportingCsv}
+                            className="text-[11px] text-gray-400 hover:text-neon-green transition-colors inline-flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-neon-green/10 focus:outline-none focus-visible:ring-1 focus-visible:ring-neon-green disabled:opacity-40 disabled:cursor-not-allowed"
+                            aria-label={`Export CSV for ${log.dayTitle} completed on ${dateFormatted}`}
+                            title={`Export ${log.dayTitle} to CSV`}
+                            data-testid={`export-csv-btn-${log.id}`}
+                          >
+                            <FileSpreadsheet className="w-3.5 h-3.5" />
+                            <span>Export CSV</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setWorkoutToDelete(log)}
+                            className="text-[11px] text-gray-400 hover:text-bright-coral transition-colors inline-flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-bright-coral/10 focus:outline-none focus-visible:ring-1 focus-visible:ring-bright-coral"
+                            aria-label={`Delete workout log: ${log.dayTitle}`}
+                            title="Delete this workout log"
+                            data-testid={`delete-workout-btn-${log.id}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Delete</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )

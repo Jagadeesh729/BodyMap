@@ -182,15 +182,70 @@ export function createWorkoutHistoryCsvBlob(history: CompletedWorkoutLog[]): Blo
   return new Blob([csvContent], { type: 'text/csv;charset=utf-8' })
 }
 
+export type WorkoutHistoryCsvScope =
+  | 'all'
+  | 'filtered'
+  | { type: 'day'; dayIndex: number }
+  | { type: 'single'; title?: string; dayIndex?: number; id?: string; date?: string }
+  | string
+
 /**
  * Generates a sanitized, predictable filename for workout history export.
- * e.g. bodymap-workout-history-2026-09-18.csv
+ * Supports unfiltered, filtered, day-filtered, and individual session scopes.
+ *
+ * Deterministic forms:
+ * - Unfiltered: bodymap-workout-history-YYYY-MM-DD.csv
+ * - Filtered: bodymap-workout-history-filtered-YYYY-MM-DD.csv
+ * - Day-filtered: bodymap-workout-history-dayN-YYYY-MM-DD.csv
+ * - Individual workout: bodymap-workout-history-dayN-title-YYYY-MM-DD.csv
  */
-export function getWorkoutHistoryCsvFilename(date: Date = new Date()): string {
+export function getWorkoutHistoryCsvFilename(
+  date: Date = new Date(),
+  scope?: WorkoutHistoryCsvScope
+): string {
   const yyyy = date.getFullYear()
   const mm = String(date.getMonth() + 1).padStart(2, '0')
   const dd = String(date.getDate()).padStart(2, '0')
   const dateStamp = `${yyyy}-${mm}-${dd}`
+
+  if (!scope || scope === 'all') {
+    return sanitizeDownloadFilename(`bodymap-workout-history-${dateStamp}`, 'bodymap-workout-history', 'csv')
+  }
+
+  if (scope === 'filtered') {
+    return sanitizeDownloadFilename(`bodymap-workout-history-filtered-${dateStamp}`, 'bodymap-workout-history-filtered', 'csv')
+  }
+
+  if (typeof scope === 'object' && scope !== null) {
+    if (scope.type === 'day') {
+      const dayNum = (typeof scope.dayIndex === 'number' && Number.isFinite(scope.dayIndex) && scope.dayIndex >= 0)
+        ? scope.dayIndex + 1
+        : 1
+      return sanitizeDownloadFilename(`bodymap-workout-history-day${dayNum}-${dateStamp}`, `bodymap-workout-history-day${dayNum}`, 'csv')
+    }
+
+    if (scope.type === 'single') {
+      const dayPart = (typeof scope.dayIndex === 'number' && Number.isFinite(scope.dayIndex) && scope.dayIndex >= 0)
+        ? `day${scope.dayIndex + 1}-`
+        : ''
+      const titlePart = scope.title ? `${scope.title.toLowerCase()}-` : ''
+      return sanitizeDownloadFilename(`bodymap-workout-history-${dayPart}${titlePart}${dateStamp}`, 'bodymap-workout-history-single', 'csv')
+    }
+  }
+
+  if (typeof scope === 'string') {
+    const normalized = scope.trim().toLowerCase()
+    if (normalized === 'filtered') {
+      return sanitizeDownloadFilename(`bodymap-workout-history-filtered-${dateStamp}`, 'bodymap-workout-history-filtered', 'csv')
+    }
+    const dayMatch = normalized.match(/^day-?(\d+)$/)
+    if (dayMatch) {
+      const dayNum = parseInt(dayMatch[1], 10)
+      return sanitizeDownloadFilename(`bodymap-workout-history-day${dayNum}-${dateStamp}`, `bodymap-workout-history-day${dayNum}`, 'csv')
+    }
+    return sanitizeDownloadFilename(`bodymap-workout-history-${normalized}-${dateStamp}`, 'bodymap-workout-history', 'csv')
+  }
+
   return sanitizeDownloadFilename(`bodymap-workout-history-${dateStamp}`, 'bodymap-workout-history', 'csv')
 }
 

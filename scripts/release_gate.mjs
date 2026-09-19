@@ -112,6 +112,7 @@ const KNOWN_SINK_PATTERNS = [
   { pattern: /URL\.createObjectURL/, locations: [
     'src/pages/DownloadPlanPage.tsx',
     'src/lib/backupStorage.ts',
+    'src/pages/DashboardPage.tsx',
   ]},
   // fetch (POST proxy client)
   { pattern: /fetch\s*\(/, locations: [

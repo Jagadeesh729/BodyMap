@@ -85,6 +85,12 @@ const KNOWN_SINKS: Array<{
     classification: 'SECURED',
     description: 'S11 — Gemini API proxy client fetch (server-side proxied, API key server-only)',
   },
+  {
+    file: 'src/pages/DashboardPage.tsx',
+    pattern: /URL\.createObjectURL/,
+    classification: 'SECURED',
+    description: 'S13 — Scoped/filtered workout history CSV download',
+  },
 ];
 
 // Sink API patterns we scan for across the entire src/ tree
