@@ -26,10 +26,14 @@ export function isValidDateStr(dateStr: string): boolean {
 }
 
 /**
- * Returns today's canonical calendar date string in YYYY-MM-DD format.
+ * Returns today's canonical calendar date string in YYYY-MM-DD format using the user's local timezone.
+ * Accepts an optional Date instance (defaults to current time) for deterministic testing.
  */
-export function getTodayDateString(): string {
-  return new Date().toISOString().split('T')[0]
+export function getTodayDateString(d: Date = new Date()): string {
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 /**

@@ -22,6 +22,7 @@ import {
   calculateHydrationTarget,
   roundToNearest50
 } from '@/lib/hydrationTarget'
+import { getTodayDateString } from '@/lib/hydrationTracker'
 import type { FormData } from '@/types/formData'
 
 const BASE_TEST_FORM_DATA: FormData = {
@@ -243,7 +244,7 @@ describe('Enhancement E25-B: Weekly Plan Hydration E24 Engine Parity', () => {
       const rawLog = localStorage.getItem('bodymap_hydration_log')
       expect(rawLog).not.toBeNull()
       const parsed = JSON.parse(rawLog!)
-      const today = new Date().toISOString().split('T')[0]
+      const today = getTodayDateString()
       expect(parsed[today]).toBe(750)
     })
 

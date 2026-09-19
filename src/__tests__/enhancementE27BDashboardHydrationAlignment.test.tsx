@@ -278,7 +278,7 @@ describe('Enhancement E27-B: Dashboard Daily Hydration Intake Alignment', () => 
   describe('F12: Date Isolation', () => {
     it("F12: Yesterday's intake does not appear as today's intake", () => {
       const today = getTodayDateString()
-      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
+      const yesterday = getTodayDateString(new Date(Date.now() - 86400000))
       expect(yesterday).not.toBe(today)
 
       addHydration(2000, yesterday)
@@ -492,7 +492,7 @@ describe('Enhancement E27-B: Dashboard Daily Hydration Intake Alignment', () => 
     })
 
     it("M7: Yesterday's large intake is isolated from today's display", () => {
-      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
+      const yesterday = getTodayDateString(new Date(Date.now() - 86400000))
       addHydration(9999, yesterday)
 
       renderDashboard()
