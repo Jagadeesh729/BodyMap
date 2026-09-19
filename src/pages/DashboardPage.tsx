@@ -75,6 +75,13 @@ import {
   BODY_METRICS_STORAGE_KEY
 } from '@/lib/bodyMetricsStorage'
 import { BodyMeasurementVisualizer } from '@/components/BodyMeasurementVisualizer'
+import {
+  loadRestingHeartRate,
+  saveRestingHeartRate,
+  clearRestingHeartRate,
+  DEFAULT_RESTING_HEART_RATE_BPM,
+  RESTING_HEART_RATE_STORAGE_KEY
+} from '@/lib/restingHeartRateStorage'
 import { calculateMilestones, type Milestone } from '@/lib/milestoneTracker'
 import { extractPersonalRecords, type PersonalRecord } from '@/lib/personalRecords'
 import {
@@ -146,7 +153,7 @@ const DashboardPage: React.FC = () => {
   const [historySortBy, setHistorySortBy] = useState<'newest' | 'oldest' | 'duration' | 'sets'>('newest')
   const [analyticsTimeWindow, setAnalyticsTimeWindow] = useState<AnalyticsTimeWindow>('all')
   const [selectedPrExercise, setSelectedPrExercise] = useState<string>('')
-  const [restingHeartRateInput, setRestingHeartRateInput] = useState<number | string>(60)
+  const [restingHeartRateInput, setRestingHeartRateInput] = useState<number | string>(() => loadRestingHeartRate() ?? DEFAULT_RESTING_HEART_RATE_BPM)
   const [hydrationWeightInput, setHydrationWeightInput] = useState<string>(() => formData.weight || '70')
   const [hydrationExerciseMinutes, setHydrationExerciseMinutes] = useState<number>(45)
   const [hydrationClimate, setHydrationClimate] = useState<HydrationClimateContext>('temperate')
@@ -181,6 +188,9 @@ const DashboardPage: React.FC = () => {
     const handleStorageSync = (e: StorageEvent) => {
       if (!e.key || e.key === BODY_METRICS_STORAGE_KEY) {
         setBodyMetrics(loadBodyMetrics())
+      }
+      if (!e.key || e.key === RESTING_HEART_RATE_STORAGE_KEY) {
+        setRestingHeartRateInput(loadRestingHeartRate() ?? DEFAULT_RESTING_HEART_RATE_BPM)
       }
     }
     window.addEventListener('storage', handleStorageSync)
@@ -1460,8 +1470,10 @@ const DashboardPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    const current = typeof restingHeartRateInput === 'number' ? restingHeartRateInput : parseInt(String(restingHeartRateInput), 10) || 60
-                    setRestingHeartRateInput(Math.max(30, current - 5))
+                    const current = typeof restingHeartRateInput === 'number' ? restingHeartRateInput : parseInt(String(restingHeartRateInput), 10) || DEFAULT_RESTING_HEART_RATE_BPM
+                    const nextVal = Math.max(30, current - 5)
+                    setRestingHeartRateInput(nextVal)
+                    saveRestingHeartRate(nextVal)
                   }}
                   className="px-2 py-1 text-xs rounded bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 font-mono transition-colors"
                   aria-label="Subtract 5 BPM from rest rate"
@@ -1475,15 +1487,21 @@ const DashboardPage: React.FC = () => {
                   max={120}
                   step={1}
                   value={restingHeartRateInput}
-                  onChange={(e) => setRestingHeartRateInput(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    setRestingHeartRateInput(val)
+                    saveRestingHeartRate(val)
+                  }}
                   className="w-16 px-2 py-1 text-xs text-center font-mono rounded bg-gray-950 border border-gray-700 text-primary-text focus:outline-none focus:border-neon-green"
                   aria-label="Rest Heart Rate BPM"
                 />
                 <button
                   type="button"
                   onClick={() => {
-                    const current = typeof restingHeartRateInput === 'number' ? restingHeartRateInput : parseInt(String(restingHeartRateInput), 10) || 60
-                    setRestingHeartRateInput(Math.min(120, current + 5))
+                    const current = typeof restingHeartRateInput === 'number' ? restingHeartRateInput : parseInt(String(restingHeartRateInput), 10) || DEFAULT_RESTING_HEART_RATE_BPM
+                    const nextVal = Math.min(120, current + 5)
+                    setRestingHeartRateInput(nextVal)
+                    saveRestingHeartRate(nextVal)
                   }}
                   className="px-2 py-1 text-xs rounded bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 font-mono transition-colors"
                   aria-label="Add 5 BPM to rest rate"
@@ -1500,7 +1518,10 @@ const DashboardPage: React.FC = () => {
                   <button
                     key={bpm}
                     type="button"
-                    onClick={() => setRestingHeartRateInput(bpm)}
+                    onClick={() => {
+                      setRestingHeartRateInput(bpm)
+                      saveRestingHeartRate(bpm)
+                    }}
                     className={`px-1.5 py-0.5 text-[10px] rounded font-mono transition-colors ${
                       Number(restingHeartRateInput) === bpm
                         ? 'bg-bright-coral/20 text-bright-coral border border-bright-coral/40 font-bold'
@@ -1512,6 +1533,26 @@ const DashboardPage: React.FC = () => {
                   </button>
                 ))}
               </div>
+
+              {/* Reset to Default Button (Phase 5) */}
+              {Number(restingHeartRateInput) !== DEFAULT_RESTING_HEART_RATE_BPM && (
+                <div className="flex items-center pl-2 border-l border-gray-800">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRestingHeartRateInput(DEFAULT_RESTING_HEART_RATE_BPM)
+                      clearRestingHeartRate()
+                    }}
+                    className="px-2 py-1 text-[11px] rounded font-mono transition-colors bg-gray-800 hover:bg-bright-coral/20 text-gray-400 hover:text-bright-coral border border-gray-700 hover:border-bright-coral/40 flex items-center gap-1"
+                    aria-label="Reset resting heart rate to default 60 BPM"
+                    title="Reset resting heart rate to default (60 BPM)"
+                    data-testid="reset-resting-hr-btn"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Reset</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
