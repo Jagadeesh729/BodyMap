@@ -3,6 +3,7 @@ import React from 'react'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import fs from 'fs'
 import path from 'path'
+import { execSync } from 'child_process'
 
 // Domain and engine imports
 import { validateStep, hasSafetySensitiveMedicalIssues } from '@/lib/validation'
@@ -732,6 +733,53 @@ describe('Section G: Documentation & Contract Synchronization', () => {
     expect(readme).toContain('local-first')
     expect(readme).toContain('data sovereignty')
     expect(readme).not.toContain('hyper-personalized')
+
+    // Release contract commit invariants & determinism (M1-M7)
+    const SHA_REGEX = /^[0-9a-f]{40}$/
+    expect(contract.releaseCommit).toBe('12076d44528c82fdd10aeaa5db27bf0492a41159')
+    expect(contract.currentHeadCommit).toMatch(SHA_REGEX)
+    expect(contract.currentHeadCommit).not.toBe('65752bef8356018b62db4d73aabbf857e4b512dc')
+    expect(contract.currentHeadCommit).not.toBe('46c188fbcd457d9620bed96503bbc8680a7c1098')
+    expect(contract.currentHeadCommit).not.toBe('72210c44e73aa9001dc805620eb0034a5f7a7b0c')
+
+    function validateContractCommits(contractData: { releaseCommit: unknown; currentHeadCommit: unknown }, headSha: string, parentSha?: string) {
+      const isAnchor = contractData.releaseCommit === '12076d44528c82fdd10aeaa5db27bf0492a41159'
+      if (!isAnchor && contractData.releaseCommit !== headSha) {
+        return { valid: false, reason: 'releaseCommit invalid' }
+      }
+      if (!contractData.currentHeadCommit || typeof contractData.currentHeadCommit !== 'string' || !SHA_REGEX.test(contractData.currentHeadCommit)) {
+        return { valid: false, reason: 'currentHeadCommit malformed' }
+      }
+      if (contractData.currentHeadCommit !== headSha && contractData.currentHeadCommit !== parentSha) {
+        return { valid: false, reason: 'currentHeadCommit does not match HEAD or parent' }
+      }
+      return { valid: true }
+    }
+
+    // M1: Old stale commit fails
+    expect(validateContractCommits({ releaseCommit: '12076d44528c82fdd10aeaa5db27bf0492a41159', currentHeadCommit: '65752bef8356018b62db4d73aabbf857e4b512dc' }, '3c4b53c7803d71600e8a731d6da07fc23608e3c0', '120cc9681c494d2adcc8771133f1749c0af32972').valid).toBe(false)
+    // M2: Random commit fails
+    expect(validateContractCommits({ releaseCommit: '12076d44528c82fdd10aeaa5db27bf0492a41159', currentHeadCommit: '0123456789abcdef0123456789abcdef01234567' }, '3c4b53c7803d71600e8a731d6da07fc23608e3c0', '120cc9681c494d2adcc8771133f1749c0af32972').valid).toBe(false)
+    // M3: Empty commit fails
+    expect(validateContractCommits({ releaseCommit: '12076d44528c82fdd10aeaa5db27bf0492a41159', currentHeadCommit: '' }, '3c4b53c7803d71600e8a731d6da07fc23608e3c0').valid).toBe(false)
+    // M4: Malformed commit fails
+    expect(validateContractCommits({ releaseCommit: '12076d44528c82fdd10aeaa5db27bf0492a41159', currentHeadCommit: 'invalid-commit-hash' }, '3c4b53c7803d71600e8a731d6da07fc23608e3c0').valid).toBe(false)
+    // M5: Valid ancestor commit older than certified release fails
+    expect(validateContractCommits({ releaseCommit: '12076d44528c82fdd10aeaa5db27bf0492a41159', currentHeadCommit: '12076d44528c82fdd10aeaa5db27bf0492a41159' }, '3c4b53c7803d71600e8a731d6da07fc23608e3c0', '120cc9681c494d2adcc8771133f1749c0af32972').valid).toBe(false)
+    // M6: Tampered releaseCommit fails, valid anchor passes
+    expect(validateContractCommits({ releaseCommit: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef', currentHeadCommit: '3c4b53c7803d71600e8a731d6da07fc23608e3c0' }, '3c4b53c7803d71600e8a731d6da07fc23608e3c0').valid).toBe(false)
+    // M7: Valid currentHeadCommit equal to HEAD passes
+    expect(validateContractCommits({ releaseCommit: '12076d44528c82fdd10aeaa5db27bf0492a41159', currentHeadCommit: '3c4b53c7803d71600e8a731d6da07fc23608e3c0' }, '3c4b53c7803d71600e8a731d6da07fc23608e3c0').valid).toBe(true)
+
+    // Verify current repository contract passes validation against current git HEAD
+    const gitHead = execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim()
+    let gitParent: string | undefined
+    try {
+      gitParent = execSync('git rev-parse HEAD~1', { encoding: 'utf-8' }).trim()
+    } catch {
+      gitParent = undefined
+    }
+    expect(validateContractCommits(contract, gitHead, gitParent).valid).toBe(true)
   })
 
   it('G16-G25: Package.json configuration and security verification', () => {

@@ -313,7 +313,7 @@ try {
   const contract = JSON.parse(readFileSync(CONTRACT_PATH, 'utf8'));
   // Validate required top-level keys
   const REQUIRED_KEYS = [
-    'releaseCommit', 'releaseBranch', 'productionUrl', 'testSuiteCount',
+    'releaseCommit', 'currentHeadCommit', 'releaseBranch', 'productionUrl', 'testSuiteCount',
     'testFileCount', 'offlineCapability', 'safetyInvariants', 'consumerSinks',
     'prohibitedPhrases', 'qualityGates',
   ];
@@ -321,8 +321,26 @@ try {
   if (missing.length > 0) {
     fail('release-contract.json missing required keys', missing.join(', '));
   } else {
-    // Check commit matches HEAD or certified baseline release anchor
     const head = execSync('git rev-parse HEAD', { cwd: ROOT, encoding: 'utf8' }).trim();
+    let parent = null;
+    try {
+      parent = execSync('git rev-parse HEAD~1', { cwd: ROOT, encoding: 'utf8' }).trim();
+    } catch {}
+
+    // Deterministic validation of currentHeadCommit
+    const SHA_REGEX = /^[0-9a-f]{40}$/;
+    if (!contract.currentHeadCommit || typeof contract.currentHeadCommit !== 'string' || !SHA_REGEX.test(contract.currentHeadCommit)) {
+      fail('release-contract.json currentHeadCommit is missing or malformed', `expected 40-character hex SHA, got "${contract.currentHeadCommit}"`);
+    } else if (contract.currentHeadCommit !== head && contract.currentHeadCommit !== parent) {
+      fail(
+        'release-contract.json currentHeadCommit does not match HEAD or certified parent commit',
+        `contract=${contract.currentHeadCommit.slice(0, 12)}, HEAD=${head.slice(0, 12)}${parent ? ', HEAD~1=' + parent.slice(0, 12) : ''}`
+      );
+    } else {
+      pass(`release-contract.json currentHeadCommit verified (${contract.currentHeadCommit.slice(0, 12)})`);
+    }
+
+    // Check releaseCommit matches HEAD or certified baseline release anchor
     const isAnchor = contract.releaseCommit === '12076d44528c82fdd10aeaa5db27bf0492a41159';
     if (contract.releaseCommit === head || isAnchor) {
       pass(`release-contract.json valid, commit anchored (${(contract.releaseCommit).slice(0, 12)})`);
