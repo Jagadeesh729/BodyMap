@@ -41,7 +41,7 @@ This document defines the **impact classification** and **approval requirements*
 **Required before merging**:
 - [ ] `npm run lint` passes
 - [ ] `npm run typecheck` passes
-- [ ] `npm test` — full test suite passes (5,153+/5,153+ tests)
+- [ ] `npm test` — full test suite passes (5,609+/5,609+ tests)
 - [ ] README test badge updated if test count changed
 - [ ] `finalProductionQualityOracle.test.ts` assertion updated if README count changed
 
@@ -159,7 +159,7 @@ To maintain immutable audit history while strictly enforcing present-day truthfu
    - `README.md` (badges, tech stack, project structure, scripts table)
    - `release-contract.json` (authoritative release metadata and test totals)
    - Current release status, artifact chunk hashes, and consumer sink registers
-   - *Governance Rule*: Must match current verified test counts (`5,153` tests across `123` suites) and build outputs. Enforced by `finalProductionQualityOracle.test.ts` (Section G) and `scripts/release_gate.mjs`. Stale counts (`5,068`, `118 suites`, etc.) in current documentation cause CI test failure.
+   - *Governance Rule*: Must match current verified test counts (`5,609` tests across `145` suites) and build outputs. Enforced by `finalProductionQualityOracle.test.ts` (Section G) and `scripts/release_gate.mjs`. Stale counts (`5,571`, `143 suites`, `5,153`, etc.) in current documentation cause CI test failure.
 
 2. **Historical Audit Records (Preserved Forensic Evidence)**:
    - Prior audit walkthrough sections (`walkthrough.md` sections 1–21)
@@ -190,3 +190,4 @@ To maintain immutable audit history while strictly enforcing present-day truthfu
 | 2026-09-19 | Senior Release Engineer | Enhancement E26-B: User Resting Heart Rate Preference Persistence & Storage (restingHeartRateStorage engine, lazy state hydration, cross-tab storage sync, accessible reset) & doc sync to 5,571/143 | 1 |
 | 2026-09-19 | Senior Release Engineer | Governance reconciliation: update release-contract.json currentHeadCommit to certified HEAD 3c4b53c and add deterministic currentHeadCommit gate in scripts/release_gate.mjs | 0 |
 | 2026-09-19 | Senior Release Engineer | Enhancement E27-A: Gym Mode Ambient Feedback Preferences Persistence (gymFeedbackStorage engine, lazy state hydration, RestTimerOverlay integration, cross-tab storage sync) & doc sync to 5,609/145 | 1 |
+| 2026-09-19 | Senior Release Engineer | Governance reconciliation: update release-contract.json currentHeadCommit to certified E27-A HEAD 620f7fe & synchronize CHANGE_CONTROL.md documentation rules to 5,609/145 | 0 |
