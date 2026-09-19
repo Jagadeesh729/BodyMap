@@ -68,6 +68,11 @@ import { calculateSessionDebrief } from '@/lib/sessionDebrief'
 import { calculateRecoveryHydration } from '@/lib/recoveryHydrationReplenishment'
 import { calculateExerciseProgression } from '@/lib/exerciseProgressionTrajectory'
 import { playTimerChime, triggerVibration } from '@/lib/audioCues'
+import {
+  loadGymFeedbackPreferences,
+  saveGymFeedbackPreferences,
+  GYM_FEEDBACK_STORAGE_KEY
+} from '@/lib/gymFeedbackStorage'
 import { RestTimerOverlay } from '@/components/gym/RestTimerOverlay'
 import { ExerciseSubstitutionModal } from '@/components/gym/ExerciseSubstitutionModal'
 import { WorkoutCompletionModal } from '@/components/gym/WorkoutCompletionModal'
@@ -129,9 +134,14 @@ export const GymModePage: React.FC = () => {
 
   // Session state: hydrate strictly validated session matching active plan and medical profile
   const [session, setSession] = useState<WorkoutSession>(() => {
+    const feedbackPrefs = loadGymFeedbackPreferences()
     const saved = loadAndValidateActiveSession(state.planId, state.formData.medicalIssues)
     if (saved && saved.dayIndex === targetDayIndex) {
-      return saved
+      return {
+        ...saved,
+        soundEnabled: feedbackPrefs.soundEnabled,
+        vibrateEnabled: feedbackPrefs.vibrateEnabled
+      }
     }
     if (saved && saved.dayIndex !== targetDayIndex) {
       // Conflicting active session for another day; preserved for conflictingSession dialog
@@ -159,8 +169,8 @@ export const GymModePage: React.FC = () => {
         remainingSeconds: 60
       },
       status: 'in-progress',
-      soundEnabled: true,
-      vibrateEnabled: true
+      soundEnabled: feedbackPrefs.soundEnabled,
+      vibrateEnabled: feedbackPrefs.vibrateEnabled
     }
   })
 
@@ -244,11 +254,24 @@ export const GymModePage: React.FC = () => {
     }
   }, [state.planId, session.planId, session.medicalSnapshot, session.status, state.formData.medicalIssues, bindingEval.isSafetyMismatched, contraScanResult.hasViolation, isPlanCorrupted])
 
-  // Listen for active-session removal from another tab
+  // Listen for active-session removal or ambient feedback preference update from another tab
   useEffect(() => {
     function handleActiveSessionStorage(e: StorageEvent) {
       if (e.key === ACTIVE_SESSION_STORAGE_KEY && e.newValue === null) {
         setSession(prev => prev.status === 'in-progress' ? { ...prev, status: 'cancelled' } : prev)
+      }
+      if (e.key === GYM_FEEDBACK_STORAGE_KEY) {
+        const prefs = loadGymFeedbackPreferences()
+        setSession(prev => {
+          if (prev.soundEnabled === prefs.soundEnabled && prev.vibrateEnabled === prefs.vibrateEnabled) {
+            return prev
+          }
+          return {
+            ...prev,
+            soundEnabled: prefs.soundEnabled,
+            vibrateEnabled: prefs.vibrateEnabled
+          }
+        })
       }
     }
     window.addEventListener('storage', handleActiveSessionStorage)
@@ -608,6 +631,22 @@ export const GymModePage: React.FC = () => {
     }))
   }
 
+  const handleToggleSound = useCallback(() => {
+    setSession(prev => {
+      const nextSound = !prev.soundEnabled
+      saveGymFeedbackPreferences({ soundEnabled: nextSound })
+      return { ...prev, soundEnabled: nextSound }
+    })
+  }, [])
+
+  const handleToggleVibrate = useCallback(() => {
+    setSession(prev => {
+      const nextVibrate = !prev.vibrateEnabled
+      saveGymFeedbackPreferences({ vibrateEnabled: nextVibrate })
+      return { ...prev, vibrateEnabled: nextVibrate }
+    })
+  }, [])
+
   /**
    * F-07 fix: Start or sync the rest timer to the recommended rest duration.
    * Previously referenced in JSX but never defined — caused a ReferenceError crash.
@@ -959,7 +998,7 @@ export const GymModePage: React.FC = () => {
         <div className="flex items-center gap-1.5 sm:gap-2">
           {/* Sound Chime Toggle */}
           <button
-            onClick={() => setSession(prev => ({ ...prev, soundEnabled: !prev.soundEnabled }))}
+            onClick={handleToggleSound}
             className={`p-1.5 rounded-lg border transition-colors ${
               session.soundEnabled
                 ? 'bg-card-dark border-gray-800 text-neon-green hover:bg-gray-800'
@@ -973,7 +1012,7 @@ export const GymModePage: React.FC = () => {
 
           {/* Haptic Vibration Toggle */}
           <button
-            onClick={() => setSession(prev => ({ ...prev, vibrateEnabled: !prev.vibrateEnabled }))}
+            onClick={handleToggleVibrate}
             className={`p-1.5 rounded-lg border transition-colors ${
               session.vibrateEnabled
                 ? 'bg-card-dark border-gray-800 text-neon-green hover:bg-gray-800'
@@ -1717,7 +1756,7 @@ export const GymModePage: React.FC = () => {
           onAddSeconds={handleAddTimerSeconds}
           onSetDuration={handleSetTimerDuration}
           onSkip={handleSkipTimer}
-          onToggleSound={() => setSession(prev => ({ ...prev, soundEnabled: !prev.soundEnabled }))}
+          onToggleSound={handleToggleSound}
         />
       )}
 

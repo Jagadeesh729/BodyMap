@@ -8,7 +8,7 @@
 [![React](https://img.shields.io/badge/React-18.x-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-3.x-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
-[![Vitest](https://img.shields.io/badge/Vitest-Passed%205571%2F5571-00FF88?style=for-the-badge&logo=vitest&logoColor=black)](https://vitest.dev/)
+[![Vitest](https://img.shields.io/badge/Vitest-Passed%205609%2F5609-00FF88?style=for-the-badge&logo=vitest&logoColor=black)](https://vitest.dev/)
 
 <p align="center">
   <b>Tailored workouts and nutrition based on your unique biometrics, fitness level, and equipment availability. Powered by Google Gemini AI with secure backend proxying and local-first data sovereignty.</b>
@@ -72,7 +72,7 @@
 - **Validation**: [Zod 3.23.8](https://zod.dev/) runtime contracts for user inputs and AI plan schemas
 - **Data Visualization**: [Recharts 2.13.0](https://recharts.org/)
 - **Routing**: [React Router DOM 7.18.2](https://reactrouter.com/) with lazy loading
-- **Testing**: [Vitest 4.1.11](https://vitest.dev/) + React Testing Library (5,571 automated unit & oracle tests across 143 suites)
+- **Testing**: [Vitest 4.1.11](https://vitest.dev/) + React Testing Library (5,609 automated unit & oracle tests across 145 suites)
 - **Icons**: [Lucide React 0.462.0](https://lucide.dev/)
 
 ---
@@ -108,6 +108,7 @@ BodyMap/
 │   │   ├── oneRepMax.ts                 # Brzycki/Epley 1RM estimation math
 │   │   ├── planSchema.ts                # Zod AI response schema & parser
 │   │   ├── restingHeartRateStorage.ts   # User resting heart rate preference persistence engine
+│   │   ├── gymFeedbackStorage.ts        # Gym Mode ambient feedback preferences persistence engine
 │   │   ├── workoutHistoryCsvEngine.ts   # RFC 4180 CSV workout history export engine
 │   │   └── validation.ts                # 5-step Zod wizard form schemas
 │   ├── pages/               # Lazy-loaded route views:
@@ -120,7 +121,7 @@ BodyMap/
 │   │   ├── DownloadPlanPage.tsx  # Data Vault export, backup restore & PDF share hub
 │   │   ├── AboutContactPage.tsx  # Mission, tech stack & contact form
 │   │   └── NotFound.tsx          # Themed 404 handler
-│   ├── __tests__/           # 143 Vitest unit test & oracle suites (5,571 tests)
+│   ├── __tests__/           # 145 Vitest unit test & oracle suites (5,609 tests)
 │   ├── App.tsx              # Root router, Suspense, ErrorBoundary & providers
 │   ├── index.css            # Custom theme variables & responsive styles
 │   └── main.tsx             # Application entry point with StrictMode
@@ -178,7 +179,7 @@ Open [http://localhost:8080](http://localhost:8080) in your browser.
 | `npm run build` | Compiles TypeScript and builds production bundle |
 | `npm run typecheck` | Validates TypeScript types across all files (`tsc --noEmit`) |
 | `npm run lint` | Runs ESLint to check for code quality and syntax rules |
-| `npm run test` | Executes 5,571 automated Vitest tests across 143 suites |
+| `npm run test` | Executes 5,609 automated Vitest tests across 145 suites |
 | `npm run preview` | Serves production build locally for verification |
 
 ---

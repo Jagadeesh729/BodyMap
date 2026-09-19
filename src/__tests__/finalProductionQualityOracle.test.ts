@@ -710,6 +710,10 @@ describe('Section G: Documentation & Contract Synchronization', () => {
     expect(readme).toContain(`Executes ${formattedTestCount} automated Vitest tests across ${expectedFileCount} suites`)
 
     // Stale counts are strictly forbidden in current documentation
+    expect(readme).not.toContain('5,571')
+    expect(readme).not.toContain('5571')
+    expect(readme).not.toContain('143 suites')
+    expect(readme).not.toContain('143 Vitest')
     expect(readme).not.toContain('5,526')
     expect(readme).not.toContain('5526')
     expect(readme).not.toContain('141 suites')

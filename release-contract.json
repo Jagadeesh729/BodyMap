@@ -3,42 +3,42 @@
   "_description": "Machine-readable public release metadata for BodyMap AI. Contains ONLY non-sensitive public information. No API keys, secrets, credentials, user data, filesystem paths, or environment variables.",
   "_commitNote": "releaseCommit is the internal contract anchor hash used by verify_artifact_integrity.mjs and release_gate.mjs. currentHeadCommit is the actual certified git HEAD commit currently in production. Both values are required; do not conflate them.",
   "releaseCommit": "12076d44528c82fdd10aeaa5db27bf0492a41159",
-  "currentHeadCommit": "3c4b53c7803d71600e8a731d6da07fc23608e3c0",
+  "currentHeadCommit": "73abcda646bbce08d907a36cb5aba4546cdb05e1",
   "releaseBranch": "main",
   "releaseDate": "2025-01-01",
   "productionUrl": "https://bodymap-ai.vercel.app",
   "overallMaturityScore": "9.93/10.0",
   "releaseStatus": "RELEASE FROZEN — MAINTENANCE MODE",
-  "testSuiteCount": 5571,
-  "testFileCount": 143,
+  "testSuiteCount": 5609,
+  "testFileCount": 145,
   "buildChunkCount": 26,
   "criticalChunkHashes": {
     "index-DPy3KNZe.css": {
       "sha256": "8a35b104bf9b9312de1a4e067b8d8241649de43edb8ecdfb856fea5c80b43990",
       "bytes": 60182
     },
-    "index-D_gDNDgW.js": {
-      "sha256": "591665c3ec078d805a22b6edcfabe86637a8b75774ea80e4a3a21d69d28aab36",
-      "bytes": 160111
+    "index-Cq4LmZdF.js": {
+      "sha256": "2e43fd8ebf01a066ef00c89b14eb877dffcfd1d048688f2f39ec00c2fa670a28",
+      "bytes": 160129
     },
     "useFocusTrap-Db5phhWa.js": {
       "sha256": "973afae5e9560cc14cb51e03a4f4c6a078a30e9b6650128a5b4707b8fdf38f49",
       "bytes": 1613
     },
-    "CreatePlanPage-Cnx3AqFs.js": {
-      "sha256": "6d36e44a73f76d12cec57d9db612f3f59b0d6b2cfe3fa4c757a97a9b3f0ddc19",
+    "CreatePlanPage-DKFujsZ1.js": {
+      "sha256": "08b4d0af69ad49f50367166a2e15967a58c72645b0cd924b33266762316b9c62",
       "bytes": 22889
     },
-    "WeeklyPlanPage-BswrVWJ4.js": {
-      "sha256": "016c91376bf5f4742d3ba65b46e135b035fd60f4210ff92dfcb3afad7d5240d6",
+    "WeeklyPlanPage-BbujM26m.js": {
+      "sha256": "d6f13e5bbd6211376d26392ccb6181ee436d098f2ba795def8ed3645f242a3bf",
       "bytes": 54232
     },
-    "GymModePage-BH4zpSQO.js": {
-      "sha256": "d405840b1144ff638e5076dd7f5baea216df6e4a5ea2c9887f42c5a2a717f72e",
-      "bytes": 92911
+    "GymModePage-CHfFSae8.js": {
+      "sha256": "e8259a339cb90d3dd2c0ed3a9cf0d3c6f655ad916d3b4937eafdb9d2cf209669",
+      "bytes": 94639
     },
-    "planSafetyGate-0F4VD-Vb.js": {
-      "sha256": "87c5fa5da51dfd4d44abbc2eed433a6103f1cc74cfc12915376f6bf77d70ea62",
+    "planSafetyGate-aIOa_NKV.js": {
+      "sha256": "b029c314ab07d361ec6a75cdbc1e42ad6b6d27e7b62e4d8ca63e80c80adaf714",
       "bytes": 2094
     }
   },
