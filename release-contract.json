@@ -9,36 +9,36 @@
   "productionUrl": "https://bodymap-ai.vercel.app",
   "overallMaturityScore": "9.93/10.0",
   "releaseStatus": "RELEASE FROZEN — MAINTENANCE MODE",
-  "testSuiteCount": 5694,
-  "testFileCount": 147,
+  "testSuiteCount": 5736,
+  "testFileCount": 149,
   "buildChunkCount": 26,
   "criticalChunkHashes": {
     "index-DWRsv8NH.css": {
       "sha256": "d014da4e8222599ff09dbe1e6053712499c5d57e7bdc3eea4979eac891adbf18",
       "bytes": 60288
     },
-    "index-CgdkjDJJ.js": {
-      "sha256": "bb2d4183de415876e3c214237ed9c5d494c49061af886911b952860ab11bedde",
+    "index-C3Mcukxq.js": {
+      "sha256": "86634275d81f1dd95120865e109b53eace3d04a9e615aac75e190743b3c37942",
       "bytes": 160290
     },
     "useFocusTrap-BNeadSKd.js": {
       "sha256": "ee99524ffc1c256078a42195c68bde0e5fd799537354716aa543b924c575fcb7",
       "bytes": 1613
     },
-    "CreatePlanPage-B3h4dXUX.js": {
-      "sha256": "889abe0eee6c6bad710810b127b37c930b35b594115e83f4041328ef64f151b5",
+    "CreatePlanPage-BnljENa3.js": {
+      "sha256": "c46ab76138165568ad68eadf27aa1c95cac899d01950039b7e9c48ee8b488108",
       "bytes": 22889
     },
-    "WeeklyPlanPage-DOAlhq81.js": {
-      "sha256": "4cff5b99b7f3d533e7cf0e4842904f467f5d2f44effeab2a9d71d3e578405169",
+    "WeeklyPlanPage-D1_HB8_w.js": {
+      "sha256": "f4631362576d535a0e504d1e4f0f504bb865bf1735c43383263d9386c2b97aeb",
       "bytes": 53743
     },
-    "GymModePage-D6s2iL8S.js": {
-      "sha256": "d621d37c9daef472c2a24071022a828baf9b8012bc8f86ca88e3aa0235cdba20",
+    "GymModePage-BAlQyVKX.js": {
+      "sha256": "5e8d129e26b6b4d5000ac2a285c1b1ef156d0aaafe17045ebd21a137fe8ba825",
       "bytes": 94639
     },
-    "planSafetyGate-DJvtFbKS.js": {
-      "sha256": "aa841f043abc9e37632b6fb6f87e8c73371830a81c97998dcbc7221d9ea9bc6c",
+    "planSafetyGate-CHyNHNLj.js": {
+      "sha256": "820d4152d4ab3fabe8dda32dbae46c57fab37ee68cf8e8efdd59559adfd4e232",
       "bytes": 2094
     }
   },
@@ -84,7 +84,9 @@
     { "id": "S10", "location": "ContactForm.tsx:47",       "type": "window.open(mailto:...)", "classification": "SAFE BY CONSTRUCTION" },
     { "id": "S11", "location": "src/lib/gemini.ts",        "type": "fetch POST to /api/generate-plan (server-side proxied Gemini API, API key server-only)", "classification": "SECURED" },
     { "id": "S12", "location": "DownloadPlanPage.tsx:143", "type": "URL.createObjectURL(blob) iCalendar (.ics) download", "classification": "SECURED" },
-    { "id": "S13", "location": "DashboardPage.tsx", "type": "URL.createObjectURL(blob) scoped/filtered workout history CSV download", "classification": "SECURED" }
+    { "id": "S13", "location": "DashboardPage.tsx", "type": "URL.createObjectURL(blob) scoped/filtered workout history CSV download", "classification": "SECURED" },
+    { "id": "S14", "location": "DashboardPage.tsx", "type": "navigator.clipboard.writeText (PR trajectory summary)", "classification": "SECURED" },
+    { "id": "S15", "location": "DashboardPage.tsx", "type": "navigator.share (PR trajectory summary)", "classification": "SECURED" }
   ],
   "documentedInherentLimitations": [
     {

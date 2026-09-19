@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import {
   TrendingUp,
@@ -27,8 +27,14 @@ import {
   Search,
   Heart,
   Droplets,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Share2
 } from 'lucide-react'
+import {
+  createPRTrajectoryCsvBlob,
+  generatePRTrajectoryShareText,
+  getPRTrajectoryCsvFilename
+} from '@/lib/prTrajectoryExportEngine'
 import {
   createWorkoutHistoryCsvBlob,
   getWorkoutHistoryCsvFilename,
@@ -180,6 +186,10 @@ const DashboardPage: React.FC = () => {
   }, [])
   const [workoutToDelete, setWorkoutToDelete] = useState<CompletedWorkoutLog | null>(null)
   const [isExportingCsv, setIsExportingCsv] = useState(false)
+  const [isExportingPrCsv, setIsExportingPrCsv] = useState(false)
+  const [isSharingPr, setIsSharingPr] = useState(false)
+  const isExportingPrRef = useRef(false)
+  const isSharingPrRef = useRef(false)
   const prefersReducedMotion = usePrefersReducedMotion()
 
   const filteredHistoryResult = useMemo(() => {
@@ -505,9 +515,13 @@ const DashboardPage: React.FC = () => {
         }
         URL.revokeObjectURL(url)
         setIsExportingCsv(false)
+        setIsExportingPrCsv(false)
+        isExportingPrRef.current = false
       }, 150)
     } catch {
       setIsExportingCsv(false)
+      setIsExportingPrCsv(false)
+      isExportingPrRef.current = false
       toast({
         title: 'Export Failed',
         description: 'Unable to trigger CSV download.',
@@ -549,7 +563,7 @@ const DashboardPage: React.FC = () => {
       setIsExportingCsv(false)
       toast({
         title: 'Export Failed',
-        description: 'Unable to generate CSV workout history.',
+        description: 'Unable to generate CSV for workout history.',
         variant: 'destructive'
       })
     }
@@ -583,6 +597,110 @@ const DashboardPage: React.FC = () => {
       })
     }
   }, [isExportingCsv, triggerCsvDownload])
+
+  // --- PR Trajectory Export & Share Handlers (E27-D) ---
+  const handleExportPrTrajectoryCsv = useCallback(() => {
+    if (isExportingPrRef.current || isExportingPrCsv) return
+    if (!prTrajectory || !Array.isArray(prTrajectory.points) || prTrajectory.points.length === 0) {
+      toast({
+        title: 'No Trajectory Data',
+        description: 'No logged data points to export for this exercise.',
+        variant: 'destructive'
+      })
+      return
+    }
+
+    isExportingPrRef.current = true
+    setIsExportingPrCsv(true)
+    try {
+      const blob = createPRTrajectoryCsvBlob(prTrajectory)
+      const filename = getPRTrajectoryCsvFilename(prTrajectory.exerciseName)
+      triggerCsvDownload(blob, filename)
+      toast({
+        title: 'PR Trajectory Exported! 📊',
+        description: `CSV file downloaded for ${prTrajectory.exerciseName}.`
+      })
+    } catch {
+      isExportingPrRef.current = false
+      setIsExportingPrCsv(false)
+      toast({
+        title: 'Export Failed',
+        description: 'Unable to export PR trajectory CSV.',
+        variant: 'destructive'
+      })
+    }
+  }, [isExportingPrCsv, prTrajectory, triggerCsvDownload])
+
+  const handleSharePrTrajectory = useCallback(async () => {
+    if (isSharingPrRef.current || isSharingPr) return
+    if (!prTrajectory || !Array.isArray(prTrajectory.points) || prTrajectory.points.length === 0) {
+      toast({
+        title: 'No Trajectory Data',
+        description: 'No progression data available to share.',
+        variant: 'destructive'
+      })
+      return
+    }
+
+    isSharingPrRef.current = true
+    setIsSharingPr(true)
+    const shareText = generatePRTrajectoryShareText(prTrajectory)
+
+    try {
+      if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+        try {
+          await navigator.share({
+            title: `BodyMap AI — ${prTrajectory.exerciseName} PR Trajectory`,
+            text: shareText
+          })
+          toast({
+            title: 'Trajectory Shared! 🚀',
+            description: `PR progression summary shared for ${prTrajectory.exerciseName}.`
+          })
+        } catch (err: unknown) {
+          if (err instanceof Error && err.name === 'AbortError') {
+            return
+          }
+          if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            await navigator.clipboard.writeText(shareText)
+            toast({
+              title: 'Trajectory Copied! 📋',
+              description: 'Summary copied to clipboard. You can paste it anywhere.'
+            })
+          } else {
+            toast({
+              title: 'Share Failed',
+              description: 'Unable to share trajectory summary.',
+              variant: 'destructive'
+            })
+          }
+        }
+      } else if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        await navigator.clipboard.writeText(shareText)
+        toast({
+          title: 'Trajectory Copied! 📋',
+          description: 'Summary copied to clipboard. You can paste it anywhere.'
+        })
+      } else {
+        toast({
+          title: 'Sharing Unavailable',
+          description: 'Neither Web Share nor Clipboard API is supported on this browser.',
+          variant: 'destructive'
+        })
+      }
+    } catch {
+      toast({
+        title: 'Share Failed',
+        description: 'An unexpected error occurred while sharing.',
+        variant: 'destructive'
+      })
+    } finally {
+      setTimeout(() => {
+        isSharingPrRef.current = false
+        setIsSharingPr(false)
+      }, 300)
+    }
+  }, [isSharingPr, prTrajectory])
 
   // --- Body Measurement Handlers ---
   const handleLogMeasurementSubmit = (e: React.FormEvent) => {
@@ -918,8 +1036,8 @@ const DashboardPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Exercise Selector */}
-                <div className="flex items-center gap-2">
+                {/* Exercise Selector & Trajectory Actions (E27-D) */}
+                <div className="flex flex-wrap items-center gap-2">
                   <label htmlFor="pr-trajectory-select" className="sr-only">
                     Select exercise for progression trajectory
                   </label>
@@ -935,6 +1053,34 @@ const DashboardPage: React.FC = () => {
                       </option>
                     ))}
                   </select>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleExportPrTrajectoryCsv}
+                    disabled={isExportingPrCsv || !prTrajectory || prTrajectory.points.length === 0}
+                    aria-label={`Export PR trajectory as CSV for ${prTrajectory.exerciseName}`}
+                    data-testid="export-pr-trajectory-csv-btn"
+                    className="h-8 px-2.5 text-xs font-poppins bg-bodymap-dark border-gray-800 hover:border-bright-coral text-secondary-text hover:text-primary-text flex items-center gap-1.5 transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5 text-bright-coral" />
+                    <span>Export CSV</span>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSharePrTrajectory}
+                    disabled={isSharingPr || !prTrajectory || prTrajectory.points.length === 0}
+                    aria-label={`Share PR trajectory for ${prTrajectory.exerciseName}`}
+                    data-testid="share-pr-trajectory-btn"
+                    className="h-8 px-2.5 text-xs font-poppins bg-bodymap-dark border-gray-800 hover:border-neon-green text-secondary-text hover:text-primary-text flex items-center gap-1.5 transition-colors"
+                  >
+                    <Share2 className="w-3.5 h-3.5 text-neon-green" />
+                    <span>Share</span>
+                  </Button>
                 </div>
               </div>
 

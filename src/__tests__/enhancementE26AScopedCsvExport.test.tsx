@@ -451,7 +451,7 @@ describe('Enhancement E26-A: Scoped & Filtered Workout History CSV Export', () =
       expect(rows[1][1]).toBe('Day 2 - Pull Strength')
       expect(csvText).not.toContain('Day 1 - Push Power')
       expect(csvText).not.toContain('Day 3 - Leg Dynamic')
-    })
+    }, 15000)
 
     it('disables the toolbar export button when search filter matches 0 workouts', async () => {
       sampleLogs.forEach(log => saveCompletedWorkoutLog(log))

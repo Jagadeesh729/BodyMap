@@ -91,6 +91,18 @@ const KNOWN_SINKS: Array<{
     classification: 'SECURED',
     description: 'S13 — Scoped/filtered workout history CSV download',
   },
+  {
+    file: 'src/pages/DashboardPage.tsx',
+    pattern: /navigator\.clipboard\.writeText/,
+    classification: 'SECURED',
+    description: 'S14 — Copy PR trajectory summary to clipboard',
+  },
+  {
+    file: 'src/pages/DashboardPage.tsx',
+    pattern: /navigator\.share/,
+    classification: 'SECURED',
+    description: 'S15 — Native share PR trajectory summary',
+  },
 ];
 
 // Sink API patterns we scan for across the entire src/ tree
@@ -162,7 +174,7 @@ describe('PHASE 5 — Consumer-Sink Discovery Contract', () => {
   });
 
   describe('P5-D — Sink classifications are stable', () => {
-    it('All 10 sinks have a classification', () => {
+    it('All 12 sinks have a classification', () => {
       const valid = ['SECURED', 'SAFE BY CONSTRUCTION', 'RECOVERY ONLY'];
       for (const sink of KNOWN_SINKS) {
         expect(valid).toContain(sink.classification);

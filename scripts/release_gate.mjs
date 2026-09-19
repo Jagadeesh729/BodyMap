@@ -94,6 +94,7 @@ const KNOWN_SINK_PATTERNS = [
   { pattern: /navigator\.clipboard\.writeText/, locations: [
     'src/pages/WeeklyPlanPage.tsx',
     'src/pages/DownloadPlanPage.tsx',
+    'src/pages/DashboardPage.tsx',
   ]},
   // window.open
   { pattern: /window\.open\(/, locations: [
@@ -103,6 +104,7 @@ const KNOWN_SINK_PATTERNS = [
   // navigator.share
   { pattern: /navigator\.share/, locations: [
     'src/pages/DownloadPlanPage.tsx',
+    'src/pages/DashboardPage.tsx',
   ]},
   // window.print
   { pattern: /window\.print/, locations: [
