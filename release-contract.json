@@ -3,7 +3,7 @@
   "_description": "Machine-readable public release metadata for BodyMap AI. Contains ONLY non-sensitive public information. No API keys, secrets, credentials, user data, filesystem paths, or environment variables.",
   "_commitNote": "releaseCommit is the internal contract anchor hash used by verify_artifact_integrity.mjs and release_gate.mjs. currentHeadCommit is the actual certified git HEAD commit currently in production. Both values are required; do not conflate them.",
   "releaseCommit": "12076d44528c82fdd10aeaa5db27bf0492a41159",
-  "currentHeadCommit": "1117b2b9e38de2a08dae283f4bf6facc3b799e6f",
+  "currentHeadCommit": "76925102c8c0da747e2bd98c4c8da0d712e2167b",
   "releaseBranch": "main",
   "releaseDate": "2025-01-01",
   "productionUrl": "https://bodymap-ai.vercel.app",
@@ -17,30 +17,43 @@
       "sha256": "d014da4e8222599ff09dbe1e6053712499c5d57e7bdc3eea4979eac891adbf18",
       "bytes": 60288
     },
-    "index-C3Mcukxq.js": {
-      "sha256": "86634275d81f1dd95120865e109b53eace3d04a9e615aac75e190743b3c37942",
+    "index-Cs3aecoH.js": {
+      "sha256": "ff65d851b84a1d4e52eddc914d74b81106c32e71f8dd421c972f9a23d4b91dcb",
       "bytes": 160290
     },
     "useFocusTrap-BNeadSKd.js": {
       "sha256": "ee99524ffc1c256078a42195c68bde0e5fd799537354716aa543b924c575fcb7",
       "bytes": 1613
     },
-    "CreatePlanPage-BnljENa3.js": {
-      "sha256": "c46ab76138165568ad68eadf27aa1c95cac899d01950039b7e9c48ee8b488108",
+    "CreatePlanPage-0Y2Mn2n7.js": {
+      "sha256": "97f752fe171cd8657598d52ee49e39dd7f647d592237120212f1fa457818f490",
       "bytes": 22889
     },
-    "WeeklyPlanPage-D1_HB8_w.js": {
-      "sha256": "f4631362576d535a0e504d1e4f0f504bb865bf1735c43383263d9386c2b97aeb",
+    "WeeklyPlanPage-DSWyI3LT.js": {
+      "sha256": "e977e65943662233017766b3690cbd77bbbb8d48e07648973f8c36b332fa54a0",
       "bytes": 53743
     },
-    "GymModePage-BAlQyVKX.js": {
-      "sha256": "5e8d129e26b6b4d5000ac2a285c1b1ef156d0aaafe17045ebd21a137fe8ba825",
-      "bytes": 94639
+    "GymModePage-xPR3H0FJ.js": {
+      "sha256": "71c07bd07dfb664674026dff8bee276f79b772ec903b6d1c7a22f548a503565e",
+      "bytes": 94806
     },
-    "planSafetyGate-CHyNHNLj.js": {
-      "sha256": "820d4152d4ab3fabe8dda32dbae46c57fab37ee68cf8e8efdd59559adfd4e232",
+    "planSafetyGate-CVgqUhj3.js": {
+      "sha256": "cba6949b1a1f60bbc8c0b7592e14fae9ff53e31b0ddf5f0dfd3dea2d774d4b09",
       "bytes": 2094
     }
+  },
+  "e2eVerification": {
+    "framework": "playwright",
+    "version": "1.55.1",
+    "suites": 5,
+    "testsTotal": 73,
+    "passed": 73,
+    "failed": 0,
+    "skipped": 0,
+    "browsers": ["chromium", "webkit"],
+    "mutationCampaign": "M1-M16 killed 16/16",
+    "determinismCampaign": "5/5 runs zero flakiness",
+    "productionSmoke": "7/7 passed against https://bodymap-ai.vercel.app"
   },
   "offlineCapability": {
     "safe": [

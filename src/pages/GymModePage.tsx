@@ -1007,7 +1007,7 @@ export const GymModePage: React.FC = () => {
             title={session.soundEnabled ? 'Timer Chime Enabled' : 'Timer Chime Muted'}
             aria-label={session.soundEnabled ? 'Mute timer chime' : 'Enable timer chime'}
           >
-            {session.soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+            {session.soundEnabled ? <Volume2 className="w-4 h-4" aria-hidden="true" /> : <VolumeX className="w-4 h-4" aria-hidden="true" />}
           </button>
 
           {/* Haptic Vibration Toggle */}
@@ -1021,12 +1021,12 @@ export const GymModePage: React.FC = () => {
             title={session.vibrateEnabled ? 'Haptic Vibration Enabled' : 'Haptic Vibration Off'}
             aria-label={session.vibrateEnabled ? 'Disable haptic vibration' : 'Enable haptic vibration'}
           >
-            {session.vibrateEnabled ? <Vibrate className="w-4 h-4" /> : <VibrateOff className="w-4 h-4" />}
+            {session.vibrateEnabled ? <Vibrate className="w-4 h-4" aria-hidden="true" /> : <VibrateOff className="w-4 h-4" aria-hidden="true" />}
           </button>
 
           {/* Stopwatch */}
           <div className="flex items-center gap-1.5 px-2.5 py-1 bg-card-dark border border-gray-800 rounded-lg text-xs font-poppins font-semibold text-electric-purple">
-            <Clock className="w-3.5 h-3.5 text-electric-purple" />
+            <Clock className="w-3.5 h-3.5 text-electric-purple" aria-hidden="true" />
             <span className="tabular-nums">{formattedElapsed}</span>
           </div>
 
@@ -1035,7 +1035,7 @@ export const GymModePage: React.FC = () => {
             className="p-1.5 bg-card-dark border border-gray-800 rounded-lg text-secondary-text hover:text-neon-green transition-colors"
             aria-label="Toggle workout overview"
           >
-            <List className="w-4 h-4" />
+            <List className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
       </header>
@@ -1068,7 +1068,7 @@ export const GymModePage: React.FC = () => {
       )}
 
       {/* Main Active Workout View */}
-      <main className="max-w-3xl w-full mx-auto px-4 sm:px-6 pt-6 pb-24 flex-1 flex flex-col justify-between">
+      <section aria-label="Active workout session" className="max-w-3xl w-full mx-auto px-4 sm:px-6 pt-6 pb-24 flex-1 flex flex-col justify-between">
         {/* Conflicting Session Warning Banner */}
         {conflictingSession && (
           <div className="mb-6 p-4 bg-bright-coral/10 border border-bright-coral/40 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
@@ -1617,7 +1617,7 @@ export const GymModePage: React.FC = () => {
             </Button>
           )}
         </div>
-      </main>
+      </section>
 
       {/* Mobile Sticky One-Handed Action Bar */}
       <aside aria-label="Quick mobile controls" className="md:hidden fixed bottom-0 left-0 right-0 z-30 p-3 bg-bodymap-dark/95 backdrop-blur-md border-t border-gray-800 flex items-center justify-between gap-2 shadow-2xl">

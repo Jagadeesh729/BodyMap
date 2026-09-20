@@ -60,7 +60,7 @@ export const ContactForm = ({
   if (isSubmitted) {
     return (
       <div className="card-dark text-center py-12">
-        <CheckCircle2 className="w-16 h-16 text-neon-green mx-auto mb-4" />
+        <CheckCircle2 className="w-16 h-16 text-neon-green mx-auto mb-4" aria-hidden="true" />
         <h3 className="text-2xl font-poppins font-bold text-primary-text mb-2">Email Draft Prepared!</h3>
         <p className="text-secondary-text font-open-sans max-w-md mx-auto mb-6">
           Your inquiry has been formatted for support@bodymap.ai in your default email client.
@@ -85,7 +85,7 @@ export const ContactForm = ({
         <div className="grid md:grid-cols-2 gap-5">
           <div>
             <Label htmlFor="contact-name" className="text-secondary-text mb-1.5 flex items-center gap-1.5">
-              <User className="w-3.5 h-3.5 text-neon-green" /> Name <span className="text-bright-coral">*</span>
+              <User className="w-3.5 h-3.5 text-neon-green" aria-hidden="true" /> Name <span className="text-bright-coral">*</span>
             </Label>
             <Input
               id="contact-name"
@@ -100,7 +100,7 @@ export const ContactForm = ({
 
           <div>
             <Label htmlFor="contact-email" className="text-secondary-text mb-1.5 flex items-center gap-1.5">
-              <Mail className="w-3.5 h-3.5 text-electric-purple" /> Email <span className="text-bright-coral">*</span>
+              <Mail className="w-3.5 h-3.5 text-electric-purple" aria-hidden="true" /> Email <span className="text-bright-coral">*</span>
             </Label>
             <Input
               id="contact-email"
@@ -130,7 +130,7 @@ export const ContactForm = ({
 
         <div>
           <Label htmlFor="contact-message" className="text-secondary-text mb-1.5 flex items-center gap-1.5">
-            <MessageSquare className="w-3.5 h-3.5 text-bright-coral" /> Message <span className="text-bright-coral">*</span>
+            <MessageSquare className="w-3.5 h-3.5 text-bright-coral" aria-hidden="true" /> Message <span className="text-bright-coral">*</span>
           </Label>
           <Textarea
             id="contact-message"
@@ -145,7 +145,7 @@ export const ContactForm = ({
 
         <Button type="submit" disabled={isSubmitting} className="btn-primary w-full sm:w-auto px-8">
           {isSubmitting ? 'Sending...' : 'Send Message'}
-          <Send className="w-4 h-4 ml-2" />
+          <Send className="w-4 h-4 ml-2" aria-hidden="true" />
         </Button>
       </form>
     </div>

@@ -113,7 +113,7 @@ const HomePage = () => {
       <section className="relative overflow-hidden py-16 sm:py-24 px-4 sm:px-6 lg:px-8 border-b border-gray-800">
         <div className="max-w-5xl mx-auto text-center relative z-10">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-neon-green/10 border border-neon-green/30 text-neon-green text-xs sm:text-sm font-poppins font-medium mb-6 animate-pulse">
-            <Zap className="w-3.5 h-3.5" />
+            <Zap className="w-3.5 h-3.5" aria-hidden="true" />
             Powered by Google Gemini Flash AI
 
           </div>
@@ -129,7 +129,7 @@ const HomePage = () => {
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
             <Link to="/create-plan" className="btn-primary text-base sm:text-lg py-3.5 px-8 w-full sm:w-auto shadow-lg shadow-neon-green/10">
-              <Dumbbell className="w-5 h-5 mr-2" />
+              <Dumbbell className="w-5 h-5 mr-2" aria-hidden="true" />
               Build My Plan Now
             </Link>
             <Link to="/weekly-plan" className="btn-secondary text-base sm:text-lg py-3.5 px-8 w-full sm:w-auto">
@@ -225,7 +225,7 @@ const HomePage = () => {
                 aria-label="Previous testimonial"
                 className="p-2 rounded-full text-secondary-text hover:text-neon-green hover:bg-gray-800 transition-colors"
               >
-                <ChevronLeft className="w-5 h-5" />
+                <ChevronLeft className="w-5 h-5" aria-hidden="true" />
               </button>
 
               <div className="flex gap-2">
@@ -247,7 +247,7 @@ const HomePage = () => {
                 aria-label="Next testimonial"
                 className="p-2 rounded-full text-secondary-text hover:text-neon-green hover:bg-gray-800 transition-colors"
               >
-                <ChevronRight className="w-5 h-5" />
+                <ChevronRight className="w-5 h-5" aria-hidden="true" />
               </button>
             </div>
           </div>
@@ -257,7 +257,7 @@ const HomePage = () => {
       {/* CTA Banner */}
       <section className="py-16 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto text-center">
         <div className="card-dark p-8 sm:p-12 bg-gradient-to-r from-neon-green/10 via-electric-purple/10 to-bright-coral/10 border-neon-green/30">
-          <Award className="w-12 h-12 text-neon-green mx-auto mb-4" />
+          <Award className="w-12 h-12 text-neon-green mx-auto mb-4" aria-hidden="true" />
           <h2 className="text-2xl sm:text-4xl font-poppins font-bold text-primary-text mb-4">
             Ready to Transform Your Fitness?
           </h2>

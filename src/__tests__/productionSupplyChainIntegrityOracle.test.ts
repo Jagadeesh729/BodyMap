@@ -247,8 +247,8 @@ describe('Section A: Dependency Provenance & Lockfile Integrity', () => {
     expect(Object.keys(pkg.dependencies || {}).length).toBe(16)
   })
 
-  it('A30: Development dependencies count is strictly controlled (20 tools)', () => {
-    expect(Object.keys(pkg.devDependencies || {}).length).toBe(20)
+  it('A30: Development dependencies count is strictly controlled (21 tools)', () => {
+    expect(Object.keys(pkg.devDependencies || {}).length).toBe(21)
   })
 })
 
@@ -259,7 +259,8 @@ describe('Section B: Supply-Chain Attack Surface & Lifecycle Hook Forensics', ()
   const allowedInstallScriptPackages = new Set([
     'node_modules/@swc/core',
     'node_modules/esbuild',
-    'node_modules/fsevents'
+    'node_modules/fsevents',
+    'node_modules/playwright/node_modules/fsevents'
   ])
 
   it('B01: Forensic scan of package-lock.json: zero packages have preinstall scripts', () => {
@@ -276,10 +277,10 @@ describe('Section B: Supply-Chain Attack Surface & Lifecycle Hook Forensics', ()
     expect(unauthorized.length).toBe(0)
   })
 
-  it('B03: Exactly 3 allowlisted native compiler packages have hasInstallScript: true', () => {
+  it('B03: Exactly 4 allowlisted native compiler packages have hasInstallScript: true', () => {
     const packages = lock.packages || {}
     const installScriptPkgs = Object.keys(packages).filter(p => packages[p].hasInstallScript)
-    expect(installScriptPkgs.length).toBe(3)
+    expect(installScriptPkgs.length).toBe(4)
     for (const p of installScriptPkgs) {
       expect(allowedInstallScriptPackages.has(p)).toBe(true)
     }
