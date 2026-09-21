@@ -81,4 +81,35 @@ test.describe('Production Smoke Tests (Phase 23)', () => {
     // Vercel rewrite should return 200, not 404
     expect(response?.status()).toBe(200)
   })
+
+  test('PROD08: Read-only network and browser-state safety gates hold', async ({ page }) => {
+    const unexpectedRequests: string[] = []
+    const pageErrors: string[] = []
+    const consoleErrors: string[] = []
+    page.on('request', (request) => {
+      const url = new URL(request.url())
+      const headers = request.headers()
+      if (url.origin !== PROD_URL || !['GET', 'HEAD', 'OPTIONS'].includes(request.method())) unexpectedRequests.push(`${request.method()} ${request.url()}`)
+      if (headers.authorization || /AIza|GEMINI_API_KEY|Bearer/i.test(JSON.stringify(headers))) unexpectedRequests.push(`credential-bearing ${request.url()}`)
+    })
+    page.on('pageerror', (error) => pageErrors.push(error.message))
+    page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text()) })
+
+    await page.goto('/', { timeout: 15_000 })
+    await waitForAppReady(page)
+    const state = await page.evaluate(async () => ({
+      sessionStorage: Object.keys(sessionStorage),
+      cookies: document.cookie,
+      serviceWorkers: 'serviceWorker' in navigator ? (await navigator.serviceWorker.getRegistrations()).length : 0,
+      indexedDb: 'databases' in indexedDB ? (await indexedDB.databases()).length : 0,
+    }))
+
+    expect(unexpectedRequests, 'unexpected production network request').toEqual([])
+    expect(pageErrors, 'production page errors').toEqual([])
+    expect(consoleErrors, 'production console errors').toEqual([])
+    expect(state.sessionStorage).toEqual([])
+    expect(state.cookies).toBe('')
+    expect(state.serviceWorkers).toBe(0)
+    expect(state.indexedDb).toBe(0)
+  })
 })
