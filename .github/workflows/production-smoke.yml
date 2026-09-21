@@ -2,7 +2,6 @@ name: Production Smoke Verification
 
 on:
   deployment_status:
-    types: [success]
   workflow_dispatch:
 
 permissions:
