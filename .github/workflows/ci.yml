@@ -45,6 +45,9 @@ jobs:
       - name: ESLint check
         run: npm run lint
 
+      - name: Build production bundle (required by artifact oracle)
+        run: npm run build
+
       - name: Unit & Oracle regression suite
         run: npm test -- --run
 
@@ -69,6 +72,9 @@ jobs:
 
       - name: Install dependencies (immutable lockfile)
         run: npm ci
+
+      - name: Build production bundle (required by artifact oracle)
+        run: npm run build
 
       - name: Run supply-chain integrity oracle
         run: npx vitest run src/__tests__/productionSupplyChainIntegrityOracle.test.ts
