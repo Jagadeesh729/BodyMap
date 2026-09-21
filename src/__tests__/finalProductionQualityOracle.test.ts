@@ -771,7 +771,8 @@ describe('Section G: Documentation & Contract Synchronization', () => {
     expect(contract.currentHeadCommit).not.toBe('8cc50d725b7546ff2d804be2fa7977c436e176e4') // transient amend (superseded)
     expect(contract.currentHeadCommit).not.toBe('e802f79530246bd245cf7c4a9398507f22f6834d') // E28-B governance fix (superseded by final certified lineage)
     expect(contract.currentHeadCommit).not.toBe('2aa7146e0339dae656ba4071b90f46452d7df647') // superseded by final certified lineage
-    expect(contract.currentHeadCommit).toBe('6db4c23b80b14096dbefad21deca1699f9c51c7a')
+    expect(contract.currentHeadCommit).not.toBe('6db4c23b80b14096dbefad21deca1699f9c51c7a') // superseded by final certified lineage
+    expect(contract.currentHeadCommit).toBe('966db236fbe583f83cec2f0f1df6b27d648a1db3')
 
     function validateContractCommits(contractData: { releaseCommit: unknown; currentHeadCommit: unknown }, headSha: string, parentSha?: string) {
       const isAnchor = contractData.releaseCommit === '12076d44528c82fdd10aeaa5db27bf0492a41159'
