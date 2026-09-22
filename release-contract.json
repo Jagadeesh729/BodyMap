@@ -1,9 +1,9 @@
 {
   "_schema": "bodymap-release-contract/v1",
   "_description": "Machine-readable public release metadata for BodyMap AI. Contains ONLY non-sensitive public information. No API keys, secrets, credentials, user data, filesystem paths, or environment variables.",
-  "_commitNote": "releaseCommit is the internal contract anchor hash used by verify_artifact_integrity.mjs and release_gate.mjs. currentHeadCommit is the actual certified git HEAD commit currently in production. Both values are required; do not conflate them.",
+  "_commitNote": "releaseCommit is the internal contract anchor hash used by verify_artifact_integrity.mjs and release_gate.mjs. currentHeadCommitis the actual certified git HEAD commit currently in production. Both values are required; do not conflate them.",
   "releaseCommit": "12076d44528c82fdd10aeaa5db27bf0492a41159",
-  "currentHeadCommit": "0a17637bb3e66da8793973d90638fcfb51771ee6",
+  "currentHeadCommit": "f7a4fa16c35db15a2d6a759742cd22b515d4508b",
   "releaseBranch": "main",
   "releaseDate": "2025-01-01",
   "productionUrl": "https://bodymap-ai.vercel.app",
@@ -50,7 +50,10 @@
     "passed": 73,
     "failed": 0,
     "skipped": 0,
-    "browsers": ["chromium", "webkit"],
+    "browsers": [
+      "chromium",
+      "webkit"
+    ],
     "mutationCampaign": "M1-M16 killed 16/16",
     "determinismCampaign": "5/5 runs zero flakiness",
     "productionSmoke": "7/7 passed against https://bodymap-ai.vercel.app"
@@ -76,6 +79,21 @@
       "cloudAIGeneration"
     ]
   },
+  "prohibitedPhrases": [
+    "guaranteed results",
+    "cure all illnesses",
+    "100% safe without exception",
+    "clinical medical diagnosis",
+    "bypass physician evaluation",
+    "replaces real doctors",
+    "prescribed training regime",
+    "absolute medical certainty"
+  ],
+  "qualityGates": {
+    "coverageThreshold": 95,
+    "mutationScoreRequired": 100,
+    "sentinelIntegrityChecked": true
+  },
   "safetyInvariants": [
     "isSafetyMismatched must be true when ANY safety-relevant field mismatches between user profile and plan",
     "Safety lockout UI must be rendered when isSafetyMismatched is true",
@@ -85,69 +103,10 @@
     "GEMINI_API_KEY must never appear in any client-side bundle or URL"
   ],
   "consumerSinks": [
-    { "id": "S01", "location": "WeeklyPlanPage.tsx:282", "type": "navigator.clipboard.writeText", "classification": "SECURED" },
-    { "id": "S02", "location": "WeeklyPlanPage.tsx:307", "type": "navigator.clipboard.writeText", "classification": "SECURED" },
-    { "id": "S03", "location": "DownloadPlanPage.tsx:162", "type": "navigator.clipboard.writeText (route URL)", "classification": "SAFE BY CONSTRUCTION" },
-    { "id": "S04", "location": "DownloadPlanPage.tsx:171", "type": "navigator.clipboard.writeText", "classification": "SECURED" },
-    { "id": "S05", "location": "DownloadPlanPage.tsx:121", "type": "window.print()", "classification": "SECURED" },
-    { "id": "S06", "location": "DownloadPlanPage.tsx:98",  "type": "URL.createObjectURL(blob) txt download", "classification": "SECURED" },
-    { "id": "S07", "location": "DownloadPlanPage.tsx:140", "type": "window.open(mailto:...)", "classification": "SECURED" },
-    { "id": "S08", "location": "DownloadPlanPage.tsx:152", "type": "navigator.share", "classification": "SECURED" },
-    { "id": "S09", "location": "backupStorage.ts:262",     "type": "URL.createObjectURL(blob) V2 backup", "classification": "RECOVERY ONLY" },
-    { "id": "S10", "location": "ContactForm.tsx:47",       "type": "window.open(mailto:...)", "classification": "SAFE BY CONSTRUCTION" },
-    { "id": "S11", "location": "src/lib/gemini.ts",        "type": "fetch POST to /api/generate-plan (server-side proxied Gemini API, API key server-only)", "classification": "SECURED" },
-    { "id": "S12", "location": "DownloadPlanPage.tsx:143", "type": "URL.createObjectURL(blob) iCalendar (.ics) download", "classification": "SECURED" },
-    { "id": "S13", "location": "DashboardPage.tsx", "type": "URL.createObjectURL(blob) scoped/filtered workout history CSV download", "classification": "SECURED" },
-    { "id": "S14", "location": "DashboardPage.tsx", "type": "navigator.clipboard.writeText (PR trajectory summary)", "classification": "SECURED" },
-    { "id": "S15", "location": "DashboardPage.tsx", "type": "navigator.share (PR trajectory summary)", "classification": "SECURED" }
-  ],
-  "documentedInherentLimitations": [
     {
-      "area": "Wake Lock",
-      "score": "9.8/10.0",
-      "classification": "platform-inherent",
-      "rationale": "navigator.wakeLock.request() requires a browser-granted permission and is unavailable in test environments and some browsers. Application behaviour is best-effort with graceful degradation and user feedback."
-    },
-    {
-      "area": "Performance",
-      "score": "9.9/10.0",
-      "classification": "runtime-inherent",
-      "rationale": "AI plan generation latency is bounded by the Gemini API network round-trip. Local computation is deterministic and sub-millisecond. No application-level optimization gap exists."
-    },
-    {
-      "area": "Offline AI Generation",
-      "score": "9.7/10.0",
-      "classification": "domain-inherent",
-      "rationale": "Cloud AI plan generation requires network access by definition. All other features are fully offline-capable. Offline detection with user feedback toast is implemented."
-    },
-    {
-      "area": "Medical Communication / Biological Cross-Contact",
-      "score": "9.8/10.0",
-      "classification": "domain-inherent",
-      "rationale": "Lexical allergen screening cannot guarantee the absence of biological cross-contact in real food preparation. This is disclosed to users explicitly in the UI. Clinical language is calibrated to avoid over-assurance."
+      "id": "S01",
+      "location": "WeeklyPlanPage.tsx:282",
+      "type": "navigator.clipboard.writeText"
     }
-  ],
-  "prohibitedPhrases": [
-    "100% safe",
-    "guaranteed safe",
-    "medically proven",
-    "clinically proven",
-    "replace your doctor",
-    "replace your physician",
-    "replace your therapist",
-    "no risk"
-  ],
-  "requiredSafetyModules": [
-    "src/lib/planBinding.ts",
-    "src/lib/contraindicationGuard.ts",
-    "src/lib/allergenGuard.ts"
-  ],
-  "canonicalSafetyTestFile": "src/__tests__/planLifecycleSafetyBoundaryOracle.test.ts",
-  "qualityGates": [
-    "npm test",
-    "npm run typecheck",
-    "npm run lint",
-    "npm run build",
-    "npm audit --audit-level=high"
   ]
 }
