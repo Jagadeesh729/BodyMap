@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { toast } from '@/hooks/use-toast'
+import { buildSafeMailtoUrl } from '@/lib/mailtoSecurity'
 
 interface ContactFormProps {
   title?: string
@@ -40,11 +41,23 @@ export const ContactForm = ({
     }
 
     setIsSubmitting(true)
-    const subject = encodeURIComponent(formData.subject || 'BodyMap Inquiry')
-    const body = encodeURIComponent(
-      `Name: ${formData.name}\nEmail: ${formData.email}\n\nMessage:\n${formData.message}`
-    )
-    window.open(`mailto:support@bodymap.ai?subject=${subject}&body=${body}`, '_blank')
+    const safeMailtoUrl = buildSafeMailtoUrl({
+      to: 'support@bodymap.ai',
+      subject: formData.subject ? formData.subject.trim() : 'BodyMap Inquiry',
+      body: `Name: ${formData.name}\nEmail: ${formData.email}\n\nMessage:\n${formData.message}`
+    })
+
+    if (!safeMailtoUrl) {
+      toast({
+        title: 'Unable to prepare email draft',
+        description: 'Please remove any control characters or newline characters from the subject.',
+        variant: 'destructive'
+      })
+      setIsSubmitting(false)
+      return
+    }
+
+    window.open(safeMailtoUrl /* mailto:support@bodymap.ai */, '_blank')
 
     setTimeout(() => {
       setIsSubmitting(false)

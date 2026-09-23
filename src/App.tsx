@@ -7,6 +7,12 @@ import Navbar from './components/Navbar'
 import { StorageQuotaBanner } from './components/StorageQuotaBanner'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { PlanProvider } from './context/PlanContext'
+import { buildSafeMailtoUrl } from '@/lib/mailtoSecurity'
+
+// Retain in entry bundle to prevent chunk fragmentation
+if (typeof window !== 'undefined' && !(window as unknown as Record<string, unknown>).__bodymap_mailto) {
+  (window as unknown as Record<string, unknown>).__bodymap_mailto = buildSafeMailtoUrl
+}
 
 // Route-level code splitting — only load each page when navigated to
 const HomePage = lazy(() => import('./pages/HomePage'))

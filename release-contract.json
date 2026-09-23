@@ -3,7 +3,7 @@
   "_description": "Machine-readable public release metadata for BodyMap AI. Contains ONLY non-sensitive public information. No API keys, secrets, credentials, user data, filesystem paths, or environment variables.",
   "_commitNote": "releaseCommit is the internal contract anchor hash used by verify_artifact_integrity.mjs and release_gate.mjs. currentHeadCommitis the actual certified git HEAD commit currently in production. Both values are required; do not conflate them.",
   "releaseCommit": "12076d44528c82fdd10aeaa5db27bf0492a41159",
-  "currentHeadCommit": "f7a4fa16c35db15a2d6a759742cd22b515d4508b",
+  "currentHeadCommit": "5f87d279c109329f2ba0a84db3ba7aa70c59ea47",
   "releaseBranch": "main",
   "releaseDate": "2025-01-01",
   "productionUrl": "https://bodymap-ai.vercel.app",
@@ -17,28 +17,28 @@
       "sha256": "d014da4e8222599ff09dbe1e6053712499c5d57e7bdc3eea4979eac891adbf18",
       "bytes": 60288
     },
-    "index-Cs3aecoH.js": {
-      "sha256": "ff65d851b84a1d4e52eddc914d74b81106c32e71f8dd421c972f9a23d4b91dcb",
-      "bytes": 160290
+    "index-C448U-vI.js": {
+      "sha256": "578c9570e6d562c3f83fa91843734f467a7cf4fdc675f0f5f2f7944e9978438b",
+      "bytes": 161413
     },
     "useFocusTrap-BNeadSKd.js": {
       "sha256": "ee99524ffc1c256078a42195c68bde0e5fd799537354716aa543b924c575fcb7",
       "bytes": 1613
     },
-    "CreatePlanPage-0Y2Mn2n7.js": {
-      "sha256": "97f752fe171cd8657598d52ee49e39dd7f647d592237120212f1fa457818f490",
+    "CreatePlanPage-BO3uR1wn.js": {
+      "sha256": "06c850f5212dc40c615ccd5011f2b8782923558b472bd198279073a2e085dab3",
       "bytes": 22889
     },
-    "WeeklyPlanPage-DSWyI3LT.js": {
-      "sha256": "e977e65943662233017766b3690cbd77bbbb8d48e07648973f8c36b332fa54a0",
+    "WeeklyPlanPage-CtlGP_42.js": {
+      "sha256": "7f0a2a8bf8a5a4b57ddbbcc56f7548b9d37505b630e3e9ce22eb6798c3f94acd",
       "bytes": 53743
     },
-    "GymModePage-xPR3H0FJ.js": {
-      "sha256": "71c07bd07dfb664674026dff8bee276f79b772ec903b6d1c7a22f548a503565e",
+    "GymModePage-B6f3gMe4.js": {
+      "sha256": "e97a0d41af252923000e511e3ead90783c06dd3a2cd7c1853a367983dbe17630",
       "bytes": 94806
     },
-    "planSafetyGate-CVgqUhj3.js": {
-      "sha256": "cba6949b1a1f60bbc8c0b7592e14fae9ff53e31b0ddf5f0dfd3dea2d774d4b09",
+    "planSafetyGate-Dz1kfx2n.js": {
+      "sha256": "8bf89dc0f8563ca27933c7d68fb314552c751b67ce655f7f9c04e653f989e3a9",
       "bytes": 2094
     }
   },

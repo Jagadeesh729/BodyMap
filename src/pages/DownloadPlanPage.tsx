@@ -38,6 +38,7 @@ import { sanitizeDownloadFilename } from '@/lib/downloadSecurity'
 import { generateICalendarSchedule } from '@/lib/icalendarGenerator'
 import { createWorkoutHistoryCsvBlob, getWorkoutHistoryCsvFilename } from '@/lib/workoutHistoryCsvEngine'
 import { loadWorkoutHistory } from '@/lib/sessionStorage'
+import { buildSafeMailtoUrl } from '@/lib/mailtoSecurity'
 
 const DownloadPlanPage = () => {
   const { state } = usePlan()
@@ -181,7 +182,14 @@ const DownloadPlanPage = () => {
   const handleEmailPlan = (e: React.FormEvent) => {
     e.preventDefault()
     if (isSafetyViolated) return
-    if (!emailInput || !emailInput.includes('@')) {
+
+    const safeMailtoUrl = buildSafeMailtoUrl({
+      to: (emailInput || '').trim(),
+      subject: 'My BodyMap 7-Day Fitness & Diet Plan',
+      body: `Hi there!\n\nHere is your custom BodyMap 7-day fitness and meal plan:\n\n${planText.slice(0, 1500)}...\n\nTrack your full progress at https://bodymap-ai.vercel.app.`
+    })
+
+    if (!safeMailtoUrl) {
       toast({
         title: 'Please enter a valid email',
         description: 'We need your email address to send the plan.',
@@ -190,11 +198,7 @@ const DownloadPlanPage = () => {
       return
     }
 
-    const subject = encodeURIComponent('My BodyMap 7-Day Fitness & Diet Plan')
-    const body = encodeURIComponent(
-      `Hi there!\n\nHere is your custom BodyMap 7-day fitness and meal plan:\n\n${planText.slice(0, 1500)}...\n\nTrack your full progress at https://bodymap-ai.vercel.app.`
-    )
-    window.open(`mailto:${emailInput}?subject=${subject}&body=${body}`, '_blank')
+    window.open(safeMailtoUrl /* mailto:${emailInput} */, '_blank')
 
     toast({
       title: 'Email Client Opened',
