@@ -2690,6 +2690,99 @@ export async function parseRequestBody(req: IncomingMessage & { body?: unknown }
 }
 
 /**
+ * Canonical default allowed origins for BodyMap AI.
+ * Derived strictly from documented production and development environment configurations:
+ * - Production: https://bodymap-ai.vercel.app
+ * - Local Vite dev server: http://localhost:8080, http://127.0.0.1:8080
+ * - Local Vite preview server: http://localhost:4173, http://127.0.0.1:4173
+ * - Local alternate test/e2e dev: http://localhost:3000, http://127.0.0.1:3000
+ */
+export const DEFAULT_ALLOWED_ORIGINS: readonly string[] = Object.freeze([
+  'https://bodymap-ai.vercel.app',
+  'http://localhost:8080',
+  'http://127.0.0.1:8080',
+  'http://localhost:4173',
+  'http://127.0.0.1:4173',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+])
+
+/**
+ * Returns the active set of allowed origins.
+ * Supports environment override via ALLOWED_ORIGINS (comma-separated).
+ * Security invariants:
+ * - Empty or whitespace-only configuration safely defaults to DEFAULT_ALLOWED_ORIGINS.
+ * - Wildcard '*' is rejected and fails closed (does NOT permit universal access).
+ * - Malformed entries are rejected.
+ */
+export function getAllowedOrigins(): Set<string> {
+  const envOrigins = process.env.ALLOWED_ORIGINS
+  if (envOrigins === undefined || envOrigins === null) {
+    return new Set(DEFAULT_ALLOWED_ORIGINS)
+  }
+
+  const trimmed = envOrigins.trim()
+  if (trimmed === '') {
+    return new Set(DEFAULT_ALLOWED_ORIGINS)
+  }
+
+  const items = trimmed.split(',').map(s => s.trim()).filter(Boolean)
+  // If wildcard '*' is configured, fail closed: reject '*' and do not grant universal access
+  if (items.some(item => item === '*')) {
+    const nonWildcard = items.filter(item => item !== '*')
+    const safeSet = new Set<string>()
+    for (const item of nonWildcard) {
+      try {
+        const u = new URL(item)
+        if (u.origin === item) safeSet.add(item)
+      } catch {
+        // Ignore invalid URL entries
+      }
+    }
+    return safeSet
+  }
+
+  const valid = new Set<string>()
+  for (const item of items) {
+    try {
+      const u = new URL(item)
+      if (u.origin === item) {
+        valid.add(item)
+      }
+    } catch {
+      // Ignore invalid URL entries
+    }
+  }
+  return valid
+}
+
+/**
+ * Resolves an incoming Origin header strictly against the active allowlist.
+ * Returns the exact matched origin if allowed, or null if denied / absent.
+ * Security invariants:
+ * - Missing or non-string Origin returns null (no ACAO header emitted).
+ * - 'null' origin returns null.
+ * - Matching is strictly exact (no substring, regex, scheme, port, or subdomain broadening).
+ * - Whitespace-padded or trailing-slash variants return null.
+ */
+export function resolveCorsOrigin(origin: string | undefined | null): string | null {
+  if (!origin || typeof origin !== 'string') {
+    return null
+  }
+
+  if (origin === 'null') {
+    return null
+  }
+
+  const allowed = getAllowedOrigins()
+  if (allowed.has(origin)) {
+    return origin
+  }
+
+  return null
+}
+
+/**
  * Serverless handler for Google Gemini API plan generation.
  * Keeps GEMINI_API_KEY secure in the server environment (e.g. Vercel).
  * Validates domain FormData to prevent arbitrary LLM proxying and prompt injection.
@@ -2705,12 +2798,21 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
   res.setHeader('X-Content-Type-Options', 'nosniff')
   res.setHeader('X-Frame-Options', 'DENY')
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
-  res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private')
   res.setHeader('Pragma', 'no-cache')
   res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'")
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), bluetooth=(), interest-cohort=()')
   res.setHeader('X-Permitted-Cross-Domain-Policies', 'none')
+
+  // Evaluate CORS Origin against explicit allowlist
+  const rawOrigin = req.headers['origin']
+  const requestOrigin = Array.isArray(rawOrigin) ? rawOrigin[0] : rawOrigin
+  const matchedOrigin = resolveCorsOrigin(requestOrigin)
+
+  if (matchedOrigin) {
+    res.setHeader('Access-Control-Allow-Origin', matchedOrigin)
+    res.setHeader('Vary', 'Origin')
+  }
 
   if (req.method === 'OPTIONS') {
     res.statusCode = 204

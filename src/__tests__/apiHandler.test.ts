@@ -34,12 +34,13 @@ const validMockFormData = {
   stressLevel: 'low',
 }
 
-function createMockReq(method: string, body: unknown, ip = '192.168.1.1'): MockRequest {
+function createMockReq(method: string, body: unknown, ip = '192.168.1.1', extraHeaders: Record<string, string> = {}): MockRequest {
   const emitter = new EventEmitter() as unknown as MockRequest
   emitter.method = method
   emitter.headers = {
     'content-type': 'application/json',
     'x-forwarded-for': ip,
+    ...extraHeaders,
   }
   emitter.destroy = vi.fn() as unknown as (error?: Error) => MockRequest
   process.nextTick(() => {
@@ -688,14 +689,22 @@ describe('Serverless /api/generate-plan Handler Security, Rate Limiting and Stri
   })
 
   describe('CORS Preflight and Payload Size Defense', () => {
-    it('handles OPTIONS preflight with 204 and CORS headers', async () => {
-      const req = createMockReq('OPTIONS', {})
+    it('handles OPTIONS preflight with 204 and CORS headers for allowed origin', async () => {
+      const req = createMockReq('OPTIONS', {}, '192.168.1.1', { origin: 'https://bodymap-ai.vercel.app' })
       const res = createMockRes()
       await handler(req, res)
       expect(res.statusCode).toBe(204)
-      expect(res._headers['Access-Control-Allow-Origin']).toBe('*')
+      expect(res._headers['Access-Control-Allow-Origin']).toBe('https://bodymap-ai.vercel.app')
       expect(res._headers['Access-Control-Allow-Methods']).toContain('POST')
       expect(res._headers['Access-Control-Allow-Headers']).toContain('Content-Type')
+    })
+
+    it('denies OPTIONS preflight CORS headers for unauthorized origin', async () => {
+      const req = createMockReq('OPTIONS', {}, '192.168.1.1', { origin: 'https://attacker.site' })
+      const res = createMockRes()
+      await handler(req, res)
+      expect(res.statusCode).toBe(204)
+      expect(res._headers['Access-Control-Allow-Origin']).toBeUndefined()
     })
 
     it('returns 413 Payload Too Large when pre-parsed request body exceeds 16 KB', async () => {

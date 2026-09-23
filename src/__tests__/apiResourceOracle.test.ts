@@ -928,14 +928,22 @@ describe('Independent API Resource Safety Oracle (75 Cases)', () => {
   // Group 9: HTTP Methods, CORS, Empty Bodies, Rate Limiting, and Bounded Responses
   // =========================================================================
   describe('Group 9: HTTP Methods, CORS, Empty Bodies, Rate Limiting, and Bounded Responses', () => {
-    it('Case 68: OPTIONS request returns 204 No Content with complete CORS headers', async () => {
-      const req = createStreamedReq('OPTIONS', '')
+    it('Case 68: OPTIONS request returns 204 No Content with complete CORS headers for allowed origin', async () => {
+      const req = createStreamedReq('OPTIONS', '', { origin: 'https://bodymap-ai.vercel.app' })
       const res = createMockRes()
       await handler(req, res)
       expect(res.statusCode).toBe(204)
-      expect(res._headers['Access-Control-Allow-Origin']).toBe('*')
+      expect(res._headers['Access-Control-Allow-Origin']).toBe('https://bodymap-ai.vercel.app')
       expect(res._headers['Access-Control-Allow-Methods']).toContain('POST')
       expect(res._headers['Access-Control-Allow-Headers']).toContain('Content-Type')
+    })
+
+    it('Case 68b: OPTIONS request for unauthorized origin emits no CORS headers', async () => {
+      const req = createStreamedReq('OPTIONS', '', { origin: 'https://attacker.site' })
+      const res = createMockRes()
+      await handler(req, res)
+      expect(res.statusCode).toBe(204)
+      expect(res._headers['Access-Control-Allow-Origin']).toBeUndefined()
     })
 
     it('Case 69: GET request returns 405 Method Not Allowed', async () => {
