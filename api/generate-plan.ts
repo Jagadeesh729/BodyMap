@@ -2803,6 +2803,7 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
   res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'")
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), bluetooth=(), interest-cohort=()')
   res.setHeader('X-Permitted-Cross-Domain-Policies', 'none')
+  res.setHeader('Cross-Origin-Resource-Policy', 'same-origin')
 
   // Evaluate CORS Origin against explicit allowlist
   const rawOrigin = req.headers['origin']

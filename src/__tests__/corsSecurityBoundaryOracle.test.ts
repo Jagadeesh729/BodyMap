@@ -280,6 +280,7 @@ describe('CORS Security Boundary Adversarial Oracle', () => {
         expect(res.getHeader('Access-Control-Max-Age')).toBe('86400')
         expect(res.getHeader('Vary')).toBe('Origin')
         expect(res.getHeader('Access-Control-Allow-Credentials')).toBeUndefined()
+        expect(res.getHeader('Cross-Origin-Resource-Policy')).toBe('same-origin')
       }
     })
 
@@ -289,6 +290,7 @@ describe('CORS Security Boundary Adversarial Oracle', () => {
       await handler(req, res)
       expect(res.statusCode).toBe(204)
       expect(res.getHeader('Access-Control-Allow-Origin')).toBeUndefined()
+      expect(res.getHeader('Cross-Origin-Resource-Policy')).toBe('same-origin')
     })
 
     it('O12: OPTIONS without Origin header returns 204 with NO ACAO header', async () => {
@@ -297,6 +299,7 @@ describe('CORS Security Boundary Adversarial Oracle', () => {
       await handler(req, res)
       expect(res.statusCode).toBe(204)
       expect(res.getHeader('Access-Control-Allow-Origin')).toBeUndefined()
+      expect(res.getHeader('Cross-Origin-Resource-Policy')).toBe('same-origin')
     })
   })
 
@@ -313,6 +316,7 @@ describe('CORS Security Boundary Adversarial Oracle', () => {
       expect(res.getHeader('Access-Control-Allow-Origin')).toBe('https://bodymap-ai.vercel.app')
       expect(res.getHeader('Vary')).toBe('Origin')
       expect(res.getHeader('Access-Control-Allow-Credentials')).toBeUndefined()
+      expect(res.getHeader('Cross-Origin-Resource-Policy')).toBe('same-origin')
     })
 
     it('O14: POST + denied origin processes request but returns NO ACAO header', async () => {
@@ -324,6 +328,7 @@ describe('CORS Security Boundary Adversarial Oracle', () => {
       // Critical security check: Browser will block response read because ACAO is undefined
       expect(res.getHeader('Access-Control-Allow-Origin')).toBeUndefined()
       expect(res.getHeader('Access-Control-Allow-Credentials')).toBeUndefined()
+      expect(res.getHeader('Cross-Origin-Resource-Policy')).toBe('same-origin')
     })
 
     it('O15: POST without Origin header returns NO ACAO header', async () => {
@@ -333,6 +338,7 @@ describe('CORS Security Boundary Adversarial Oracle', () => {
       await handler(req, res)
       expect(res.statusCode).toBe(200)
       expect(res.getHeader('Access-Control-Allow-Origin')).toBeUndefined()
+      expect(res.getHeader('Cross-Origin-Resource-Policy')).toBe('same-origin')
     })
 
     it('O16: Consecutive repeated requests with mixed origins maintain strict isolation', async () => {

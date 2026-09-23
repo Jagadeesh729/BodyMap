@@ -39,5 +39,27 @@ describe('vercel.json Security Headers Configuration', () => {
     const referrer = headersList.find(h => h.key.toLowerCase() === 'referrer-policy')
     expect(referrer).toBeDefined()
     expect(referrer?.value).toBe('strict-origin-when-cross-origin')
+
+    const coop = headersList.find(h => h.key.toLowerCase() === 'cross-origin-opener-policy')
+    expect(coop).toBeDefined()
+    expect(coop?.value).toBe('same-origin')
+
+    const corp = headersList.find(h => h.key.toLowerCase() === 'cross-origin-resource-policy')
+    expect(corp).toBeDefined()
+    expect(corp?.value).toBe('same-origin')
+
+    // Public asset rule overrides CORP for embeddable preview cards
+    const assetRule = config.headers.find((h: { source: string }) => h.source.includes('og-image'))
+    expect(assetRule).toBeDefined()
+    const assetHeaders = assetRule.headers as Array<{ key: string; value: string }>
+    const assetCorp = assetHeaders.find(h => h.key.toLowerCase() === 'cross-origin-resource-policy')
+    expect(assetCorp).toBeDefined()
+    expect(assetCorp?.value).toBe('cross-origin')
+
+    // Rewrites: API rewrite precedes catch-all SPA rewrite
+    expect(config.rewrites).toBeDefined()
+    expect(Array.isArray(config.rewrites)).toBe(true)
+    expect(config.rewrites[0]).toEqual({ source: '/api/(.*)', destination: '/api/$1' })
+    expect(config.rewrites[1]).toEqual({ source: '/(.*)', destination: '/' })
   })
 })
