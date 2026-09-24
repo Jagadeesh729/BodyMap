@@ -19,12 +19,15 @@ export const APP_SCOPE_PATHSPECS = [
   'index.html',
   'package.json',
   'package-lock.json',
+  '.npmrc',
+  'components.json',
   'vite.config.ts',
   'vercel.json',
   'tailwind.config.ts',
   'postcss.config.js',
   'tsconfig.json',
   'tsconfig.app.json',
+  'tsconfig.node.json',
 ]
 
 export const SHA_REGEX = /^[0-9a-f]{40}$/
@@ -83,6 +86,25 @@ export function validateReleaseContractLineage(contract, headSha, cwd = process.
       stdio: ['ignore', 'ignore', 'ignore']
     })
   } catch {
+    let isShallow = false
+    try {
+      isShallow = execFileSync('git', ['rev-parse', '--is-shallow-repository'], {
+        cwd,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore']
+      }).trim() === 'true'
+    } catch {
+      // ignore git error if rev-parse is not supported
+    }
+
+    if (isShallow) {
+      return {
+        valid: false,
+        code: 'ERR_SHALLOW_CLONE',
+        reason: `currentHeadCommit (${commit.slice(0, 12)}) could not be verified in shallow repository: run 'git fetch --unshallow' to enable complete release lineage verification`
+      }
+    }
+
     return {
       valid: false,
       code: 'ERR_NOT_IN_ANCESTRY',
@@ -149,7 +171,15 @@ export function validateReleaseContractLineage(contract, headSha, cwd = process.
  * @param {string} options.contractCommit
  * @param {string} options.headSha
  */
-export function simulateLineageValidation({ commits, contractCommit, headSha }) {
+export function simulateLineageValidation({ commits, contractCommit, headSha, releaseCommit }) {
+  if (releaseCommit !== undefined && releaseCommit !== IMMUTABLE_RELEASE_ANCHOR && releaseCommit !== headSha) {
+    return {
+      valid: false,
+      code: 'ERR_INVALID_RELEASE_ANCHOR',
+      reason: `releaseCommit (${releaseCommit}) must match IMMUTABLE_RELEASE_ANCHOR (${IMMUTABLE_RELEASE_ANCHOR}) or HEAD (${headSha})`
+    }
+  }
+
   if (!contractCommit || typeof contractCommit !== 'string' || !SHA_REGEX.test(contractCommit)) {
     return { valid: false, code: 'ERR_MALFORMED_SHA', reason: 'malformed SHA' }
   }
@@ -160,42 +190,95 @@ export function simulateLineageValidation({ commits, contractCommit, headSha }) 
     return { valid: false, code: 'ERR_HEAD_NOT_FOUND', reason: 'HEAD not found in DAG' }
   }
 
-  // Trace ancestors of HEAD
-  const ancestors = new Set()
-  let curr = headNode
-  while (curr) {
-    ancestors.add(curr.sha)
-    curr = curr.parentSha ? commitMap.get(curr.parentSha) : null
+  function getParents(node) {
+    if (!node) return []
+    if (Array.isArray(node.parentShas)) return node.parentShas
+    if (Array.isArray(node.parentSha)) return node.parentSha
+    if (node.parentSha) return [node.parentSha]
+    return []
   }
 
-  if (!ancestors.has(contractCommit)) {
+  // 1. Trace all ancestors of HEAD via BFS
+  const headAncestors = new Set()
+  const queue = [headSha]
+  while (queue.length > 0) {
+    const sha = queue.shift()
+    if (headAncestors.has(sha)) continue
+    headAncestors.add(sha)
+    const node = commitMap.get(sha)
+    for (const p of getParents(node)) {
+      if (!headAncestors.has(p)) queue.push(p)
+    }
+  }
+
+  if (!headAncestors.has(contractCommit)) {
     return { valid: false, code: 'ERR_NOT_IN_ANCESTRY', reason: 'contract commit not in ancestry of HEAD' }
   }
 
-  // Check if any commit strictly between contractCommit and HEAD touched app
-  let appModifiedSinceContract = false
-  curr = headNode
-  while (curr && curr.sha !== contractCommit) {
-    if (curr.touchesApp) {
-      appModifiedSinceContract = true
-      break
+  // 2. Trace all ancestors of contractCommit via BFS
+  const contractAncestors = new Set()
+  const cQueue = [contractCommit]
+  while (cQueue.length > 0) {
+    const sha = cQueue.shift()
+    if (contractAncestors.has(sha)) continue
+    contractAncestors.add(sha)
+    const node = commitMap.get(sha)
+    for (const p of getParents(node)) {
+      if (!contractAncestors.has(p)) cQueue.push(p)
     }
-    curr = curr.parentSha ? commitMap.get(curr.parentSha) : null
+  }
+
+  // 3. Check for any application changes strictly after contractCommit in HEAD ancestry
+  // i.e., commits in headAncestors that are NOT in contractAncestors
+  let appModifiedSinceContract = false
+  for (const sha of headAncestors) {
+    if (!contractAncestors.has(sha)) {
+      const node = commitMap.get(sha)
+      if (node && node.touchesApp) {
+        appModifiedSinceContract = true
+        break
+      }
+    }
   }
 
   if (appModifiedSinceContract) {
     return { valid: false, code: 'ERR_UNCERTIFIED_APP_CHANGES', reason: 'application modified between contract commit and HEAD' }
   }
 
-  // Find latest app commit in HEAD lineage
+  // 4. Find the latest application commit reachable from HEAD
+  const appCommitsInHead = Array.from(headAncestors).filter(sha => commitMap.get(sha)?.touchesApp)
   let latestAppSha = null
-  curr = headNode
-  while (curr) {
-    if (curr.touchesApp) {
-      latestAppSha = curr.sha
-      break
+  if (appCommitsInHead.length > 0) {
+    for (const sha of appCommitsInHead) {
+      let hasAppDescendant = false
+      for (const otherSha of appCommitsInHead) {
+        if (otherSha !== sha) {
+          const q = [otherSha]
+          const visited = new Set()
+          let reachesSha = false
+          while (q.length > 0) {
+            const cur = q.shift()
+            if (cur === sha) {
+              reachesSha = true
+              break
+            }
+            if (visited.has(cur)) continue
+            visited.add(cur)
+            for (const p of getParents(commitMap.get(cur))) {
+              if (headAncestors.has(p)) q.push(p)
+            }
+          }
+          if (reachesSha) {
+            hasAppDescendant = true
+            break
+          }
+        }
+      }
+      if (!hasAppDescendant) {
+        latestAppSha = sha
+        break
+      }
     }
-    curr = curr.parentSha ? commitMap.get(curr.parentSha) : null
   }
 
   if (latestAppSha && contractCommit !== latestAppSha) {
