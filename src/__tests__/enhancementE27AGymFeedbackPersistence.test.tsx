@@ -65,6 +65,7 @@ const mockWorkoutSession = (overrides?: Partial<WorkoutSession>): WorkoutSession
       formCue: 'Keep chest high',
       sets: [
         {
+          setIndex: 1,
           setNumber: 1,
           targetReps: 10,
           actualReps: 10,
