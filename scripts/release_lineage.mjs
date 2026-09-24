@@ -55,15 +55,13 @@ export function getLatestRuntimeCommit(revision = 'HEAD', cwd = process.cwd()) {
  * four-condition lineage invariant (C1-C4).
  */
 export function validateReleaseContractLineage(contract, headSha, cwd = process.cwd()) {
-  // Release anchor validation (releaseCommit must match IMMUTABLE_RELEASE_ANCHOR or HEAD)
+  // Release anchor validation: releaseCommit must match IMMUTABLE_RELEASE_ANCHOR strictly
   if (contract?.releaseCommit !== undefined) {
-    const isAnchor = contract.releaseCommit === IMMUTABLE_RELEASE_ANCHOR
-    const isHead = contract.releaseCommit === headSha
-    if (!isAnchor && !isHead) {
+    if (contract.releaseCommit !== IMMUTABLE_RELEASE_ANCHOR) {
       return {
         valid: false,
         code: 'ERR_INVALID_RELEASE_ANCHOR',
-        reason: `releaseCommit (${contract.releaseCommit}) must match IMMUTABLE_RELEASE_ANCHOR (${IMMUTABLE_RELEASE_ANCHOR}) or HEAD (${headSha})`
+        reason: `releaseCommit (${contract.releaseCommit}) must match immutable baseline anchor (${IMMUTABLE_RELEASE_ANCHOR})`
       }
     }
   }
@@ -172,11 +170,11 @@ export function validateReleaseContractLineage(contract, headSha, cwd = process.
  * @param {string} options.headSha
  */
 export function simulateLineageValidation({ commits, contractCommit, headSha, releaseCommit }) {
-  if (releaseCommit !== undefined && releaseCommit !== IMMUTABLE_RELEASE_ANCHOR && releaseCommit !== headSha) {
+  if (releaseCommit !== undefined && releaseCommit !== IMMUTABLE_RELEASE_ANCHOR) {
     return {
       valid: false,
       code: 'ERR_INVALID_RELEASE_ANCHOR',
-      reason: `releaseCommit (${releaseCommit}) must match IMMUTABLE_RELEASE_ANCHOR (${IMMUTABLE_RELEASE_ANCHOR}) or HEAD (${headSha})`
+      reason: `releaseCommit (${releaseCommit}) must match immutable baseline anchor (${IMMUTABLE_RELEASE_ANCHOR})`
     }
   }
 

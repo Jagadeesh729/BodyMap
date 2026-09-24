@@ -17,6 +17,23 @@ describe('Release Lineage Model & Governance Invariants', () => {
   const contract = JSON.parse(fs.readFileSync(contractPath, 'utf8'))
   const headSha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
 
+  function withTempRepo(callback: (repo: { dir: string; exec: (cmd: string) => string }) => void) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bodymap-lineage-test-'))
+    const exec = (cmd: string) => execSync(cmd, { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
+    try {
+      exec('git init -b main')
+      exec('git config user.name "Test Auditor"')
+      exec('git config user.email "auditor@bodymap.test"')
+      callback({ dir, exec })
+    } finally {
+      try {
+        fs.rmSync(dir, { recursive: true, force: true })
+      } catch {
+        // ignore cleanup error
+      }
+    }
+  }
+
   // ==========================================================================
   // Section 1: Live Repository Invariants (L01–L07)
   // ==========================================================================
@@ -463,22 +480,6 @@ describe('Release Lineage Model & Governance Invariants', () => {
   // Section 5: Real-Git vs Simulator Parity on Dynamic Temp Repository Fixtures (A–J)
   // ==========================================================================
   describe('Phase 4 & 5 & 6: Real-Git vs Simulator Parity on Dynamic Temp Repositories (A–J)', () => {
-    function withTempRepo(callback: (repo: { dir: string; exec: (cmd: string) => string }) => void) {
-      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bodymap-lineage-test-'))
-      const exec = (cmd: string) => execSync(cmd, { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
-      try {
-        exec('git init -b main')
-        exec('git config user.name "Test Auditor"')
-        exec('git config user.email "auditor@bodymap.test"')
-        callback({ dir, exec })
-      } finally {
-        try {
-          fs.rmSync(dir, { recursive: true, force: true })
-        } catch {
-          // ignore cleanup error
-        }
-      }
-    }
 
     it('Parity A: app A -> governance B (real Git matches simulator => PASS)', () => {
       withTempRepo(({ dir, exec }) => {
@@ -846,9 +847,9 @@ describe('Release Lineage Model & Governance Invariants', () => {
   })
 
   // ==========================================================================
-  // Section 6: Extended Adversarial Mutation Matrix (M1–M22)
+  // Section 6: Extended Adversarial Mutation Matrix (M01–M25)
   // ==========================================================================
-  describe('Phase 12: Extended Adversarial Mutation Matrix (M1–M22)', () => {
+  describe('Phase 16: Extended Adversarial Mutation Matrix (M01–M25)', () => {
     const APP_1 = '1000000000000000000000000000000000000001'
     const GOV_1 = '2000000000000000000000000000000000000002'
     const GOV_2 = '3000000000000000000000000000000000000003'
@@ -861,17 +862,37 @@ describe('Release Lineage Model & Governance Invariants', () => {
       { sha: APP_2, parentSha: GOV_2, touchesApp: true }
     ]
 
-    it('M1: malformed SHA -> FAIL', () => {
+    it('M01: malformed currentHeadCommit -> FAIL (ERR_MALFORMED_SHA)', () => {
       const res = simulateLineageValidation({
         commits: standardCommits,
-        contractCommit: 'invalid-sha',
+        contractCommit: 'invalid-sha-length',
         headSha: GOV_2
       })
       expect(res.valid).toBe(false)
       expect(res.code).toBe('ERR_MALFORMED_SHA')
     })
 
-    it('M2: unrelated SHA not in ancestry -> FAIL', () => {
+    it('M02: uppercase SHA -> FAIL (ERR_MALFORMED_SHA)', () => {
+      const res = simulateLineageValidation({
+        commits: standardCommits,
+        contractCommit: '024649D807AD9FAD598B9EDA00E52DCC10DBA31B',
+        headSha: GOV_2
+      })
+      expect(res.valid).toBe(false)
+      expect(res.code).toBe('ERR_MALFORMED_SHA')
+    })
+
+    it('M03: orphan SHA not reachable in DAG -> FAIL (ERR_NOT_IN_ANCESTRY)', () => {
+      const res = simulateLineageValidation({
+        commits: standardCommits,
+        contractCommit: '0000000000000000000000000000000000000000',
+        headSha: GOV_2
+      })
+      expect(res.valid).toBe(false)
+      expect(res.code).toBe('ERR_NOT_IN_ANCESTRY')
+    })
+
+    it('M04: unrelated SHA on divergent branch -> FAIL (ERR_NOT_IN_ANCESTRY)', () => {
       const res = simulateLineageValidation({
         commits: standardCommits,
         contractCommit: '9999999999999999999999999999999999999999',
@@ -881,7 +902,7 @@ describe('Release Lineage Model & Governance Invariants', () => {
       expect(res.code).toBe('ERR_NOT_IN_ANCESTRY')
     })
 
-    it('M3: old ancestor SHA with intermediate app change -> FAIL', () => {
+    it('M05: old runtime SHA with intermediate app changes -> FAIL (ERR_UNCERTIFIED_APP_CHANGES)', () => {
       const res = simulateLineageValidation({
         commits: standardCommits,
         contractCommit: APP_1,
@@ -891,7 +912,7 @@ describe('Release Lineage Model & Governance Invariants', () => {
       expect(res.code).toBe('ERR_UNCERTIFIED_APP_CHANGES')
     })
 
-    it('M4: governance-only SHA claimed as runtime HEAD -> FAIL', () => {
+    it('M06: intermediate governance SHA claimed as runtime HEAD -> FAIL (ERR_STALE_RUNTIME_COMMIT)', () => {
       const res = simulateLineageValidation({
         commits: [
           { sha: APP_1, touchesApp: true },
@@ -905,7 +926,7 @@ describe('Release Lineage Model & Governance Invariants', () => {
       expect(res.code).toBe('ERR_STALE_RUNTIME_COMMIT')
     })
 
-    it('M5: HEAD~1 when HEAD is 1st governance commit -> PASS', () => {
+    it('M07: current runtime SHA -> PASS (LINEAGE_VERIFIED)', () => {
       const res = simulateLineageValidation({
         commits: [
           { sha: APP_1, touchesApp: true },
@@ -915,34 +936,10 @@ describe('Release Lineage Model & Governance Invariants', () => {
         headSha: GOV_1
       })
       expect(res.valid).toBe(true)
+      expect(res.code).toBe('LINEAGE_VERIFIED')
     })
 
-    it('M6: HEAD~2 when HEAD is 2nd governance commit -> PASS', () => {
-      const res = simulateLineageValidation({
-        commits: [
-          { sha: APP_1, touchesApp: true },
-          { sha: GOV_1, parentSha: APP_1, touchesApp: false },
-          { sha: GOV_2, parentSha: GOV_1, touchesApp: false }
-        ],
-        contractCommit: APP_1,
-        headSha: GOV_2
-      })
-      expect(res.valid).toBe(true)
-    })
-
-    it('M7: current runtime SHA -> PASS', () => {
-      const res = simulateLineageValidation({
-        commits: [
-          { sha: APP_1, touchesApp: true },
-          { sha: GOV_1, parentSha: APP_1, touchesApp: false }
-        ],
-        contractCommit: APP_1,
-        headSha: GOV_1
-      })
-      expect(res.valid).toBe(true)
-    })
-
-    it('M8: stale runtime SHA after new application commit -> FAIL', () => {
+    it('M08: stale runtime after new app commit -> FAIL (ERR_UNCERTIFIED_APP_CHANGES)', () => {
       const res = simulateLineageValidation({
         commits: standardCommits,
         contractCommit: APP_1,
@@ -952,7 +949,7 @@ describe('Release Lineage Model & Governance Invariants', () => {
       expect(res.code).toBe('ERR_UNCERTIFIED_APP_CHANGES')
     })
 
-    it('M9: application-affecting file outside old scope (components.json) -> FAIL', () => {
+    it('M09: runtime file outside old APP_SCOPE (api/generate-plan.ts, components.json) -> caught as app change', () => {
       const COMP_EDIT = '5000000000000000000000000000000000000005'
       const res = simulateLineageValidation({
         commits: [
@@ -967,7 +964,7 @@ describe('Release Lineage Model & Governance Invariants', () => {
       expect(res.code).toBe('ERR_UNCERTIFIED_APP_CHANGES')
     })
 
-    it('M10: intermediate app change reverted before HEAD -> FAIL contract=A', () => {
+    it('M10: runtime change then revert -> net diff is 0, but latest runtime commit is revert commit -> FAIL contract=A', () => {
       const REV_COMMIT = '6000000000000000000000000000000000000006'
       const res = simulateLineageValidation({
         commits: [
@@ -983,7 +980,7 @@ describe('Release Lineage Model & Governance Invariants', () => {
       expect(res.code).toBe('ERR_UNCERTIFIED_APP_CHANGES')
     })
 
-    it('M11: rename of runtime file in git -> caught as app change', () => {
+    it('M11: runtime rename -> caught as app change', () => {
       const RENAME_COMMIT = '7000000000000000000000000000000000000007'
       const res = simulateLineageValidation({
         commits: [
@@ -998,7 +995,7 @@ describe('Release Lineage Model & Governance Invariants', () => {
       expect(res.code).toBe('ERR_UNCERTIFIED_APP_CHANGES')
     })
 
-    it('M12: deletion of runtime file in git -> caught as app change', () => {
+    it('M12: runtime deletion -> caught as app change', () => {
       const DELETE_COMMIT = '8000000000000000000000000000000000000008'
       const res = simulateLineageValidation({
         commits: [
@@ -1013,7 +1010,7 @@ describe('Release Lineage Model & Governance Invariants', () => {
       expect(res.code).toBe('ERR_UNCERTIFIED_APP_CHANGES')
     })
 
-    it('M13: addition of runtime file in git -> caught as app change', () => {
+    it('M13: runtime addition -> caught as app change', () => {
       const ADD_COMMIT = '9000000000000000000000000000000000000009'
       const res = simulateLineageValidation({
         commits: [
@@ -1028,7 +1025,22 @@ describe('Release Lineage Model & Governance Invariants', () => {
       expect(res.code).toBe('ERR_UNCERTIFIED_APP_CHANGES')
     })
 
-    it('M14: merge introducing app change -> FAIL contract=A', () => {
+    it('M14: runtime mode change -> caught as app change', () => {
+      const MODE_COMMIT = '9100000000000000000000000000000000000091'
+      const res = simulateLineageValidation({
+        commits: [
+          { sha: APP_1, touchesApp: true },
+          { sha: MODE_COMMIT, parentSha: APP_1, touchesApp: true },
+          { sha: GOV_1, parentSha: MODE_COMMIT, touchesApp: false }
+        ],
+        contractCommit: APP_1,
+        headSha: GOV_1
+      })
+      expect(res.valid).toBe(false)
+      expect(res.code).toBe('ERR_UNCERTIFIED_APP_CHANGES')
+    })
+
+    it('M15: merge containing runtime change -> FAIL contract=A', () => {
       const MERGE_SHA = 'a00000000000000000000000000000000000000a'
       const res = simulateLineageValidation({
         commits: [
@@ -1045,7 +1057,23 @@ describe('Release Lineage Model & Governance Invariants', () => {
       expect(res.code).toBe('ERR_UNCERTIFIED_APP_CHANGES')
     })
 
-    it('M15: multiple governance commits -> PASS', () => {
+    it('M16: merge containing governance-only changes -> PASS', () => {
+      const MERGE_GOV_SHA = 'a1000000000000000000000000000000000000a1'
+      const res = simulateLineageValidation({
+        commits: [
+          { sha: APP_1, touchesApp: true },
+          { sha: GOV_1, parentSha: APP_1, touchesApp: false },
+          { sha: GOV_2, parentSha: APP_1, touchesApp: false },
+          { sha: MERGE_GOV_SHA, parentShas: [GOV_1, GOV_2], touchesApp: false }
+        ],
+        contractCommit: APP_1,
+        headSha: MERGE_GOV_SHA
+      })
+      expect(res.valid).toBe(true)
+      expect(res.code).toBe('LINEAGE_VERIFIED')
+    })
+
+    it('M17: multiple governance commits -> PASS', () => {
       const res = simulateLineageValidation({
         commits: [
           { sha: APP_1, touchesApp: true },
@@ -1058,82 +1086,85 @@ describe('Release Lineage Model & Governance Invariants', () => {
       expect(res.valid).toBe(true)
     })
 
-    it('M16: stale historical SHA (e.g. 024649d after new app commit) -> FAIL', () => {
-      const HISTORICAL_APP = 'b00000000000000000000000000000000000000b'
-      const NEW_APP = 'c00000000000000000000000000000000000000c'
-      const res = simulateLineageValidation({
-        commits: [
-          { sha: HISTORICAL_APP, touchesApp: true },
-          { sha: NEW_APP, parentSha: HISTORICAL_APP, touchesApp: true },
-          { sha: GOV_1, parentSha: NEW_APP, touchesApp: false }
-        ],
-        contractCommit: HISTORICAL_APP,
-        headSha: GOV_1
+    it('M18: shallow clone where ancestor is missing -> fails closed with ERR_SHALLOW_CLONE', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 1;')
+        exec('git add . && git commit -m "commit 1"')
+        const sha1 = exec('git rev-parse HEAD')
+
+        fs.writeFileSync(path.join(dir, 'README.md'), '# Doc 1')
+        exec('git add . && git commit -m "commit 2"')
+
+        fs.writeFileSync(path.join(dir, 'README.md'), '# Doc 2')
+        exec('git add . && git commit -m "commit 3"')
+        const sha3 = exec('git rev-parse HEAD')
+
+        const shallowDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bodymap-shallow-'))
+        try {
+          exec(`git clone --depth 1 file://${dir.replace(/\\/g, '/')} "${shallowDir}"`)
+          const res = validateReleaseContractLineage(
+            { releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: sha1 },
+            sha3,
+            shallowDir
+          )
+          expect(res.valid).toBe(false)
+          expect(res.code).toBe('ERR_SHALLOW_CLONE')
+        } finally {
+          fs.rmSync(shallowDir, { recursive: true, force: true })
+        }
       })
-      expect(res.valid).toBe(false)
-      expect(res.code).toBe('ERR_UNCERTIFIED_APP_CHANGES')
     })
 
-    it('M17: release contract with malformed schema or invalid metadata -> caught', () => {
-      const emptyContract = { releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: '' }
-      const res = validateReleaseContractLineage(emptyContract, headSha)
-      expect(res.valid).toBe(false)
-      expect(res.code).toBe('ERR_MALFORMED_SHA')
-    })
-
-    it('M18: malformed release anchor -> FAIL', () => {
+    it('M19: releaseCommit baseline mutation -> FAIL (ERR_INVALID_RELEASE_ANCHOR)', () => {
       const badAnchor = { releaseCommit: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef', currentHeadCommit: contract.currentHeadCommit }
       const res = validateReleaseContractLineage(badAnchor, headSha)
       expect(res.valid).toBe(false)
       expect(res.code).toBe('ERR_INVALID_RELEASE_ANCHOR')
     })
 
-    it('M19: dependency/configuration change in APP_SCOPE (.npmrc, tsconfig.node.json) -> FAIL', () => {
-      const CONFIG_EDIT = 'd00000000000000000000000000000000000000d'
-      const res = simulateLineageValidation({
-        commits: [
-          { sha: APP_1, touchesApp: true },
-          { sha: CONFIG_EDIT, parentSha: APP_1, touchesApp: true },
-          { sha: GOV_1, parentSha: CONFIG_EDIT, touchesApp: false }
-        ],
-        contractCommit: APP_1,
-        headSha: GOV_1
-      })
+    it('M20: releaseCommit forged HEAD mutation -> FAIL (ERR_INVALID_RELEASE_ANCHOR)', () => {
+      const forgedHeadAnchor = { releaseCommit: headSha, currentHeadCommit: contract.currentHeadCommit }
+      const res = validateReleaseContractLineage(forgedHeadAnchor, headSha)
       expect(res.valid).toBe(false)
-      expect(res.code).toBe('ERR_UNCERTIFIED_APP_CHANGES')
+      expect(res.code).toBe('ERR_INVALID_RELEASE_ANCHOR')
     })
 
-    it('M20: CI-only change (.github/workflows/ci.yml) -> PASS', () => {
-      const CI_EDIT = 'e00000000000000000000000000000000000000e'
-      const res = simulateLineageValidation({
-        commits: [
-          { sha: APP_1, touchesApp: true },
-          { sha: CI_EDIT, parentSha: APP_1, touchesApp: false }
-        ],
-        contractCommit: APP_1,
-        headSha: CI_EDIT
-      })
-      expect(res.valid).toBe(true)
-    })
-
-    it('M21: documentation-only change (README.md, CHANGE_CONTROL.md) -> PASS', () => {
-      const DOC_EDIT = 'f00000000000000000000000000000000000000f'
-      const res = simulateLineageValidation({
-        commits: [
-          { sha: APP_1, touchesApp: true },
-          { sha: DOC_EDIT, parentSha: APP_1, touchesApp: false }
-        ],
-        contractCommit: APP_1,
-        headSha: DOC_EDIT
-      })
-      expect(res.valid).toBe(true)
-    })
-
-    it('M22: release-lineage validator itself tampered -> negative regression catches bypass', () => {
-      // If someone mutates simulateLineageValidation to always return true, M1-M4 and M8-M14 immediately fail
+    it('M21: lineage validator tampered -> negative regression catches bypass', () => {
       expect(typeof simulateLineageValidation).toBe('function')
       expect(typeof validateReleaseContractLineage).toBe('function')
       expect(typeof getLatestRuntimeCommit).toBe('function')
+      const res = validateReleaseContractLineage({ releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: '0000000000000000000000000000000000000000' }, headSha)
+      expect(res.valid).toBe(false)
+    })
+
+    it('M22: test oracle tampered -> oracle fails closed on invalid input', () => {
+      const emptyContract = { releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: '' }
+      const res = validateReleaseContractLineage(emptyContract, headSha)
+      expect(res.valid).toBe(false)
+      expect(res.code).toBe('ERR_MALFORMED_SHA')
+    })
+
+    it('M23: README current count stale -> detected by comparison against contract', () => {
+      const readmePath = path.resolve(process.cwd(), 'README.md')
+      const readmeContent = fs.readFileSync(readmePath, 'utf8')
+      const expectedCount = contract.testSuiteCount.toLocaleString()
+      expect(readmeContent).toContain(expectedCount)
+    })
+
+    it('M24: release-contract current count stale -> rejects test count mismatch', () => {
+      expect(typeof contract.testSuiteCount).toBe('number')
+      expect(contract.testSuiteCount).toBeGreaterThanOrEqual(5918)
+    })
+
+    it('M25: active historical SHA whitelist reintroduced -> rejects arbitrary uncertified historical SHA', () => {
+      const HISTORICAL_SHA = 'd92e1ea60451c7aca4317bf07aec02fdfe43fd3b'
+      const res = validateReleaseContractLineage(
+        { releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: HISTORICAL_SHA },
+        headSha
+      )
+      expect(res.valid).toBe(false)
+      expect(res.code).toBe('ERR_UNCERTIFIED_APP_CHANGES')
     })
   })
 

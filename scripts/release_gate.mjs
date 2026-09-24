@@ -333,15 +333,14 @@ try {
       fail('release-contract.json currentHeadCommit lineage invalid', lineageResult.reason);
     }
 
-    // Check releaseCommit matches HEAD or certified baseline release anchor
-    const isAnchor = contract.releaseCommit === IMMUTABLE_RELEASE_ANCHOR;
-    if (contract.releaseCommit === head || isAnchor) {
+    // Check releaseCommit matches certified immutable baseline release anchor
+    if (contract.releaseCommit === IMMUTABLE_RELEASE_ANCHOR) {
       pass(`release-contract.json valid, commit anchored (${(contract.releaseCommit).slice(0, 12)})`);
       contractOk = true;
     } else {
       fail(
-        'release-contract.json releaseCommit does not match HEAD or certified anchor',
-        `contract=${contract.releaseCommit.slice(0, 12)}, HEAD=${head.slice(0, 12)}`
+        'release-contract.json releaseCommit does not match certified immutable anchor',
+        `expected ${IMMUTABLE_RELEASE_ANCHOR}, got ${contract.releaseCommit}`
       );
     }
   }
