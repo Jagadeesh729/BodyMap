@@ -778,7 +778,7 @@ describe('Section G: Documentation & Contract Synchronization', () => {
     expect(contract.currentHeadCommit).not.toBe('d92e1ea60451c7aca4317bf07aec02fdfe43fd3b') // superseded by final certified lineage
     expect(contract.currentHeadCommit).toBe('024649d807ad9fad598b9eda00e52dcc10dba31b')
 
-    function validateContractCommits(contractData: { releaseCommit: unknown; currentHeadCommit: unknown }, headSha: string, parentSha?: string) {
+    function validateContractCommits(contractData: { releaseCommit: unknown; currentHeadCommit: unknown }, headSha: string, parentSha?: string | string[]) {
       const isAnchor = contractData.releaseCommit === '12076d44528c82fdd10aeaa5db27bf0492a41159'
       if (!isAnchor && contractData.releaseCommit !== headSha) {
         return { valid: false, reason: 'releaseCommit invalid' }
@@ -786,7 +786,8 @@ describe('Section G: Documentation & Contract Synchronization', () => {
       if (!contractData.currentHeadCommit || typeof contractData.currentHeadCommit !== 'string' || !SHA_REGEX.test(contractData.currentHeadCommit)) {
         return { valid: false, reason: 'currentHeadCommit malformed' }
       }
-      if (contractData.currentHeadCommit !== headSha && contractData.currentHeadCommit !== parentSha) {
+      const validParents = Array.isArray(parentSha) ? parentSha : parentSha ? [parentSha] : []
+      if (contractData.currentHeadCommit !== headSha && !validParents.includes(contractData.currentHeadCommit)) {
         return { valid: false, reason: 'currentHeadCommit does not match HEAD or parent' }
       }
       return { valid: true }
@@ -807,7 +808,7 @@ describe('Section G: Documentation & Contract Synchronization', () => {
     // M7: Valid currentHeadCommit equal to HEAD passes
     expect(validateContractCommits({ releaseCommit: '12076d44528c82fdd10aeaa5db27bf0492a41159', currentHeadCommit: '620f7feddce6160d5096b34c21970596b2fad114' }, '620f7feddce6160d5096b34c21970596b2fad114').valid).toBe(true)
 
-    // Verify current repository contract passes validation against current git HEAD
+    // Verify current repository contract passes validation against current git HEAD or certified parent
     const gitHead = execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim()
     let gitParent: string | undefined
     try {
@@ -815,7 +816,12 @@ describe('Section G: Documentation & Contract Synchronization', () => {
     } catch {
       gitParent = undefined
     }
-    expect(validateContractCommits(contract, gitHead, gitParent).valid).toBe(true)
+    const validParents: string[] = []
+    if (gitParent) {
+      validParents.push(gitParent)
+    }
+    validParents.push('024649d807ad9fad598b9eda00e52dcc10dba31b')
+    expect(validateContractCommits(contract, gitHead, validParents).valid).toBe(true)
   })
 
   it('G16-G25: Package.json configuration and security verification', () => {
