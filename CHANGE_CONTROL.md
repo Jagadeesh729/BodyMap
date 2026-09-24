@@ -7,6 +7,9 @@ This document defines the **impact classification** and **approval requirements*
 **Certified Baseline**: commit `12076d44528c82fdd10aeaa5db27bf0492a41159`
 **Baseline Score**: 9.93 / 10.0 | **Status**: RELEASE FROZEN — MAINTENANCE MODE
 
+> [!NOTE]
+> **Historical Baseline Classification**: The baseline score of 9.93 / 10.0 reflects the certified audit ceiling established at frozen baseline milestone commit `12076d44528c82fdd10aeaa5db27bf0492a41159`. It serves as permanent historical forensic reference; current repository health is continuously verified against 157 automated test suites, 5,877 tests, and 11/11 release gates.
+
 ---
 
 ## Change Impact Levels
@@ -26,6 +29,28 @@ This document defines the **impact classification** and **approval requirements*
 - [ ] Working tree is clean
 
 **Does NOT require**: Full test suite run, release gate, or change-control review.
+
+---
+
+### Level 0-G — Governance Sealing & Lineage Synchronization
+**Definition**: Pure governance, audit trail, metadata, test oracle, or documentation synchronization commits that seal or certify existing code without modifying application runtime behavior or introducing runtime application drift.
+
+**Allowed Paths**:
+- `release-contract.json` (metadata, test counts, release contract synchronization)
+- `README.md`, `CHANGE_CONTROL.md`, `skills/**`
+- `scripts/release_gate.mjs`, `scripts/release_lineage.mjs`, `scripts/verify_artifact_integrity.mjs`, `scripts/validate_governance.mjs`
+- `src/__tests__/**` (test oracles, regression suites, lineage test models)
+
+**Disallowed Paths**:
+- Application runtime code (`src/` excluding `src/__tests__/`, `api/`, `index.html`, `vite.config.ts`, `tailwind.config.ts`, etc.). Any modification to application runtime paths elevates the change to Level 1 or higher.
+
+**Required before merging**:
+- [ ] `npm run lint` passes
+- [ ] `npm run typecheck` passes
+- [ ] `npm test -- --run` passes all suites (5,877 tests across 157 suites)
+- [ ] Lineage invariant verified (C1–C4) via `scripts/release_lineage.mjs`
+- [ ] `node scripts/release_gate.mjs` passes 11/11
+- [ ] Working tree is clean and synchronized with remote
 
 ---
 
@@ -159,7 +184,7 @@ To maintain immutable audit history while strictly enforcing present-day truthfu
    - `README.md` (badges, tech stack, project structure, scripts table)
    - `release-contract.json` (authoritative release metadata and test totals)
    - Current release status, artifact chunk hashes, and consumer sink registers
-   - *Governance Rule*: Must match current verified test counts (`5,736` tests across `149` suites) and build outputs. Enforced by `finalProductionQualityOracle.test.ts` (Section G) and `scripts/release_gate.mjs`. Stale counts (`5,694`, `5,661`, `5,653`, `5,609`, `147 suites`, `146 suites`, `145 suites`, `5,571`, etc.) in current documentation cause CI test failure.
+   - *Governance Rule*: Must match current verified test counts (`5,877` tests across `157` suites) and build outputs. Enforced by `finalProductionQualityOracle.test.ts` (Section G) and `scripts/release_gate.mjs`. Stale counts (`5,736`, `5,694`, `5,661`, `5,653`, `5,609`, `149 suites`, `147 suites`, `146 suites`, `145 suites`, `5,571`, etc.) in current documentation cause CI test failure.
 
 2. **Historical Audit Records (Preserved Forensic Evidence)**:
    - Prior audit walkthrough sections (`walkthrough.md` sections 1–21)
@@ -199,5 +224,6 @@ To maintain immutable audit history while strictly enforcing present-day truthfu
 | 2026-09-19 | Senior Release Engineer | Enhancement E27-D: Personal Records Vault Trajectory Share & Export (prTrajectoryExportEngine, CSV export, Web Share API, clipboard fallback, S14/S15 sink registration) & doc sync to 5,736/149 | 3 |
 | 2026-09-19 | Senior Release Engineer | Governance reconciliation: update release-contract.json currentHeadCommit to certified E27-D HEAD 1117b2b & synchronize oracle assertions | 0 |
 | 2026-09-20 | Senior Release Engineer | Enhancement E28-A: Tier 4 Live Browser Verification Infrastructure (Playwright 1.55.1 harness, accessibility defect remediation [A06 landmark, A08 icon aria-hidden], skip elimination, GF07 vibration persistence, H09/H10 timezone matrix, 16/16 mutations killed, 5-run determinism, WebKit parity, production smoke, supply chain oracle alignment) | 2 |
-| 2026-09-24 | Senior Release Engineer | Governance reconciliation: align finalProductionQualityOracle, release_gate.mjs, and release-provenance SKILL to runtime-certified commit 024649d and remediate test key prop warning in enhancementE27AGymFeedbackPersistence | 0 |
+| 2026-09-24 | Senior Release Engineer | Governance reconciliation: align finalProductionQualityOracle, release_gate.mjs, and release-provenance SKILL to runtime-certified commit 024649d and remediate test key prop warning in enhancementE27AGymFeedbackPersistence | 0-G |
+| 2026-09-24 | Principal Governance Auditor & Remediation Engineer | Enhancement E47: Formalized deterministic C1–C4 production lineage model in scripts/release_lineage.mjs; eliminated hardcoded SHA whitelists in release_gate.mjs and finalProductionQualityOracle; verified M1–M16 and synthetic DAGs A–E in releaseLineageModel.test.ts; synchronized current documentation and release contract to verified 5,877 tests across 157 suites | 0-G |
 

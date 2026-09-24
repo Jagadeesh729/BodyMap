@@ -4,6 +4,11 @@ import { render, screen, fireEvent, act } from '@testing-library/react'
 import fs from 'fs'
 import path from 'path'
 import { execSync } from 'child_process'
+import {
+  getLatestRuntimeCommit,
+  validateReleaseContractLineage,
+  IMMUTABLE_RELEASE_ANCHOR
+} from '../../scripts/release_lineage.mjs'
 
 // Domain and engine imports
 import { validateStep, hasSafetySensitiveMedicalIssues } from '@/lib/validation'
@@ -710,6 +715,10 @@ describe('Section G: Documentation & Contract Synchronization', () => {
     expect(readme).toContain(`Executes ${formattedTestCount} automated Vitest tests across ${expectedFileCount} suites`)
 
     // Stale counts are strictly forbidden in current documentation
+    expect(readme).not.toContain('5,736')
+    expect(readme).not.toContain('5736')
+    expect(readme).not.toContain('149 suites')
+    expect(readme).not.toContain('149 Vitest')
     expect(readme).not.toContain('5,694')
     expect(readme).not.toContain('5694')
     expect(readme).not.toContain('147 suites')
@@ -754,7 +763,7 @@ describe('Section G: Documentation & Contract Synchronization', () => {
 
     // Release contract commit invariants & determinism (M1-M7)
     const SHA_REGEX = /^[0-9a-f]{40}$/
-    expect(contract.releaseCommit).toBe('12076d44528c82fdd10aeaa5db27bf0492a41159')
+    expect(contract.releaseCommit).toBe(IMMUTABLE_RELEASE_ANCHOR)
     expect(contract.currentHeadCommit).toMatch(SHA_REGEX)
     expect(contract.currentHeadCommit).not.toBe('65752bef8356018b62db4d73aabbf857e4b512dc')
     expect(contract.currentHeadCommit).not.toBe('46c188fbcd457d9620bed96503bbc8680a7c1098')
@@ -776,52 +785,24 @@ describe('Section G: Documentation & Contract Synchronization', () => {
     expect(contract.currentHeadCommit).not.toBe('a173f516a1bbee9f351769430189d0a7da71a7d7') // superseded by final certified lineage
     expect(contract.currentHeadCommit).not.toBe('8a1fae81437056359309eac6b099bc93be619656') // superseded by final certified lineage
     expect(contract.currentHeadCommit).not.toBe('d92e1ea60451c7aca4317bf07aec02fdfe43fd3b') // superseded by final certified lineage
-    expect(contract.currentHeadCommit).toBe('024649d807ad9fad598b9eda00e52dcc10dba31b')
+    expect(contract.currentHeadCommit).toBe(getLatestRuntimeCommit())
 
-    function validateContractCommits(contractData: { releaseCommit: unknown; currentHeadCommit: unknown }, headSha: string, parentSha?: string | string[]) {
-      const isAnchor = contractData.releaseCommit === '12076d44528c82fdd10aeaa5db27bf0492a41159'
-      if (!isAnchor && contractData.releaseCommit !== headSha) {
-        return { valid: false, reason: 'releaseCommit invalid' }
-      }
-      if (!contractData.currentHeadCommit || typeof contractData.currentHeadCommit !== 'string' || !SHA_REGEX.test(contractData.currentHeadCommit)) {
-        return { valid: false, reason: 'currentHeadCommit malformed' }
-      }
-      const validParents = Array.isArray(parentSha) ? parentSha : parentSha ? [parentSha] : []
-      if (contractData.currentHeadCommit !== headSha && !validParents.includes(contractData.currentHeadCommit)) {
-        return { valid: false, reason: 'currentHeadCommit does not match HEAD or parent' }
-      }
-      return { valid: true }
-    }
-
-    // M1: Old stale commit fails
-    expect(validateContractCommits({ releaseCommit: '12076d44528c82fdd10aeaa5db27bf0492a41159', currentHeadCommit: '65752bef8356018b62db4d73aabbf857e4b512dc' }, '620f7feddce6160d5096b34c21970596b2fad114', '73abcda646bbce08d907a36cb5aba4546cdb05e1').valid).toBe(false)
-    // M2: Random commit fails
-    expect(validateContractCommits({ releaseCommit: '12076d44528c82fdd10aeaa5db27bf0492a41159', currentHeadCommit: '0123456789abcdef0123456789abcdef01234567' }, '620f7feddce6160d5096b34c21970596b2fad114', '73abcda646bbce08d907a36cb5aba4546cdb05e1').valid).toBe(false)
-    // M3: Empty commit fails
-    expect(validateContractCommits({ releaseCommit: '12076d44528c82fdd10aeaa5db27bf0492a41159', currentHeadCommit: '' }, '620f7feddce6160d5096b34c21970596b2fad114').valid).toBe(false)
-    // M4: Malformed commit fails
-    expect(validateContractCommits({ releaseCommit: '12076d44528c82fdd10aeaa5db27bf0492a41159', currentHeadCommit: 'invalid-commit-hash' }, '620f7feddce6160d5096b34c21970596b2fad114').valid).toBe(false)
-    // M5: Valid ancestor commit older than certified release fails
-    expect(validateContractCommits({ releaseCommit: '12076d44528c82fdd10aeaa5db27bf0492a41159', currentHeadCommit: '12076d44528c82fdd10aeaa5db27bf0492a41159' }, '620f7feddce6160d5096b34c21970596b2fad114', '73abcda646bbce08d907a36cb5aba4546cdb05e1').valid).toBe(false)
-    // M6: Tampered releaseCommit fails, valid anchor passes
-    expect(validateContractCommits({ releaseCommit: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef', currentHeadCommit: '620f7feddce6160d5096b34c21970596b2fad114' }, '620f7feddce6160d5096b34c21970596b2fad114').valid).toBe(false)
-    // M7: Valid currentHeadCommit equal to HEAD passes
-    expect(validateContractCommits({ releaseCommit: '12076d44528c82fdd10aeaa5db27bf0492a41159', currentHeadCommit: '620f7feddce6160d5096b34c21970596b2fad114' }, '620f7feddce6160d5096b34c21970596b2fad114').valid).toBe(true)
-
-    // Verify current repository contract passes validation against current git HEAD or certified parent
     const gitHead = execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim()
-    let gitParent: string | undefined
-    try {
-      gitParent = execSync('git rev-parse HEAD~1', { encoding: 'utf-8' }).trim()
-    } catch {
-      gitParent = undefined
-    }
-    const validParents: string[] = []
-    if (gitParent) {
-      validParents.push(gitParent)
-    }
-    validParents.push('024649d807ad9fad598b9eda00e52dcc10dba31b')
-    expect(validateContractCommits(contract, gitHead, validParents).valid).toBe(true)
+
+    // M1: Empty commit fails C1
+    expect(validateReleaseContractLineage({ ...contract, currentHeadCommit: '' }, gitHead).valid).toBe(false)
+    // M2: Malformed commit fails C1
+    expect(validateReleaseContractLineage({ ...contract, currentHeadCommit: 'invalid-commit-hash' }, gitHead).valid).toBe(false)
+    // M3: Random non-existent commit fails C2
+    expect(validateReleaseContractLineage({ ...contract, currentHeadCommit: '0123456789abcdef0123456789abcdef01234567' }, gitHead).valid).toBe(false)
+    // M4: Non-ancestor commit fails C2
+    expect(validateReleaseContractLineage({ ...contract, currentHeadCommit: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef' }, gitHead).valid).toBe(false)
+    // M5: Old historical commit that is an ancestor but stale runtime commit fails C4
+    expect(validateReleaseContractLineage({ ...contract, currentHeadCommit: '12076d44528c82fdd10aeaa5db27bf0492a41159' }, gitHead).valid).toBe(false)
+    // M6: Tampered releaseCommit fails anchor check
+    expect(validateReleaseContractLineage({ ...contract, releaseCommit: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef' }, gitHead).valid).toBe(false)
+    // M7: Live contract passes lineage validation against HEAD
+    expect(validateReleaseContractLineage(contract, gitHead).valid).toBe(true)
   })
 
   it('G16-G25: Package.json configuration and security verification', () => {

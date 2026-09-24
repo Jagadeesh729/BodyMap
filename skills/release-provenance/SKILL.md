@@ -17,8 +17,8 @@ description: Verification of git history linearity, commit SHA lineage, release-
    - Linear history without rebase artifacts or merge commits on main.
 2. **Release Contract Validation**:
    - `release-contract.json` exists and parses valid JSON.
-   - `releaseCommit` matches the static anchor `12076d44528c82fdd10aeaa5db27bf0492a41159`.
-   - `currentHeadCommit` matches `HEAD` or certified parent lineage (`HEAD~1` or runtime-certified `024649d807ad9fad598b9eda00e52dcc10dba31b`).
+   - `releaseCommit` matches the immutable anchor `12076d44528c82fdd10aeaa5db27bf0492a41159`.
+   - `currentHeadCommit` satisfies the four-condition lineage invariant (C1: 40-hex SHA format; C2: Git DAG ancestry via `merge-base --is-ancestor`; C3: zero application runtime drift across app pathspecs; C4: authoritative currency matching latest runtime application commit), enforced deterministically via `validateReleaseContractLineage`.
 3. **11/11 Release Gate**:
    - Executes all 11 release gate checks cleanly without bypass flags.
 

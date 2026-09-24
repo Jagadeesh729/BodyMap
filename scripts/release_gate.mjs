@@ -15,6 +15,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
+import { validateReleaseContractLineage, IMMUTABLE_RELEASE_ANCHOR } from './release_lineage.mjs';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const CONTRACT_PATH = join(ROOT, 'release-contract.json');
@@ -324,28 +325,16 @@ try {
     fail('release-contract.json missing required keys', missing.join(', '));
   } else {
     const head = execSync('git rev-parse HEAD', { cwd: ROOT, encoding: 'utf8' }).trim();
-    let parent = null;
-    try {
-      parent = execSync('git rev-parse HEAD~1', { cwd: ROOT, encoding: 'utf8' }).trim();
-    } catch {}
-    const CERTIFIED_PRODUCTION_HEAD = '024649d807ad9fad598b9eda00e52dcc10dba31b';
-    const validCommits = new Set([head, parent, CERTIFIED_PRODUCTION_HEAD].filter(Boolean));
+    const lineageResult = validateReleaseContractLineage(contract, head, ROOT);
 
-    // Deterministic validation of currentHeadCommit
-    const SHA_REGEX = /^[0-9a-f]{40}$/;
-    if (!contract.currentHeadCommit || typeof contract.currentHeadCommit !== 'string' || !SHA_REGEX.test(contract.currentHeadCommit)) {
-      fail('release-contract.json currentHeadCommit is missing or malformed', `expected 40-character hex SHA, got "${contract.currentHeadCommit}"`);
-    } else if (!validCommits.has(contract.currentHeadCommit)) {
-      fail(
-        'release-contract.json currentHeadCommit does not match HEAD or certified parent commit',
-        `contract=${contract.currentHeadCommit.slice(0, 12)}, HEAD=${head.slice(0, 12)}${parent ? ', HEAD~1=' + parent.slice(0, 12) : ''}`
-      );
+    if (lineageResult.valid) {
+      pass(`release-contract.json currentHeadCommit verified against repository lineage (${contract.currentHeadCommit.slice(0, 12)})`);
     } else {
-      pass(`release-contract.json currentHeadCommit verified (${contract.currentHeadCommit.slice(0, 12)})`);
+      fail('release-contract.json currentHeadCommit lineage invalid', lineageResult.reason);
     }
 
     // Check releaseCommit matches HEAD or certified baseline release anchor
-    const isAnchor = contract.releaseCommit === '12076d44528c82fdd10aeaa5db27bf0492a41159';
+    const isAnchor = contract.releaseCommit === IMMUTABLE_RELEASE_ANCHOR;
     if (contract.releaseCommit === head || isAnchor) {
       pass(`release-contract.json valid, commit anchored (${(contract.releaseCommit).slice(0, 12)})`);
       contractOk = true;
