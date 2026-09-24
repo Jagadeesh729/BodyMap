@@ -41,7 +41,7 @@ export function getLatestRuntimeCommit(revision = 'HEAD', cwd = process.cwd()) {
   try {
     const sha = execFileSync(
       'git',
-      ['log', '-n', '1', '--format=%H', revision, '--', ...APP_SCOPE_PATHSPECS],
+      ['log', '--full-history', '-n', '1', '--format=%H', revision, '--', ...APP_SCOPE_PATHSPECS],
       { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
     ).trim()
     return sha || null
@@ -132,6 +132,31 @@ export function validateReleaseContractLineage(contract, headSha, cwd = process.
       valid: false,
       code: 'ERR_UNCERTIFIED_APP_CHANGES',
       reason: `uncertified application changes detected between contract (${commit.slice(0, 12)}) and HEAD (${headSha.slice(0, 12)}): ${files.slice(0, 3).join(', ')}${files.length > 3 ? '...' : ''}`
+    }
+  }
+
+  // Intermediate commits in full history between contract commit and HEAD
+  let intermediateAppCommits = ''
+  try {
+    intermediateAppCommits = execFileSync(
+      'git',
+      ['rev-list', '--full-history', `${commit}..${headSha}`, '--', ...APP_SCOPE_PATHSPECS],
+      { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
+    ).trim()
+  } catch (e) {
+    return {
+      valid: false,
+      code: 'ERR_GIT_DIFF_FAILED',
+      reason: `git rev-list failed between ${commit.slice(0, 12)} and ${headSha.slice(0, 12)}: ${e.message}`
+    }
+  }
+
+  if (intermediateAppCommits.length > 0) {
+    const shas = intermediateAppCommits.split('\n').filter(Boolean)
+    return {
+      valid: false,
+      code: 'ERR_UNCERTIFIED_APP_CHANGES',
+      reason: `uncertified intermediate application changes detected between contract (${commit.slice(0, 12)}) and HEAD (${headSha.slice(0, 12)}): ${shas.slice(0, 3).map(s => s.slice(0, 12)).join(', ')}${shas.length > 3 ? '...' : ''}`
     }
   }
 
@@ -245,7 +270,7 @@ export function simulateLineageValidation({ commits, contractCommit, headSha, re
 
   // 4. Find the latest application commit reachable from HEAD
   const appCommitsInHead = Array.from(headAncestors).filter(sha => commitMap.get(sha)?.touchesApp)
-  let latestAppSha = null
+  const maximalAppCommits = []
   if (appCommitsInHead.length > 0) {
     for (const sha of appCommitsInHead) {
       let hasAppDescendant = false
@@ -273,11 +298,20 @@ export function simulateLineageValidation({ commits, contractCommit, headSha, re
         }
       }
       if (!hasAppDescendant) {
-        latestAppSha = sha
-        break
+        maximalAppCommits.push(sha)
       }
     }
   }
+
+  if (maximalAppCommits.length > 1) {
+    return {
+      valid: false,
+      code: 'ERR_AMBIGUOUS_RUNTIME_TIPS',
+      reason: `multiple incomparable runtime application tips detected in HEAD lineage: ${maximalAppCommits.map(s => s.slice(0, 12)).join(', ')}`
+    }
+  }
+
+  const latestAppSha = maximalAppCommits.length === 1 ? maximalAppCommits[0] : null
 
   if (latestAppSha && contractCommit !== latestAppSha) {
     return { valid: false, code: 'ERR_STALE_RUNTIME_COMMIT', reason: `contract commit ${contractCommit.slice(0, 12)} !== latest app commit ${latestAppSha.slice(0, 12)}` }

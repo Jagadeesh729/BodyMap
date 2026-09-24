@@ -43,18 +43,19 @@ function header(n, label) {
 // CHECK 1 — Git working tree is clean
 // ─────────────────────────────────────────────────────────────────────────────
 header(1, 'Git working tree is clean');
-const allowUncommitted = process.argv.includes('--allow-uncommitted');
-try {
-  const status = execSync('git status --porcelain', { cwd: ROOT, encoding: 'utf8' }).trim();
-  if (status === '') {
-    pass('Working tree clean');
-  } else if (allowUncommitted) {
-    pass(`Working tree has uncommitted changes (--allow-uncommitted specified)`);
-  } else {
-    fail('Uncommitted changes detected', '\n' + status);
+if (process.argv.includes('--allow-uncommitted')) {
+  fail('Bypass flag --allow-uncommitted is strictly prohibited in canonical release gate');
+} else {
+  try {
+    const status = execSync('git status --porcelain', { cwd: ROOT, encoding: 'utf8' }).trim();
+    if (status === '') {
+      pass('Working tree clean');
+    } else {
+      fail('Uncommitted changes detected', '\n' + status);
+    }
+  } catch (e) {
+    fail('git status failed', e.message);
   }
-} catch (e) {
-  fail('git status failed', e.message);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -137,6 +138,9 @@ function walkSrc(dir, results = []) {
 }
 
 const srcFiles = walkSrc(join(ROOT, 'src'));
+if (srcFiles.length === 0) {
+  fail('No source files found in src/ for consumer sink scan');
+}
 let unknownSinks = 0;
 
 for (const { pattern, locations } of KNOWN_SINK_PATTERNS) {
@@ -206,6 +210,9 @@ function walkAllSrc(dir, results = []) {
 }
 
 const allSrcFiles = walkAllSrc(join(ROOT, 'src'));
+if (allSrcFiles.length === 0) {
+  fail('No source files found in src/ for secret scanning');
+}
 for (const file of allSrcFiles) {
   const rel = file.replace(ROOT, '').replace(/\\/g, '/').replace(/^\//, '');
   const content = readFileSync(file, 'utf8');

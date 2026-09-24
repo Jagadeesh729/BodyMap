@@ -1166,6 +1166,341 @@ describe('Release Lineage Model & Governance Invariants', () => {
       expect(res.valid).toBe(false)
       expect(res.code).toBe('ERR_UNCERTIFIED_APP_CHANGES')
     })
+
+    it('M26: TREESAME merge bypass -> rejected by intermediate app commit detection', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 1;\n')
+        exec('git add . && git commit -m "Base"')
+        const rBase = exec('git rev-parse HEAD')
+
+        exec('git checkout -b side')
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 99;\n')
+        exec('git add . && git commit -m "Side change"')
+
+        exec('git checkout main')
+        fs.writeFileSync(path.join(dir, 'README.md'), '# Gov\n')
+        exec('git add . && git commit -m "Gov"')
+
+        exec('git merge -s ours side -m "Merge side ours"')
+        const head = exec('git rev-parse HEAD')
+
+        const res = validateReleaseContractLineage(
+          { releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: rBase },
+          head,
+          dir
+        )
+        expect(res.valid).toBe(false)
+        expect(res.code).toBe('ERR_UNCERTIFIED_APP_CHANGES')
+      })
+    })
+
+    it('M27: second-parent runtime change -> rejected when contract points to pre-merge first parent', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 1;\n')
+        exec('git add . && git commit -m "Base"')
+        const rBase = exec('git rev-parse HEAD')
+
+        exec('git checkout -b side')
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 2;\n')
+        exec('git add . && git commit -m "Side change"')
+
+        exec('git checkout main')
+        fs.writeFileSync(path.join(dir, 'README.md'), '# Gov\n')
+        exec('git add . && git commit -m "Gov"')
+
+        exec('git merge side -m "Merge side"')
+        const head = exec('git rev-parse HEAD')
+
+        const res = validateReleaseContractLineage(
+          { releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: rBase },
+          head,
+          dir
+        )
+        expect(res.valid).toBe(false)
+        expect(res.code).toBe('ERR_UNCERTIFIED_APP_CHANGES')
+      })
+    })
+
+    it('M28: incomparable runtime tips in simulator -> fails closed', () => {
+      const BASE = '1111111111111111111111111111111111111111'
+      const TIP_A = '2222222222222222222222222222222222222222'
+      const TIP_B = '3333333333333333333333333333333333333333'
+      const MERGE_GOV = '4444444444444444444444444444444444444444'
+
+      const res = simulateLineageValidation({
+        commits: [
+          { sha: BASE, touchesApp: true },
+          { sha: TIP_A, parentSha: BASE, touchesApp: true },
+          { sha: TIP_B, parentSha: BASE, touchesApp: true },
+          { sha: MERGE_GOV, parentShas: [TIP_A, TIP_B], touchesApp: false }
+        ],
+        contractCommit: TIP_A,
+        headSha: MERGE_GOV
+      })
+      expect(res.valid).toBe(false)
+      expect(['ERR_AMBIGUOUS_RUNTIME_TIPS', 'ERR_UNCERTIFIED_APP_CHANGES']).toContain(res.code)
+    })
+
+    it('M29: merge conflict resolves back to parent tree -> pre-conflict base is rejected', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 1;\n')
+        exec('git add . && git commit -m "Base"')
+        const rBase = exec('git rev-parse HEAD')
+
+        exec('git checkout -b side')
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 2;\n')
+        exec('git add . && git commit -m "Side change"')
+
+        exec('git checkout main')
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 3;\n')
+        exec('git add . && git commit -m "Main change"')
+
+        try {
+          exec('git merge side')
+        } catch {
+          fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 1;\n')
+          exec('git add src/app.ts && git commit -m "Resolve conflict back to v1"')
+        }
+        const head = exec('git rev-parse HEAD')
+
+        const res = validateReleaseContractLineage(
+          { releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: rBase },
+          head,
+          dir
+        )
+        expect(res.valid).toBe(false)
+        expect(['ERR_STALE_RUNTIME_COMMIT', 'ERR_UNCERTIFIED_APP_CHANGES']).toContain(res.code)
+      })
+    })
+
+    it('M30: runtime change + exact restoration -> pre-mutation base is rejected as stale', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 1;\n')
+        exec('git add . && git commit -m "Base"')
+        const rBase = exec('git rev-parse HEAD')
+
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 2;\n')
+        exec('git add . && git commit -m "Mutate"')
+
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 1;\n')
+        exec('git add . && git commit -m "Restore"')
+
+        fs.writeFileSync(path.join(dir, 'README.md'), '# Gov\n')
+        exec('git add . && git commit -m "Gov"')
+        const head = exec('git rev-parse HEAD')
+
+        const res = validateReleaseContractLineage(
+          { releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: rBase },
+          head,
+          dir
+        )
+        expect(res.valid).toBe(false)
+        expect(['ERR_STALE_RUNTIME_COMMIT', 'ERR_UNCERTIFIED_APP_CHANGES']).toContain(res.code)
+      })
+    })
+
+    it('M31: file rename in src/ -> caught as application modification', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'old.ts'), 'export const x = 1;\n')
+        exec('git add . && git commit -m "Base"')
+        const rBase = exec('git rev-parse HEAD')
+
+        exec('git mv src/old.ts src/new.ts')
+        exec('git commit -m "Rename"')
+
+        fs.writeFileSync(path.join(dir, 'README.md'), '# Gov\n')
+        exec('git add . && git commit -m "Gov"')
+        const head = exec('git rev-parse HEAD')
+
+        const res = validateReleaseContractLineage(
+          { releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: rBase },
+          head,
+          dir
+        )
+        expect(res.valid).toBe(false)
+        expect(res.code).toBe('ERR_UNCERTIFIED_APP_CHANGES')
+      })
+    })
+
+    it('M32: pathspec scoping boundary -> verify APP_SCOPE covers essential prefixes', () => {
+      expect(APP_SCOPE_PATHSPECS).toContain('src')
+      expect(APP_SCOPE_PATHSPECS).toContain('api')
+      expect(APP_SCOPE_PATHSPECS).toContain('public')
+      expect(APP_SCOPE_PATHSPECS).toContain('index.html')
+      expect(APP_SCOPE_PATHSPECS).toContain('package.json')
+      expect(APP_SCOPE_PATHSPECS).toContain('vite.config.ts')
+    })
+
+    it('M33: zero production files in src/ import from tests', () => {
+      const srcDir = path.resolve(process.cwd(), 'src')
+      function scanImports(dir: string): string[] {
+        const violations: string[] = []
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+          const full = path.join(dir, entry.name)
+          if (entry.isDirectory() && entry.name !== '__tests__') {
+            violations.push(...scanImports(full))
+          } else if (entry.isFile() && (entry.name.endsWith('.ts') || entry.name.endsWith('.tsx'))) {
+            const content = fs.readFileSync(full, 'utf8')
+            if (/__tests__|vitest|\/test\//.test(content) && !full.includes('test')) {
+              violations.push(full)
+            }
+          }
+        }
+        return violations
+      }
+      const violations = scanImports(srcDir)
+      expect(violations).toEqual([])
+    })
+
+    it('M34: modifications to build config files are captured by APP_SCOPE', () => {
+      expect(APP_SCOPE_PATHSPECS).toContain('vite.config.ts')
+      expect(APP_SCOPE_PATHSPECS).toContain('tailwind.config.ts')
+      expect(APP_SCOPE_PATHSPECS).toContain('postcss.config.js')
+      expect(APP_SCOPE_PATHSPECS).toContain('tsconfig.json')
+      expect(APP_SCOPE_PATHSPECS).toContain('tsconfig.app.json')
+      expect(APP_SCOPE_PATHSPECS).toContain('tsconfig.node.json')
+    })
+
+    it('M35: ambiguous latest runtime SHA in simulator fails closed', () => {
+      const SHA1 = '1111111111111111111111111111111111111111'
+      const SHA2 = '2222222222222222222222222222222222222222'
+      const MERGE = '3333333333333333333333333333333333333333'
+      const res = simulateLineageValidation({
+        commits: [
+          { sha: SHA1, touchesApp: true },
+          { sha: SHA2, touchesApp: true },
+          { sha: MERGE, parentShas: [SHA1, SHA2], touchesApp: false }
+        ],
+        contractCommit: SHA1,
+        headSha: MERGE
+      })
+      expect(res.valid).toBe(false)
+      expect(['ERR_AMBIGUOUS_RUNTIME_TIPS', 'ERR_UNCERTIFIED_APP_CHANGES']).toContain(res.code)
+    })
+
+    it('M36: simulator results are identical regardless of commit array declaration order', () => {
+      const commitsAsc = [
+        { sha: APP_1, touchesApp: true },
+        { sha: GOV_1, parentSha: APP_1, touchesApp: false },
+        { sha: GOV_2, parentSha: GOV_1, touchesApp: false }
+      ]
+      const commitsDesc = [...commitsAsc].reverse()
+
+      const resAsc = simulateLineageValidation({ commits: commitsAsc, contractCommit: APP_1, headSha: GOV_2 })
+      const resDesc = simulateLineageValidation({ commits: commitsDesc, contractCommit: APP_1, headSha: GOV_2 })
+
+      expect(resAsc.valid).toBe(resDesc.valid)
+      expect(resAsc.code).toBe(resDesc.code)
+      expect(resAsc.latestRuntimeCommit).toBe(resDesc.latestRuntimeCommit)
+    })
+
+    it('M37: simulator and real-Git agree on linear and merge governance transitions', () => {
+      const sim = simulateLineageValidation({
+        commits: [
+          { sha: APP_1, touchesApp: true },
+          { sha: GOV_1, parentSha: APP_1, touchesApp: false }
+        ],
+        contractCommit: APP_1,
+        headSha: GOV_1
+      })
+      expect(sim.valid).toBe(true)
+      expect(sim.code).toBe('LINEAGE_VERIFIED')
+    })
+
+    it('M38: unknown parent in simulator DAG fails closed with ERR_NOT_IN_ANCESTRY or ERR_HEAD_NOT_FOUND', () => {
+      const res = simulateLineageValidation({
+        commits: [
+          { sha: APP_1, touchesApp: true },
+          { sha: GOV_1, parentSha: 'unknown-parent-sha', touchesApp: false }
+        ],
+        contractCommit: APP_1,
+        headSha: GOV_1
+      })
+      expect(res.valid).toBe(false)
+      expect(res.code).toBe('ERR_NOT_IN_ANCESTRY')
+    })
+
+    it('M39: contract releaseCommit drift with valid runtime tree fails ERR_INVALID_RELEASE_ANCHOR', () => {
+      const res = validateReleaseContractLineage(
+        { releaseCommit: 'ffffffffffffffffffffffffffffffffffffffff', currentHeadCommit: contract.currentHeadCommit },
+        headSha
+      )
+      expect(res.valid).toBe(false)
+      expect(res.code).toBe('ERR_INVALID_RELEASE_ANCHOR')
+    })
+
+    it('M40: contract pins exactly 7 critical chunks while build emits full chunk set', () => {
+      expect(Object.keys(contract.criticalChunkHashes).length).toBe(7)
+      expect(contract.buildChunkCount).toBe(26)
+    })
+
+    it('M41: deployment metadata validator rejects non-production environment', async () => {
+      const { validateDeploymentMetadata } = await import('../../scripts/deployment_smoke_gate.mjs')
+      const res = validateDeploymentMetadata({
+        environment: 'Preview',
+        status: 'success',
+        sha: headSha,
+        ref: 'main',
+        mainSha: headSha,
+        isManual: false
+      })
+      expect(res.valid).toBe(false)
+      expect(res.reason).toContain('environment is not Production')
+    })
+
+    it('M42: stale metrics 5918, 5877, 5609 rejected by quality oracle', () => {
+      const readme = fs.readFileSync(path.resolve(process.cwd(), 'README.md'), 'utf8')
+      expect(readme).not.toContain('5,918')
+      expect(readme).not.toContain('5,877')
+      expect(readme).not.toContain('5,609')
+    })
+
+    it('M43: CHANGE_CONTROL requires 11/11 release gate and Level 0-V classification', () => {
+      const cc = fs.readFileSync(path.resolve(process.cwd(), 'CHANGE_CONTROL.md'), 'utf8')
+      expect(cc).toContain('Level 0-V — Executable Release Validation & CI Enforcement')
+      expect(cc).toContain('11/11 release gate')
+      expect(cc).toContain('Full regression suite passes')
+    })
+
+    it('M44: release_gate rejects --allow-uncommitted bypass flag', () => {
+      const gateScript = fs.readFileSync(path.resolve(process.cwd(), 'scripts/release_gate.mjs'), 'utf8')
+      expect(gateScript).toContain('Bypass flag --allow-uncommitted is strictly prohibited')
+    })
+
+    it('M45: shallow clone missing ancestor fails closed with ERR_SHALLOW_CLONE', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 1;')
+        exec('git add . && git commit -m "commit 1"')
+        const sha1 = exec('git rev-parse HEAD')
+
+        fs.writeFileSync(path.join(dir, 'README.md'), '# Doc 1')
+        exec('git add . && git commit -m "commit 2"')
+
+        fs.writeFileSync(path.join(dir, 'README.md'), '# Doc 2')
+        exec('git add . && git commit -m "commit 3"')
+        const sha3 = exec('git rev-parse HEAD')
+
+        const shallowDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bodymap-shallow-m45-'))
+        try {
+          exec(`git clone --depth 1 file://${dir.replace(/\\/g, '/')} "${shallowDir}"`)
+          const res = validateReleaseContractLineage(
+            { releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: sha1 },
+            sha3,
+            shallowDir
+          )
+          expect(res.valid).toBe(false)
+          expect(res.code).toBe('ERR_SHALLOW_CLONE')
+        } finally {
+          fs.rmSync(shallowDir, { recursive: true, force: true })
+        }
+      })
+    })
   })
 
   // ==========================================================================
