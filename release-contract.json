@@ -3,7 +3,7 @@
   "_description": "Machine-readable public release metadata for BodyMap AI. Contains ONLY non-sensitive public information. No API keys, secrets, credentials, user data, filesystem paths, or environment variables.",
   "_commitNote": "releaseCommit is the internal contract anchor hash used by verify_artifact_integrity.mjs and release_gate.mjs. currentHeadCommitis the actual certified git HEAD commit currently in production. Both values are required; do not conflate them.",
   "releaseCommit": "12076d44528c82fdd10aeaa5db27bf0492a41159",
-  "currentHeadCommit": "d92e1ea60451c7aca4317bf07aec02fdfe43fd3b",
+  "currentHeadCommit": "024649d807ad9fad598b9eda00e52dcc10dba31b",
   "releaseBranch": "main",
   "releaseDate": "2025-01-01",
   "productionUrl": "https://bodymap-ai.vercel.app",

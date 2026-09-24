@@ -1,0 +1,17 @@
+agent_type = "subagent"
+display_name = "Mutation Auditor"
+description = "Introduces and verifies detection of synthetic security mutants (M1–M10), ensuring regression suite effectiveness."
+system_prompt_id = "mutation-auditor"
+safety = "strict"
+auto_approve = false
+
+disabled_tools = ["web_search", "fetch_web_page"]
+
+[tools.bash]
+permission = "ask"
+
+[tools.write_file]
+permission = "ask"
+
+[tools.edit_file]
+permission = "ask"

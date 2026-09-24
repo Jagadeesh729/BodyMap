@@ -1,0 +1,17 @@
+agent_type = "subagent"
+display_name = "Security Red-Team"
+description = "Adversarial vulnerability analysis, bypass discovery, exploit simulation, and security self-critique."
+system_prompt_id = "security-redteam"
+safety = "strict"
+auto_approve = false
+
+disabled_tools = ["write_file", "edit_file", "web_search", "fetch_web_page"]
+
+[tools.bash]
+permission = "ask"
+
+[tools.write_file]
+permission = "deny"
+
+[tools.edit_file]
+permission = "deny"

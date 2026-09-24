@@ -1,0 +1,17 @@
+agent_type = "subagent"
+display_name = "Release / Provenance Auditor"
+description = "Audits git provenance, lineage, artifact integrity digests, and enforces the 11/11 release gate."
+system_prompt_id = "release-auditor"
+safety = "strict"
+auto_approve = false
+
+disabled_tools = ["write_file", "edit_file", "web_search", "fetch_web_page"]
+
+[tools.bash]
+permission = "ask"
+
+[tools.write_file]
+permission = "deny"
+
+[tools.edit_file]
+permission = "deny"

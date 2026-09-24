@@ -1,0 +1,17 @@
+agent_type = "subagent"
+display_name = "Browser / E2E Auditor"
+description = "Executes Playwright E2E browser security tests, validates CSP traps, network egress, and PWA storage state."
+system_prompt_id = "browser-auditor"
+safety = "strict"
+auto_approve = false
+
+disabled_tools = ["write_file", "edit_file", "web_search", "fetch_web_page"]
+
+[tools.bash]
+permission = "ask"
+
+[tools.write_file]
+permission = "deny"
+
+[tools.edit_file]
+permission = "deny"

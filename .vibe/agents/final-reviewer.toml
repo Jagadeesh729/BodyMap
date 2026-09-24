@@ -1,0 +1,17 @@
+agent_type = "subagent"
+display_name = "Final Reviewer"
+description = "Synthesizes evidence from all lanes, eliminates self-certification, detects discrepancies, and renders final disposition."
+system_prompt_id = "final-reviewer"
+safety = "strict"
+auto_approve = false
+
+disabled_tools = ["bash", "write_file", "edit_file", "web_search", "fetch_web_page"]
+
+[tools.bash]
+permission = "deny"
+
+[tools.write_file]
+permission = "deny"
+
+[tools.edit_file]
+permission = "deny"
