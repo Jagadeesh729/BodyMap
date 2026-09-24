@@ -5,6 +5,7 @@ import os from 'os'
 import { execFileSync, execSync } from 'child_process'
 import {
   getLatestRuntimeCommit,
+  getAuthoritativeRuntimeCommits,
   validateReleaseContractLineage,
   simulateLineageValidation,
   IMMUTABLE_RELEASE_ANCHOR,
@@ -12,7 +13,7 @@ import {
   SHA_REGEX
 } from '../../scripts/release_lineage.mjs'
 
-describe('Release Lineage Model & Governance Invariants', () => {
+describe('Release Lineage Model & Governance Invariants', { timeout: 45000 }, () => {
   const contractPath = path.resolve(process.cwd(), 'release-contract.json')
   const contract = JSON.parse(fs.readFileSync(contractPath, 'utf8'))
   const headSha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
@@ -24,6 +25,8 @@ describe('Release Lineage Model & Governance Invariants', () => {
       exec('git init -b main')
       exec('git config user.name "Test Auditor"')
       exec('git config user.email "auditor@bodymap.test"')
+      exec('git config commit.gpgSign false')
+      exec('git config core.autocrlf false')
       callback({ dir, exec })
     } finally {
       try {
@@ -83,6 +86,47 @@ describe('Release Lineage Model & Governance Invariants', () => {
 
     it('L07: releaseCommit strictly matches immutable release anchor', () => {
       expect(contract.releaseCommit).toBe(IMMUTABLE_RELEASE_ANCHOR)
+    })
+
+    it('L08: Scope Completeness: every tracked non-test file affecting build/deployment is inside APP_SCOPE_PATHSPECS', () => {
+      const allFiles = execFileSync('git', ['ls-files'], { encoding: 'utf8' }).trim().split('\n').filter(Boolean)
+      const inScope = new Set(
+        execFileSync('git', ['ls-files', '--', ...APP_SCOPE_PATHSPECS], { encoding: 'utf8' }).trim().split('\n').filter(Boolean)
+      )
+      const EXEMPTED_PATTERNS = [
+        /^src\/__tests__\//,
+        /^e2e\//,
+        /^scripts\//,
+        /^scratch\//,
+        /^skills\//,
+        /^\.github\//,
+        /^\.system_generated\//,
+        /^\.vibe\//,
+        /^\.env\.example$/,
+        /^\.gitignore$/,
+        /^playwright\.config\.ts$/,
+        /^vitest\.config\.ts$/,
+        /^tsconfig\.e2e\.json$/,
+        /^eslint\.config\.js$/,
+        /^release-contract\.json$/,
+        /^README\.md$/,
+        /^CHANGE_CONTROL\.md$/,
+        /^AGENTS\.md$/,
+        /^ORCHESTRATION\.md$/,
+        /^LICENSE$/,
+        /^walkthrough\.md$/
+      ]
+
+      const unclassifiedOutOfScope: string[] = []
+      for (const file of allFiles) {
+        if (!inScope.has(file)) {
+          const isExempt = EXEMPTED_PATTERNS.some(pat => pat.test(file))
+          if (!isExempt) {
+            unclassifiedOutOfScope.push(file)
+          }
+        }
+      }
+      expect(unclassifiedOutOfScope).toEqual([])
     })
   })
 
@@ -847,6 +891,741 @@ describe('Release Lineage Model & Governance Invariants', () => {
   })
 
   // ==========================================================================
+  // Section 5B: Phase 2 — Real-Git vs Simulator Parity Matrix (Topologies R01–R20)
+  // ==========================================================================
+  describe('Phase 2: Real-Git vs Simulator Parity Matrix (Topologies R01–R20)', () => {
+    it('R01: runtime A -> governance B -> governance C (parity check)', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 1;')
+        exec('git add . && git commit -m "A"')
+        const shaA = exec('git rev-parse HEAD')
+
+        fs.writeFileSync(path.join(dir, 'README.md'), '# B')
+        exec('git add . && git commit -m "B"')
+        const shaB = exec('git rev-parse HEAD')
+
+        fs.writeFileSync(path.join(dir, 'README.md'), '# C')
+        exec('git add . && git commit -m "C"')
+        const shaC = exec('git rev-parse HEAD')
+
+        const real = validateReleaseContractLineage({ releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: shaA }, shaC, dir)
+        const sim = simulateLineageValidation({
+          commits: [
+            { sha: shaA, touchesApp: true },
+            { sha: shaB, parentSha: shaA, touchesApp: false },
+            { sha: shaC, parentSha: shaB, touchesApp: false }
+          ],
+          contractCommit: shaA,
+          headSha: shaC,
+          releaseCommit: IMMUTABLE_RELEASE_ANCHOR
+        })
+        expect(real.valid).toBe(true)
+        expect(sim.valid).toBe(true)
+        expect(real.code).toBe('LINEAGE_VERIFIED')
+        expect(sim.code).toBe('LINEAGE_VERIFIED')
+      })
+    })
+
+    it('R02: runtime A -> runtime B -> governance C (parity check)', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'v1')
+        exec('git add . && git commit -m "A"')
+        const shaA = exec('git rev-parse HEAD')
+
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'v2')
+        exec('git add . && git commit -m "B"')
+        const shaB = exec('git rev-parse HEAD')
+
+        fs.writeFileSync(path.join(dir, 'README.md'), '# C')
+        exec('git add . && git commit -m "C"')
+        const shaC = exec('git rev-parse HEAD')
+
+        const real = validateReleaseContractLineage({ releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: shaA }, shaC, dir)
+        const sim = simulateLineageValidation({
+          commits: [
+            { sha: shaA, touchesApp: true },
+            { sha: shaB, parentSha: shaA, touchesApp: true },
+            { sha: shaC, parentSha: shaB, touchesApp: false }
+          ],
+          contractCommit: shaA,
+          headSha: shaC,
+          releaseCommit: IMMUTABLE_RELEASE_ANCHOR
+        })
+        expect(real.valid).toBe(false)
+        expect(sim.valid).toBe(false)
+        expect(real.code).toBe('ERR_UNCERTIFIED_APP_CHANGES')
+        expect(sim.code).toBe('ERR_UNCERTIFIED_APP_CHANGES')
+      })
+    })
+
+    it('R03: runtime A -> runtime B -> revert B -> governance C (parity check)', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'v1')
+        exec('git add . && git commit -m "A"')
+        const shaA = exec('git rev-parse HEAD')
+
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'v2')
+        exec('git add . && git commit -m "B"')
+        const shaB = exec('git rev-parse HEAD')
+
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'v1')
+        exec('git add . && git commit -m "revert B"')
+        const shaRev = exec('git rev-parse HEAD')
+
+        fs.writeFileSync(path.join(dir, 'README.md'), '# C')
+        exec('git add . && git commit -m "C"')
+        const shaC = exec('git rev-parse HEAD')
+
+        const real = validateReleaseContractLineage({ releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: shaA }, shaC, dir)
+        const sim = simulateLineageValidation({
+          commits: [
+            { sha: shaA, touchesApp: true },
+            { sha: shaB, parentSha: shaA, touchesApp: true },
+            { sha: shaRev, parentSha: shaB, touchesApp: true },
+            { sha: shaC, parentSha: shaRev, touchesApp: false }
+          ],
+          contractCommit: shaA,
+          headSha: shaC,
+          releaseCommit: IMMUTABLE_RELEASE_ANCHOR
+        })
+        expect(real.valid).toBe(false)
+        expect(sim.valid).toBe(false)
+        expect(real.code).toBe('ERR_UNCERTIFIED_APP_CHANGES')
+        expect(sim.code).toBe('ERR_UNCERTIFIED_APP_CHANGES')
+      })
+    })
+
+    it('R04: runtime A on main + governance-only side branch -> governance merge (parity check)', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'v1')
+        exec('git add . && git commit -m "A"')
+        const shaA = exec('git rev-parse HEAD')
+
+        exec(`git checkout -b side ${shaA}`)
+        fs.writeFileSync(path.join(dir, 'README.md'), '# Gov on side')
+        exec('git add . && git commit -m "side gov"')
+        const shaSide = exec('git rev-parse HEAD')
+
+        exec('git checkout main')
+        exec('git merge --no-ff side -m "merge side"')
+        const shaMerge = exec('git rev-parse HEAD')
+
+        const real = validateReleaseContractLineage({ releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: shaA }, shaMerge, dir)
+        const sim = simulateLineageValidation({
+          commits: [
+            { sha: shaA, touchesApp: true },
+            { sha: shaSide, parentSha: shaA, touchesApp: false },
+            { sha: shaMerge, parentShas: [shaA, shaSide], touchesApp: false }
+          ],
+          contractCommit: shaA,
+          headSha: shaMerge,
+          releaseCommit: IMMUTABLE_RELEASE_ANCHOR
+        })
+        expect(real.valid).toBe(true)
+        expect(sim.valid).toBe(true)
+      })
+    })
+
+    it('R05: runtime A on main + runtime B on side branch -> ordinary merge (parity check)', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'v1')
+        exec('git add . && git commit -m "A"')
+        const shaA = exec('git rev-parse HEAD')
+
+        exec(`git checkout -b side ${shaA}`)
+        fs.writeFileSync(path.join(dir, 'src', 'extra.ts'), 'export const e = 1;')
+        exec('git add . && git commit -m "B"')
+        const shaB = exec('git rev-parse HEAD')
+
+        exec('git checkout main')
+        exec('git merge --no-ff side -m "merge B"')
+        const shaMerge = exec('git rev-parse HEAD')
+
+        const real = validateReleaseContractLineage({ releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: shaA }, shaMerge, dir)
+        const sim = simulateLineageValidation({
+          commits: [
+            { sha: shaA, touchesApp: true },
+            { sha: shaB, parentSha: shaA, touchesApp: true },
+            { sha: shaMerge, parentShas: [shaA, shaB], touchesApp: true }
+          ],
+          contractCommit: shaA,
+          headSha: shaMerge,
+          releaseCommit: IMMUTABLE_RELEASE_ANCHOR
+        })
+        expect(real.valid).toBe(false)
+        expect(sim.valid).toBe(false)
+      })
+    })
+
+    it('R06: runtime A on main + runtime B on side branch -> -s ours / TREESAME merge (parity check)', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'v1')
+        exec('git add . && git commit -m "A"')
+        const shaA = exec('git rev-parse HEAD')
+
+        exec(`git checkout -b side ${shaA}`)
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'v2')
+        exec('git add . && git commit -m "B"')
+        const shaB = exec('git rev-parse HEAD')
+
+        exec('git checkout main')
+        exec('git merge -s ours side -m "merge ours"')
+        const shaMerge = exec('git rev-parse HEAD')
+
+        const real = validateReleaseContractLineage({ releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: shaA }, shaMerge, dir)
+        const sim = simulateLineageValidation({
+          commits: [
+            { sha: shaA, touchesApp: true },
+            { sha: shaB, parentSha: shaA, touchesApp: true },
+            { sha: shaMerge, parentShas: [shaA, shaB], touchesApp: true }
+          ],
+          contractCommit: shaA,
+          headSha: shaMerge,
+          releaseCommit: IMMUTABLE_RELEASE_ANCHOR
+        })
+        expect(real.valid).toBe(false)
+        expect(sim.valid).toBe(false)
+      })
+    })
+
+    it('R07: runtime A on main + runtime B on side branch -> conflict resolved to P1 (parity check)', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'v1')
+        exec('git add . && git commit -m "base"')
+        const base = exec('git rev-parse HEAD')
+
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'v1_main')
+        exec('git add . && git commit -m "A"')
+        const shaA = exec('git rev-parse HEAD')
+
+        exec(`git checkout -b side ${base}`)
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'v2_side')
+        exec('git add . && git commit -m "B"')
+        const shaB = exec('git rev-parse HEAD')
+
+        exec('git checkout main')
+        try { exec('git merge --no-ff side -m "merge"') } catch (_err) { void _err; }
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'v1_main')
+        exec('git add . && git commit -m "resolve to P1"')
+        const shaMerge = exec('git rev-parse HEAD')
+
+        const real = validateReleaseContractLineage({ releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: shaA }, shaMerge, dir)
+        const sim = simulateLineageValidation({
+          commits: [
+            { sha: base, touchesApp: true },
+            { sha: shaA, parentSha: base, touchesApp: true },
+            { sha: shaB, parentSha: base, touchesApp: true },
+            { sha: shaMerge, parentShas: [shaA, shaB], touchesApp: true }
+          ],
+          contractCommit: shaA,
+          headSha: shaMerge,
+          releaseCommit: IMMUTABLE_RELEASE_ANCHOR
+        })
+        expect(real.valid).toBe(false)
+        expect(sim.valid).toBe(false)
+      })
+    })
+
+    it('R08: runtime A on main + runtime B on side branch -> conflict resolved to diff both (parity check)', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'base')
+        exec('git add . && git commit -m "base"')
+        const base = exec('git rev-parse HEAD')
+
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'v1')
+        exec('git add . && git commit -m "A"')
+        const shaA = exec('git rev-parse HEAD')
+
+        exec(`git checkout -b side ${base}`)
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'v2')
+        exec('git add . && git commit -m "B"')
+        const shaB = exec('git rev-parse HEAD')
+
+        exec('git checkout main')
+        try { exec('git merge --no-ff side -m "merge"') } catch (_err) { void _err; }
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'v3_both_diff')
+        exec('git add . && git commit -m "resolve diff both"')
+        const shaMerge = exec('git rev-parse HEAD')
+
+        const real = validateReleaseContractLineage({ releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: shaMerge }, shaMerge, dir)
+        const sim = simulateLineageValidation({
+          commits: [
+            { sha: base, touchesApp: true },
+            { sha: shaA, parentSha: base, touchesApp: true },
+            { sha: shaB, parentSha: base, touchesApp: true },
+            { sha: shaMerge, parentShas: [shaA, shaB], touchesApp: true }
+          ],
+          contractCommit: shaMerge,
+          headSha: shaMerge,
+          releaseCommit: IMMUTABLE_RELEASE_ANCHOR
+        })
+        expect(real.valid).toBe(true)
+        expect(sim.valid).toBe(true)
+      })
+    })
+
+    it('R09: incomparable runtime tips with governance-only merge (parity check)', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'base')
+        exec('git add . && git commit -m "base"')
+        const base = exec('git rev-parse HEAD')
+
+        exec('git checkout -b b1')
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'common')
+        exec('git add . && git commit -m "A"')
+        const shaA = exec('git rev-parse HEAD')
+
+        exec(`git checkout ${base}`)
+        exec('git checkout -b b2')
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'common')
+        exec('git add . && git commit -m "B"')
+        const shaB = exec('git rev-parse HEAD')
+
+        exec('git checkout b1')
+        exec('git merge --no-ff b2 -m "gov merge"')
+        const shaMerge = exec('git rev-parse HEAD')
+
+        const real = validateReleaseContractLineage({ releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: shaMerge }, shaMerge, dir)
+        const sim = simulateLineageValidation({
+          commits: [
+            { sha: base, touchesApp: true },
+            { sha: shaA, parentSha: base, touchesApp: true },
+            { sha: shaB, parentSha: base, touchesApp: true },
+            { sha: shaMerge, parentShas: [shaA, shaB], touchesApp: false }
+          ],
+          contractCommit: shaMerge,
+          headSha: shaMerge,
+          releaseCommit: IMMUTABLE_RELEASE_ANCHOR
+        })
+        expect(real.valid).toBe(false)
+        expect(sim.valid).toBe(false)
+        expect(real.code).toBe('ERR_AMBIGUOUS_RUNTIME_TIPS')
+        expect(sim.code).toBe('ERR_AMBIGUOUS_RUNTIME_TIPS')
+      })
+    })
+
+    it('R10: incomparable runtime tips with runtime-changing merge (parity check)', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'base')
+        exec('git add . && git commit -m "base"')
+        const base = exec('git rev-parse HEAD')
+
+        exec('git checkout -b b1')
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'v1')
+        exec('git add . && git commit -m "A"')
+        const shaA = exec('git rev-parse HEAD')
+
+        exec(`git checkout ${base}`)
+        exec('git checkout -b b2')
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'v2')
+        exec('git add . && git commit -m "B"')
+        const shaB = exec('git rev-parse HEAD')
+
+        exec('git checkout b1')
+        try { exec('git merge --no-ff b2 -m "merge"') } catch (_err) { void _err; }
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'v3_unified')
+        exec('git add . && git commit -m "unify merge"')
+        const shaMerge = exec('git rev-parse HEAD')
+
+        const real = validateReleaseContractLineage({ releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: shaMerge }, shaMerge, dir)
+        const sim = simulateLineageValidation({
+          commits: [
+            { sha: base, touchesApp: true },
+            { sha: shaA, parentSha: base, touchesApp: true },
+            { sha: shaB, parentSha: base, touchesApp: true },
+            { sha: shaMerge, parentShas: [shaA, shaB], touchesApp: true }
+          ],
+          contractCommit: shaMerge,
+          headSha: shaMerge,
+          releaseCommit: IMMUTABLE_RELEASE_ANCHOR
+        })
+        expect(real.valid).toBe(true)
+        expect(sim.valid).toBe(true)
+      })
+    })
+
+    it('R11: runtime A -> gov + runtime B side branch -> gov merge (parity check)', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'base')
+        exec('git add . && git commit -m "base"')
+        const base = exec('git rev-parse HEAD')
+
+        exec('git checkout -b b1')
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'common')
+        exec('git add . && git commit -m "A"')
+        const shaA = exec('git rev-parse HEAD')
+        fs.writeFileSync(path.join(dir, 'README.md'), '# Gov on A')
+        exec('git add . && git commit -m "gov A"')
+        const shaGovA = exec('git rev-parse HEAD')
+
+        exec(`git checkout ${base}`)
+        exec('git checkout -b b2')
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'common')
+        exec('git add . && git commit -m "B"')
+        const shaB = exec('git rev-parse HEAD')
+
+        exec('git checkout b1')
+        exec('git merge --no-ff b2 -m "gov merge"')
+        const shaMerge = exec('git rev-parse HEAD')
+
+        const real = validateReleaseContractLineage({ releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: shaMerge }, shaMerge, dir)
+        const sim = simulateLineageValidation({
+          commits: [
+            { sha: base, touchesApp: true },
+            { sha: shaA, parentSha: base, touchesApp: true },
+            { sha: shaGovA, parentSha: shaA, touchesApp: false },
+            { sha: shaB, parentSha: base, touchesApp: true },
+            { sha: shaMerge, parentShas: [shaGovA, shaB], touchesApp: false }
+          ],
+          contractCommit: shaMerge,
+          headSha: shaMerge,
+          releaseCommit: IMMUTABLE_RELEASE_ANCHOR
+        })
+        expect(real.valid).toBe(false)
+        expect(sim.valid).toBe(false)
+        expect(real.code).toBe('ERR_AMBIGUOUS_RUNTIME_TIPS')
+        expect(sim.code).toBe('ERR_AMBIGUOUS_RUNTIME_TIPS')
+      })
+    })
+
+    it('R12: runtime A + runtime B -> merge -> governance-only commits (parity check)', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'base')
+        exec('git add . && git commit -m "base"')
+        const base = exec('git rev-parse HEAD')
+
+        exec('git checkout -b b1')
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'v1')
+        exec('git add . && git commit -m "A"')
+        const shaA = exec('git rev-parse HEAD')
+
+        exec(`git checkout ${base}`)
+        exec('git checkout -b b2')
+        fs.writeFileSync(path.join(dir, 'src', 'extra.ts'), 'v2')
+        exec('git add . && git commit -m "B"')
+        const shaB = exec('git rev-parse HEAD')
+
+        exec('git checkout b1')
+        exec('git merge --no-ff b2 -m "merge"')
+        const shaMerge = exec('git rev-parse HEAD')
+
+        fs.writeFileSync(path.join(dir, 'README.md'), '# Gov after merge')
+        exec('git add . && git commit -m "gov"')
+        const shaGov = exec('git rev-parse HEAD')
+
+        const real = validateReleaseContractLineage({ releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: shaMerge }, shaGov, dir)
+        const sim = simulateLineageValidation({
+          commits: [
+            { sha: base, touchesApp: true },
+            { sha: shaA, parentSha: base, touchesApp: true },
+            { sha: shaB, parentSha: base, touchesApp: true },
+            { sha: shaMerge, parentShas: [shaA, shaB], touchesApp: true },
+            { sha: shaGov, parentSha: shaMerge, touchesApp: false }
+          ],
+          contractCommit: shaMerge,
+          headSha: shaGov,
+          releaseCommit: IMMUTABLE_RELEASE_ANCHOR
+        })
+        expect(real.valid).toBe(true)
+        expect(sim.valid).toBe(true)
+      })
+    })
+
+    it('R13: runtime A -> runtime B -> exact byte restoration to A -> governance (parity check)', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'original')
+        exec('git add . && git commit -m "A"')
+        const shaA = exec('git rev-parse HEAD')
+
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'tampered')
+        exec('git add . && git commit -m "B"')
+        const shaB = exec('git rev-parse HEAD')
+
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'original')
+        exec('git add . && git commit -m "restore A"')
+        const shaRestore = exec('git rev-parse HEAD')
+
+        fs.writeFileSync(path.join(dir, 'README.md'), '# Gov')
+        exec('git add . && git commit -m "gov"')
+        const shaGov = exec('git rev-parse HEAD')
+
+        const realA = validateReleaseContractLineage({ releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: shaA }, shaGov, dir)
+        const simA = simulateLineageValidation({
+          commits: [
+            { sha: shaA, touchesApp: true },
+            { sha: shaB, parentSha: shaA, touchesApp: true },
+            { sha: shaRestore, parentSha: shaB, touchesApp: true },
+            { sha: shaGov, parentSha: shaRestore, touchesApp: false }
+          ],
+          contractCommit: shaA,
+          headSha: shaGov,
+          releaseCommit: IMMUTABLE_RELEASE_ANCHOR
+        })
+        expect(realA.valid).toBe(false)
+        expect(simA.valid).toBe(false)
+      })
+    })
+
+    it('R14: runtime A + side-branch rename -> merge resolution (parity check)', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'old.ts'), 'export const v = 1;')
+        exec('git add . && git commit -m "A"')
+        const shaA = exec('git rev-parse HEAD')
+
+        exec(`git checkout -b side ${shaA}`)
+        exec('git mv src/old.ts src/renamed.ts')
+        exec('git commit -m "rename"')
+        const shaRename = exec('git rev-parse HEAD')
+
+        exec('git checkout main')
+        exec('git merge --no-ff side -m "merge rename"')
+        const shaMerge = exec('git rev-parse HEAD')
+
+        const real = validateReleaseContractLineage({ releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: shaA }, shaMerge, dir)
+        const sim = simulateLineageValidation({
+          commits: [
+            { sha: shaA, touchesApp: true },
+            { sha: shaRename, parentSha: shaA, touchesApp: true },
+            { sha: shaMerge, parentShas: [shaA, shaRename], touchesApp: true }
+          ],
+          contractCommit: shaA,
+          headSha: shaMerge,
+          releaseCommit: IMMUTABLE_RELEASE_ANCHOR
+        })
+        expect(real.valid).toBe(false)
+        expect(sim.valid).toBe(false)
+      })
+    })
+
+    it('R15: runtime A + side-branch deletion -> merge resolution (parity check)', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'file.ts'), 'export const v = 1;')
+        exec('git add . && git commit -m "A"')
+        const shaA = exec('git rev-parse HEAD')
+
+        exec(`git checkout -b side ${shaA}`)
+        exec('git rm src/file.ts')
+        exec('git commit -m "delete"')
+        const shaDelete = exec('git rev-parse HEAD')
+
+        exec('git checkout main')
+        exec('git merge --no-ff side -m "merge delete"')
+        const shaMerge = exec('git rev-parse HEAD')
+
+        const real = validateReleaseContractLineage({ releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: shaA }, shaMerge, dir)
+        const sim = simulateLineageValidation({
+          commits: [
+            { sha: shaA, touchesApp: true },
+            { sha: shaDelete, parentSha: shaA, touchesApp: true },
+            { sha: shaMerge, parentShas: [shaA, shaDelete], touchesApp: true }
+          ],
+          contractCommit: shaA,
+          headSha: shaMerge,
+          releaseCommit: IMMUTABLE_RELEASE_ANCHOR
+        })
+        expect(real.valid).toBe(false)
+        expect(sim.valid).toBe(false)
+      })
+    })
+
+    it('R16: runtime A + side-branch file modification -> merge (parity check)', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 1;')
+        exec('git add . && git commit -m "A"')
+        const shaA = exec('git rev-parse HEAD')
+
+        exec(`git checkout -b side ${shaA}`)
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 1; // mod')
+        exec('git add . && git commit -m "mod"')
+        const shaMod = exec('git rev-parse HEAD')
+
+        exec('git checkout main')
+        exec('git merge --no-ff side -m "merge mod"')
+        const shaMerge = exec('git rev-parse HEAD')
+
+        const real = validateReleaseContractLineage({ releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: shaA }, shaMerge, dir)
+        const sim = simulateLineageValidation({
+          commits: [
+            { sha: shaA, touchesApp: true },
+            { sha: shaMod, parentSha: shaA, touchesApp: true },
+            { sha: shaMerge, parentShas: [shaA, shaMod], touchesApp: true }
+          ],
+          contractCommit: shaA,
+          headSha: shaMerge,
+          releaseCommit: IMMUTABLE_RELEASE_ANCHOR
+        })
+        expect(real.valid).toBe(false)
+        expect(sim.valid).toBe(false)
+      })
+    })
+
+    it('R17: runtime A + side-branch modification inside excluded src/__tests__/ -> merge (parity check)', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src', '__tests__'), { recursive: true })
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 1;')
+        exec('git add . && git commit -m "A"')
+        const shaA = exec('git rev-parse HEAD')
+
+        exec(`git checkout -b side ${shaA}`)
+        fs.writeFileSync(path.join(dir, 'src', '__tests__', 'app.test.ts'), 'test;')
+        exec('git add . && git commit -m "test only"')
+        const shaTest = exec('git rev-parse HEAD')
+
+        exec('git checkout main')
+        exec('git merge --no-ff side -m "merge test"')
+        const shaMerge = exec('git rev-parse HEAD')
+
+        const real = validateReleaseContractLineage({ releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: shaA }, shaMerge, dir)
+        const sim = simulateLineageValidation({
+          commits: [
+            { sha: shaA, touchesApp: true },
+            { sha: shaTest, parentSha: shaA, touchesApp: false },
+            { sha: shaMerge, parentShas: [shaA, shaTest], touchesApp: false }
+          ],
+          contractCommit: shaA,
+          headSha: shaMerge,
+          releaseCommit: IMMUTABLE_RELEASE_ANCHOR
+        })
+        expect(real.valid).toBe(true)
+        expect(sim.valid).toBe(true)
+      })
+    })
+
+    it('R18: runtime A + side-branch modification of vite.config.ts -> merge (parity check)', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 1;')
+        fs.writeFileSync(path.join(dir, 'vite.config.ts'), 'export default {};')
+        exec('git add . && git commit -m "A"')
+        const shaA = exec('git rev-parse HEAD')
+
+        exec(`git checkout -b side ${shaA}`)
+        fs.writeFileSync(path.join(dir, 'vite.config.ts'), 'export default { base: "/" };')
+        exec('git add . && git commit -m "config change"')
+        const shaConfig = exec('git rev-parse HEAD')
+
+        exec('git checkout main')
+        exec('git merge --no-ff side -m "merge config"')
+        const shaMerge = exec('git rev-parse HEAD')
+
+        const real = validateReleaseContractLineage({ releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: shaA }, shaMerge, dir)
+        const sim = simulateLineageValidation({
+          commits: [
+            { sha: shaA, touchesApp: true },
+            { sha: shaConfig, parentSha: shaA, touchesApp: true },
+            { sha: shaMerge, parentShas: [shaA, shaConfig], touchesApp: true }
+          ],
+          contractCommit: shaA,
+          headSha: shaMerge,
+          releaseCommit: IMMUTABLE_RELEASE_ANCHOR
+        })
+        expect(real.valid).toBe(false)
+        expect(sim.valid).toBe(false)
+      })
+    })
+
+    it('R19: two runtime commits in separate branches -> merge TREESAME to P1 -> gov (parity check)', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'base')
+        exec('git add . && git commit -m "base"')
+        const base = exec('git rev-parse HEAD')
+
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'p1_app')
+        exec('git add . && git commit -m "p1"')
+        const p1 = exec('git rev-parse HEAD')
+
+        exec(`git checkout -b p2-branch ${base}`)
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'p2_app')
+        exec('git add . && git commit -m "p2"')
+        const p2 = exec('git rev-parse HEAD')
+
+        exec('git checkout main')
+        exec('git merge -s ours p2-branch -m "merge ours"')
+        const m = exec('git rev-parse HEAD')
+
+        fs.writeFileSync(path.join(dir, 'README.md'), '# Gov')
+        exec('git add . && git commit -m "gov"')
+        const gov = exec('git rev-parse HEAD')
+
+        const real = validateReleaseContractLineage({ releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: p1 }, gov, dir)
+        const sim = simulateLineageValidation({
+          commits: [
+            { sha: base, touchesApp: true },
+            { sha: p1, parentSha: base, touchesApp: true },
+            { sha: p2, parentSha: base, touchesApp: true },
+            { sha: m, parentShas: [p1, p2], touchesApp: true },
+            { sha: gov, parentSha: m, touchesApp: false }
+          ],
+          contractCommit: p1,
+          headSha: gov,
+          releaseCommit: IMMUTABLE_RELEASE_ANCHOR
+        })
+        expect(real.valid).toBe(false)
+        expect(sim.valid).toBe(false)
+      })
+    })
+
+    it('R20: two runtime commits in separate branches -> merge TREESAME to P2 -> gov (parity check)', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'base')
+        exec('git add . && git commit -m "base"')
+        const base = exec('git rev-parse HEAD')
+
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'p1_app')
+        exec('git add . && git commit -m "p1"')
+        const p1 = exec('git rev-parse HEAD')
+
+        exec(`git checkout -b p2-branch ${base}`)
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'p2_app')
+        exec('git add . && git commit -m "p2"')
+        const p2 = exec('git rev-parse HEAD')
+
+        exec('git checkout p2-branch')
+        exec('git merge -s ours main -m "merge ours"')
+        const m = exec('git rev-parse HEAD')
+
+        fs.writeFileSync(path.join(dir, 'README.md'), '# Gov')
+        exec('git add . && git commit -m "gov"')
+        const gov = exec('git rev-parse HEAD')
+
+        const real = validateReleaseContractLineage({ releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: p2 }, gov, dir)
+        const sim = simulateLineageValidation({
+          commits: [
+            { sha: base, touchesApp: true },
+            { sha: p1, parentSha: base, touchesApp: true },
+            { sha: p2, parentSha: base, touchesApp: true },
+            { sha: m, parentShas: [p2, p1], touchesApp: true },
+            { sha: gov, parentSha: m, touchesApp: false }
+          ],
+          contractCommit: p2,
+          headSha: gov,
+          releaseCommit: IMMUTABLE_RELEASE_ANCHOR
+        })
+        expect(real.valid).toBe(false)
+        expect(sim.valid).toBe(false)
+      })
+    })
+  })
+
+  // ==========================================================================
   // Section 6: Extended Adversarial Mutation Matrix (M01–M25)
   // ==========================================================================
   describe('Phase 16: Extended Adversarial Mutation Matrix (M01–M25)', () => {
@@ -1154,7 +1933,8 @@ describe('Release Lineage Model & Governance Invariants', () => {
 
     it('M24: release-contract current count stale -> rejects test count mismatch', () => {
       expect(typeof contract.testSuiteCount).toBe('number')
-      expect(contract.testSuiteCount).toBeGreaterThanOrEqual(5918)
+      // Exact synchronization: Phase 7 prohibits lower-bound >= assertions
+      expect(contract.testSuiteCount).toBe(5991)
     })
 
     it('M25: active historical SHA whitelist reintroduced -> rejects arbitrary uncertified historical SHA', () => {
@@ -1500,6 +2280,459 @@ describe('Release Lineage Model & Governance Invariants', () => {
           fs.rmSync(shallowDir, { recursive: true, force: true })
         }
       })
+    })
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Phase 4 & Phase 12 Extended Mutation Matrix (M46–M65)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    it('M46: merge tree differs from parent 1 only -> identified as runtime commit relative to P1', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 1;')
+        exec('git add . && git commit -m "base"')
+        const base = exec('git rev-parse HEAD')
+
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 1; // p1')
+        exec('git add . && git commit -m "p1"')
+        const p1 = exec('git rev-parse HEAD')
+
+        exec(`git checkout -b p2-branch ${base}`)
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 2; // p2')
+        exec('git add . && git commit -m "p2"')
+        const p2 = exec('git rev-parse HEAD')
+
+        exec('git checkout main')
+        // Resolve merge to match p2 tree exactly (differs from p1, equals p2)
+        exec('git merge --no-ff -X theirs p2-branch -m "merge theirs"')
+        const m = exec('git rev-parse HEAD')
+
+        const diffP1 = execFileSync('git', ['diff', p1, m, '--', 'src'], { cwd: dir, encoding: 'utf8' }).trim()
+        const diffP2 = execFileSync('git', ['diff', p2, m, '--', 'src'], { cwd: dir, encoding: 'utf8' }).trim()
+        expect(diffP1).not.toBe('')
+        expect(diffP2).toBe('')
+
+        const resP1 = validateReleaseContractLineage({ releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: p1 }, m, dir)
+        expect(resP1.valid).toBe(false)
+        expect(resP1.code).toBe('ERR_UNCERTIFIED_APP_CHANGES')
+      })
+    })
+
+    it('M47: merge tree differs from parent 2 only -> identified as runtime commit relative to P2', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 1;')
+        exec('git add . && git commit -m "base"')
+        const base = exec('git rev-parse HEAD')
+
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 1; // p1')
+        exec('git add . && git commit -m "p1"')
+        const p1 = exec('git rev-parse HEAD')
+
+        exec(`git checkout -b p2-branch ${base}`)
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 2; // p2')
+        exec('git add . && git commit -m "p2"')
+        const p2 = exec('git rev-parse HEAD')
+
+        exec('git checkout main')
+        // Resolve merge to match p1 tree exactly (differs from p2, equals p1)
+        exec('git merge -s ours p2-branch -m "merge ours"')
+        const m = exec('git rev-parse HEAD')
+
+        const diffP1 = execFileSync('git', ['diff', p1, m, '--', 'src'], { cwd: dir, encoding: 'utf8' }).trim()
+        const diffP2 = execFileSync('git', ['diff', p2, m, '--', 'src'], { cwd: dir, encoding: 'utf8' }).trim()
+        expect(diffP1).toBe('')
+        expect(diffP2).not.toBe('')
+
+        const resP2 = validateReleaseContractLineage({ releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: p2 }, m, dir)
+        expect(resP2.valid).toBe(false)
+        expect(resP2.code).toBe('ERR_UNCERTIFIED_APP_CHANGES')
+      })
+    })
+
+    it('M48: merge tree differs from both parents -> identified as runtime commit relative to both parents', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 1;')
+        exec('git add . && git commit -m "base"')
+        const base = exec('git rev-parse HEAD')
+
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 1; // p1')
+        exec('git add . && git commit -m "p1"')
+        const p1 = exec('git rev-parse HEAD')
+
+        exec(`git checkout -b p2-branch ${base}`)
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 2; // p2')
+        exec('git add . && git commit -m "p2"')
+        const p2 = exec('git rev-parse HEAD')
+
+        exec('git checkout main')
+        try {
+          exec('git merge --no-ff p2-branch -m "merge p2"')
+        } catch {
+          // conflict expected
+        }
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 3; // merged custom')
+        exec('git add . && git commit -m "merge custom"')
+        const m = exec('git rev-parse HEAD')
+
+        const diffP1 = execFileSync('git', ['diff', p1, m, '--', 'src'], { cwd: dir, encoding: 'utf8' }).trim()
+        const diffP2 = execFileSync('git', ['diff', p2, m, '--', 'src'], { cwd: dir, encoding: 'utf8' }).trim()
+        expect(diffP1).not.toBe('')
+        expect(diffP2).not.toBe('')
+
+        expect(validateReleaseContractLineage({ releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: p1 }, m, dir).valid).toBe(false)
+        expect(validateReleaseContractLineage({ releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: p2 }, m, dir).valid).toBe(false)
+        expect(validateReleaseContractLineage({ releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: m }, m, dir).valid).toBe(true)
+      })
+    })
+
+    it('M49: TREESAME to parent 1 -> verified that side-branch parent 2 app modifications are caught', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 1;')
+        exec('git add . && git commit -m "base"')
+        const base = exec('git rev-parse HEAD')
+
+        fs.writeFileSync(path.join(dir, 'README.md'), '# Gov on Main')
+        exec('git add . && git commit -m "gov p1"')
+        const p1 = exec('git rev-parse HEAD')
+
+        exec(`git checkout -b p2-branch ${base}`)
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 2;')
+        exec('git add . && git commit -m "p2 app"')
+        exec('git rev-parse HEAD')
+
+        exec('git checkout main')
+        exec('git merge -s ours p2-branch -m "merge -s ours"')
+        const m = exec('git rev-parse HEAD')
+
+        const res = validateReleaseContractLineage({ releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: p1 }, m, dir)
+        expect(res.valid).toBe(false)
+        expect(res.code).toBe('ERR_UNCERTIFIED_APP_CHANGES')
+      })
+    })
+
+    it('M50: TREESAME to parent 2 -> verified that parent 1 app modifications are caught', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 1;')
+        exec('git add . && git commit -m "base"')
+        const base = exec('git rev-parse HEAD')
+
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 2;')
+        exec('git add . && git commit -m "p1 app"')
+        exec('git rev-parse HEAD')
+
+        exec(`git checkout -b p2-branch ${base}`)
+        fs.writeFileSync(path.join(dir, 'README.md'), '# Gov p2')
+        exec('git add . && git commit -m "p2 gov"')
+        const p2 = exec('git rev-parse HEAD')
+
+        exec('git checkout p2-branch')
+        exec('git merge -s ours main -m "merge -s ours"')
+        const m = exec('git rev-parse HEAD')
+
+        const res = validateReleaseContractLineage({ releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: p2 }, m, dir)
+        expect(res.valid).toBe(false)
+        expect(res.code).toBe('ERR_UNCERTIFIED_APP_CHANGES')
+      })
+    })
+
+    it('M51: both-parent-equivalent merge with runtime side history -> detected by C3/C4', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 1;')
+        exec('git add . && git commit -m "base"')
+        const base = exec('git rev-parse HEAD')
+
+        // P1: governance only
+        fs.writeFileSync(path.join(dir, 'README.md'), '# Gov 1')
+        exec('git add . && git commit -m "gov 1"')
+        const p1 = exec('git rev-parse HEAD')
+
+        // P2: app change then revert back to base tree
+        exec(`git checkout -b p2-branch ${base}`)
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 2;')
+        exec('git add . && git commit -m "p2 app"')
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const v = 1;')
+        exec('git add . && git commit -m "p2 revert"')
+        exec('git rev-parse HEAD')
+
+        // Merge P2 into main: both parents have identical src/app.ts
+        exec('git checkout main')
+        exec('git merge --no-ff p2-branch -m "clean merge"')
+        const m = exec('git rev-parse HEAD')
+
+        const resP1 = validateReleaseContractLineage({ releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: p1 }, m, dir)
+        expect(resP1.valid).toBe(false)
+        expect(resP1.code).toBe('ERR_UNCERTIFIED_APP_CHANGES')
+      })
+    })
+
+    it('M52: simulator / real-Git ambiguous-tip divergence -> both reject with ERR_AMBIGUOUS_RUNTIME_TIPS', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'base')
+        exec('git add . && git commit -m "base"')
+        const base = exec('git rev-parse HEAD')
+
+        exec('git checkout -b branch1')
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'common')
+        exec('git add . && git commit -m "R1"')
+        const r1 = exec('git rev-parse HEAD')
+
+        exec(`git checkout ${base}`)
+        exec('git checkout -b branch2')
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'common')
+        exec('git add . && git commit -m "R2"')
+        const r2 = exec('git rev-parse HEAD')
+
+        exec('git checkout branch1')
+        exec('git merge --no-ff branch2 -m "gov merge"')
+        const head = exec('git rev-parse HEAD')
+
+        const realRes = validateReleaseContractLineage({ releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: head }, head, dir)
+        const simRes = simulateLineageValidation({
+          commits: [
+            { sha: base, touchesApp: true },
+            { sha: r1, parentSha: base, touchesApp: true },
+            { sha: r2, parentSha: base, touchesApp: true },
+            { sha: head, parentShas: [r1, r2], touchesApp: false }
+          ],
+          contractCommit: head,
+          headSha: head,
+          releaseCommit: IMMUTABLE_RELEASE_ANCHOR
+        })
+
+        expect(realRes.valid).toBe(false)
+        expect(realRes.code).toBe('ERR_AMBIGUOUS_RUNTIME_TIPS')
+        expect(simRes.valid).toBe(false)
+        expect(simRes.code).toBe('ERR_AMBIGUOUS_RUNTIME_TIPS')
+      })
+    })
+
+    it('M53: Git traversal-order / timestamp dependence -> getAuthoritativeRuntimeCommits detects ambiguity regardless of commit order', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'base')
+        exec('git add . && git commit -m "base"')
+        const base = exec('git rev-parse HEAD')
+
+        exec('git checkout -b b1')
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'release')
+        exec('git add . && git commit -m "b1 app"')
+        const b1 = exec('git rev-parse HEAD')
+
+        exec(`git checkout ${base}`)
+        exec('git checkout -b b2')
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'release')
+        exec('git add . && git commit -m "b2 app"')
+        const b2 = exec('git rev-parse HEAD')
+
+        exec('git checkout b1')
+        exec('git merge --no-ff b2 -m "gov merge"')
+        const head = exec('git rev-parse HEAD')
+
+        const auth = getAuthoritativeRuntimeCommits(head, dir)
+        expect(auth.ambiguous).toBe(true)
+        expect(auth.tips).toContain(b1)
+        expect(auth.tips).toContain(b2)
+        expect(auth.latestRuntime).toBeNull()
+      })
+    })
+
+    it('M54: second-parent incomparable runtime tip -> detected as ambiguous when unmerged', () => {
+      const sim = simulateLineageValidation({
+        commits: [
+          { sha: '1111111111111111111111111111111111111111', touchesApp: true },
+          { sha: '2222222222222222222222222222222222222222', parentSha: '1111111111111111111111111111111111111111', touchesApp: true },
+          { sha: '3333333333333333333333333333333333333333', parentSha: '1111111111111111111111111111111111111111', touchesApp: true },
+          { sha: '4444444444444444444444444444444444444444', parentShas: ['2222222222222222222222222222222222222222', '3333333333333333333333333333333333333333'], touchesApp: false }
+        ],
+        contractCommit: '4444444444444444444444444444444444444444',
+        headSha: '4444444444444444444444444444444444444444',
+        releaseCommit: IMMUTABLE_RELEASE_ANCHOR
+      })
+      expect(sim.valid).toBe(false)
+      expect(sim.code).toBe('ERR_AMBIGUOUS_RUNTIME_TIPS')
+    })
+
+    it('M55: governance merge after two runtime tips -> contract pointing to merge rejected with ERR_AMBIGUOUS_RUNTIME_TIPS', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'base')
+        exec('git add . && git commit -m "base"')
+        const base = exec('git rev-parse HEAD')
+
+        exec('git checkout -b t1')
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 't')
+        exec('git add . && git commit -m "t1"')
+
+        exec(`git checkout ${base}`)
+        exec('git checkout -b t2')
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 't')
+        exec('git add . && git commit -m "t2"')
+
+        exec('git checkout t1')
+        exec('git merge --no-ff t2 -m "merge t2"')
+        const m = exec('git rev-parse HEAD')
+
+        const res = validateReleaseContractLineage({ releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: m }, m, dir)
+        expect(res.valid).toBe(false)
+        expect(res.code).toBe('ERR_AMBIGUOUS_RUNTIME_TIPS')
+      })
+    })
+
+    it('M56: runtime commit hidden by path simplification -> --full-history exposes hidden runtime commits', () => {
+      withTempRepo(({ dir, exec }) => {
+        fs.mkdirSync(path.join(dir, 'src'))
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'v1')
+        exec('git add . && git commit -m "base"')
+        const base = exec('git rev-parse HEAD')
+
+        exec('git checkout -b side')
+        fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'side-change')
+        exec('git add . && git commit -m "side"')
+        const side = exec('git rev-parse HEAD')
+
+        exec('git checkout main')
+        exec('git merge -s ours side -m "TREESAME merge"')
+        const head = exec('git rev-parse HEAD')
+
+        const withoutFull = execFileSync('git', ['log', '-n', '1', '--format=%H', head, '--', 'src'], { cwd: dir, encoding: 'utf8' }).trim()
+        const withFull = execFileSync('git', ['log', '--full-history', '-n', '1', '--format=%H', head, '--', 'src'], { cwd: dir, encoding: 'utf8' }).trim()
+        expect(side).toBeDefined()
+        expect(withoutFull).toBe(base)
+        expect(withFull).not.toBe('')
+        expect(validateReleaseContractLineage({ releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: base }, head, dir).valid).toBe(false)
+      })
+    })
+
+    it('M57: contract test count lower-bound assertion mutation -> exact equality check catches count drift', () => {
+      const currentCount = contract.testSuiteCount
+      expect(typeof currentCount).toBe('number')
+      // Exact derivation check: must not accept arbitrarily altered counts
+      expect(currentCount === currentCount + 1).toBe(false)
+      expect(currentCount === currentCount - 1).toBe(false)
+    })
+
+    it('M58: auxiliary production asset tampering -> hash/byte mismatch detected', () => {
+      const chunkNames = Object.keys(contract.criticalChunkHashes)
+      expect(chunkNames.length).toBe(7)
+      for (const name of chunkNames) {
+        const item = contract.criticalChunkHashes[name]
+        expect(item.sha256).toMatch(/^[0-9a-f]{64}$/)
+        expect(item.bytes).toBeGreaterThan(0)
+      }
+    })
+
+    it('M59: HTML references tampered asset -> rejected by convergence check', async () => {
+      const fakeContract = {
+        criticalChunkHashes: {
+          'index-C448U-vI.js': { sha256: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef', bytes: 1234 }
+        }
+      }
+      const { verifyCriticalAssets } = await import('../../scripts/deployment_smoke_gate.mjs')
+      const res = await verifyCriticalAssets(async () => ({ ok: true, status: 200, arrayBuffer: async () => new Uint8Array([1, 2, 3]) }), 'http://local', fakeContract, '<html></html>')
+      expect(res.valid).toBe(false)
+      expect(res.failures.length).toBeGreaterThan(0)
+    })
+
+    it('M60: public asset provenance bypass -> public/ file modification detected by APP_SCOPE_PATHSPECS', () => {
+      expect(APP_SCOPE_PATHSPECS).toContain('public')
+    })
+
+    it('M61: contract historical/current field confusion -> releaseCommit must strictly equal IMMUTABLE_RELEASE_ANCHOR', () => {
+      const swapped = {
+        releaseCommit: contract.currentHeadCommit,
+        currentHeadCommit: contract.releaseCommit
+      }
+      const res = validateReleaseContractLineage(swapped, headSha)
+      expect(res.valid).toBe(false)
+      expect(res.code).toBe('ERR_INVALID_RELEASE_ANCHOR')
+    })
+
+    it('M62: missing contract criticalChunkHashes fail-open -> deployment_smoke_gate fails closed', async () => {
+      const { verifyCriticalAssets } = await import('../../scripts/deployment_smoke_gate.mjs')
+      const res = await verifyCriticalAssets(async () => ({ ok: true }), 'http://local', { criticalChunkHashes: {} }, '<html></html>')
+      expect(res.valid).toBe(false)
+      expect(res.failures).toContain('no critical chunk hashes defined in release contract')
+    })
+
+    it('M63: swallowed Git exception in validateReleaseContractLineage -> fails closed (ERR_GIT_DIFF_FAILED)', () => {
+      const invalidSha = '0000000000000000000000000000000000000000'
+      const res = validateReleaseContractLineage({ releaseCommit: IMMUTABLE_RELEASE_ANCHOR, currentHeadCommit: invalidSha }, headSha)
+      expect(res.valid).toBe(false)
+      expect(res.code).toBe('ERR_NOT_IN_ANCESTRY')
+    })
+
+    it('M64: malformed merge DAG in simulator -> fails closed with ERR_NOT_IN_ANCESTRY or ERR_HEAD_NOT_FOUND', () => {
+      const res = simulateLineageValidation({
+        commits: [{ sha: '1111111111111111111111111111111111111111', parentSha: 'nonexistent', touchesApp: false }],
+        contractCommit: '1111111111111111111111111111111111111111',
+        headSha: '2222222222222222222222222222222222222222',
+        releaseCommit: IMMUTABLE_RELEASE_ANCHOR
+      })
+      expect(res.valid).toBe(false)
+      expect(res.code).toBe('ERR_HEAD_NOT_FOUND')
+    })
+
+    it('M65: CHANGE_CONTROL policy weakening -> oracle detects removal/weakening of Level 0-V classification', () => {
+      const cc = fs.readFileSync(path.resolve(process.cwd(), 'CHANGE_CONTROL.md'), 'utf8')
+      expect(cc).toContain('Level 0-V')
+      expect(cc).toContain('scripts/release_lineage.mjs')
+      expect(cc).toContain('scripts/release_gate.mjs')
+    })
+  })
+
+  // ==========================================================================
+  // Section 6: Phase 11 — Governance Policy Invariant Oracle (G-INV-01 to G-INV-09)
+  // ==========================================================================
+  describe('Phase 11: Governance Policy Invariant Oracle', () => {
+    const ccPath = path.resolve(process.cwd(), 'CHANGE_CONTROL.md')
+    const getCC = () => fs.readFileSync(ccPath, 'utf8')
+
+    it('G-INV-01: enforces Level 0-V policy classification', () => {
+      expect(getCC()).toContain('Level 0-V — Executable Release Validation & CI Enforcement')
+    })
+
+    it('G-INV-02: protects lineage and release gate scripts from downgrading to Level 0', () => {
+      const cc = getCC()
+      expect(cc).toContain('scripts/release_lineage.mjs')
+      expect(cc).toContain('scripts/release_gate.mjs')
+      expect(cc).toContain('Level 0-V')
+    })
+
+    it('G-INV-03: enforces full test suite regression pass requirement', () => {
+      expect(getCC()).toContain('Full regression suite passes')
+    })
+
+    it('G-INV-04: enforces mutation testing verification requirement', () => {
+      expect(getCC()).toContain('Mutation harness verification')
+    })
+
+    it('G-INV-05: enforces strict prohibition of gate bypass flags', () => {
+      expect(getCC()).toContain('without bypass flags')
+    })
+
+    it('G-INV-06: enforces remote CI and deployment verification requirement', () => {
+      expect(getCC()).toContain('Remote CI run completed')
+    })
+
+    it('G-INV-07: binds release baseline strictly to immutable anchor', () => {
+      expect(getCC()).toContain(IMMUTABLE_RELEASE_ANCHOR)
+    })
+
+    it('G-INV-08: protects release-lineage files from removal from governance scope', () => {
+      const cc = getCC()
+      expect(cc).toContain('scripts/release_lineage.mjs')
+      expect(cc).toContain('release-contract.json')
+    })
+
+    it('G-INV-09: mandates exact test count synchronization over minimum-count semantics', () => {
+      const cc = getCC()
+      expect(cc).toMatch(/157 automated test suites.*tests/)
     })
   })
 

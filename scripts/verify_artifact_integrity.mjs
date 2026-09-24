@@ -44,8 +44,8 @@ try {
 const expectedHashes = contract.criticalChunkHashes ?? {};
 
 if (Object.keys(expectedHashes).length === 0) {
-  console.warn(`  ${WARN} No criticalChunkHashes found in release-contract.json`);
-  process.exit(0);
+  console.error(`  ${FAIL} No criticalChunkHashes found in release-contract.json — verification failed`);
+  process.exit(1);
 }
 
 console.log(`\nVerifying ${Object.keys(expectedHashes).length} critical chunk(s) against contract...\n`);

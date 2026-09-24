@@ -34,20 +34,53 @@ export const SHA_REGEX = /^[0-9a-f]{40}$/
 export const IMMUTABLE_RELEASE_ANCHOR = '12076d44528c82fdd10aeaa5db27bf0492a41159'
 
 /**
- * Derives the authoritative latest runtime application commit from Git history
- * for a given revision (defaults to HEAD).
+ * Derives all topologically maximal runtime application commits in the ancestry
+ * of `revision`. If multiple incomparable tips exist, marks ambiguous: true.
  */
-export function getLatestRuntimeCommit(revision = 'HEAD', cwd = process.cwd()) {
+export function getAuthoritativeRuntimeCommits(revision = 'HEAD', cwd = process.cwd()) {
   try {
-    const sha = execFileSync(
+    const raw = execFileSync(
       'git',
-      ['log', '--full-history', '-n', '1', '--format=%H', revision, '--', ...APP_SCOPE_PATHSPECS],
+      ['rev-list', '--topo-order', '--full-history', revision, '--', ...APP_SCOPE_PATHSPECS],
       { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
     ).trim()
-    return sha || null
+    if (!raw) return { tips: [], latestRuntime: null, ambiguous: false }
+    const shas = raw.split('\n').filter(Boolean)
+    if (shas.length === 1) {
+      return { tips: [shas[0]], latestRuntime: shas[0], ambiguous: false }
+    }
+
+    // Determine maximal commits among candidates using git merge-base --independent
+    // Under --topo-order, children always appear before parents, so the first batch
+    // contains all potential maximal tips.
+    const candidateSlice = shas.slice(0, 100)
+    let independent
+    try {
+      independent = execFileSync(
+        'git',
+        ['merge-base', '--independent', ...candidateSlice],
+        { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
+      ).trim().split('\n').filter(Boolean)
+    } catch {
+      independent = [shas[0]]
+    }
+
+    if (independent.length > 1) {
+      return { tips: independent, latestRuntime: null, ambiguous: true }
+    }
+    return { tips: independent, latestRuntime: independent[0] || null, ambiguous: false }
   } catch {
-    return null
+    return { tips: [], latestRuntime: null, ambiguous: false }
   }
+}
+
+/**
+ * Derives the unique authoritative latest runtime application commit from Git history
+ * for a given revision (defaults to HEAD). Returns null if none or if ambiguous.
+ */
+export function getLatestRuntimeCommit(revision = 'HEAD', cwd = process.cwd()) {
+  const result = getAuthoritativeRuntimeCommits(revision, cwd)
+  return result.latestRuntime
 }
 
 /**
@@ -161,7 +194,16 @@ export function validateReleaseContractLineage(contract, headSha, cwd = process.
   }
 
   // C4: Authoritative Currency (must match the latest runtime application commit)
-  const latestRuntime = getLatestRuntimeCommit(headSha, cwd)
+  const runtimeInfo = getAuthoritativeRuntimeCommits(headSha, cwd)
+  if (runtimeInfo.ambiguous) {
+    return {
+      valid: false,
+      code: 'ERR_AMBIGUOUS_RUNTIME_TIPS',
+      reason: `multiple incomparable runtime application tips detected in HEAD lineage: ${runtimeInfo.tips.map(s => s.slice(0, 12)).join(', ')}`
+    }
+  }
+
+  const latestRuntime = runtimeInfo.latestRuntime
   if (!latestRuntime) {
     return {
       valid: false,

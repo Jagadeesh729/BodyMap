@@ -9,7 +9,7 @@
   "productionUrl": "https://bodymap-ai.vercel.app",
   "overallMaturityScore": "9.93/10.0",
   "releaseStatus": "RELEASE FROZEN — MAINTENANCE MODE",
-  "testSuiteCount": 5941,
+  "testSuiteCount": 5991,
   "testFileCount": 157,
   "buildChunkCount": 26,
   "criticalChunkHashes": {

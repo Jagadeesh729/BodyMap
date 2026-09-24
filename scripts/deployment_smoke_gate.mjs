@@ -53,7 +53,11 @@ function sha256(bytes) {
 export async function verifyCriticalAssets(fetchImpl, baseUrl, contract, html) {
   const htmlAssets = new Set(extractAssetReferences(html))
   const failures = []
-  for (const [name, expected] of Object.entries(contract.criticalChunkHashes || {})) {
+  const entries = Object.entries(contract?.criticalChunkHashes || {})
+  if (entries.length === 0) {
+    return { valid: false, failures: ['no critical chunk hashes defined in release contract'] }
+  }
+  for (const [name, expected] of entries) {
     const response = await fetchImpl(`${baseUrl}/assets/${name}`)
     if (!response.ok) {
       failures.push(`${name}: HTTP ${response.status}`)

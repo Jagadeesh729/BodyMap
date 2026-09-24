@@ -8,7 +8,7 @@ This document defines the **impact classification** and **approval requirements*
 **Baseline Score**: 9.93 / 10.0 | **Status**: RELEASE FROZEN — MAINTENANCE MODE
 
 > [!NOTE]
-> **Historical Baseline Classification**: The baseline score of 9.93 / 10.0 reflects the certified audit ceiling established at frozen baseline milestone commit `12076d44528c82fdd10aeaa5db27bf0492a41159`. It serves as permanent historical forensic reference; current repository health is continuously verified against 157 automated test suites, 5,941 tests, and 11/11 release gates.
+> **Historical Baseline Classification**: The baseline score of 9.93 / 10.0 reflects the certified audit ceiling established at frozen baseline milestone commit `12076d44528c82fdd10aeaa5db27bf0492a41159`. It serves as permanent historical forensic reference; current repository health is continuously verified against 157 automated test suites, 5,991 tests, and 11/11 release gates.
 
 ---
 
@@ -42,7 +42,7 @@ This document defines the **impact classification** and **approval requirements*
 **Required before merging**:
 - [ ] `npm run lint` passes
 - [ ] `npm run typecheck` passes
-- [ ] `npm test -- --run` passes all suites (5,941 tests across 157 suites)
+- [ ] `npm test -- --run` passes all suites (5,991 tests across 157 suites)
 - [ ] Lineage invariant verified (C1–C4) via `scripts/release_lineage.mjs`
 - [ ] `node scripts/release_gate.mjs` passes 11/11
 - [ ] Working tree is clean and synchronized with remote
@@ -54,8 +54,8 @@ This document defines the **impact classification** and **approval requirements*
 
 **Required before merging**:
 - [ ] Full 11/11 release gate passes without bypass flags
-- [ ] Full regression suite passes (5,941 tests across 157 suites)
-- [ ] Mutation harness verification (`releaseLineageModel.test.ts`) passes 100% of adversarial mutations (M01–M45)
+- [ ] Full regression suite passes (5,991 tests across 157 suites)
+- [ ] Mutation harness verification (`releaseLineageModel.test.ts`) passes 100% of adversarial mutations (M01–M65)
 - [ ] Parity across all DAG histories verified between simulator and real Git
 - [ ] Remote CI run completed with unconditional success across all required jobs
 
@@ -73,7 +73,7 @@ This document defines the **impact classification** and **approval requirements*
 **Required before merging**:
 - [ ] `npm run lint` passes
 - [ ] `npm run typecheck` passes
-- [ ] `npm test` — full test suite passes (5,941+/5,941+ tests)
+- [ ] `npm test` — full test suite passes (5,991+/5,991+ tests)
 - [ ] README test badge updated if test count changed
 - [ ] `finalProductionQualityOracle.test.ts` assertion updated if README count changed
 
@@ -191,7 +191,7 @@ To maintain immutable audit history while strictly enforcing present-day truthfu
    - `README.md` (badges, tech stack, project structure, scripts table)
    - `release-contract.json` (authoritative release metadata and test totals)
    - Current release status, artifact chunk hashes, and consumer sink registers
-    - *Governance Rule*: Must match current verified test counts (`5,941` tests across `157` suites) and build outputs. Enforced by `finalProductionQualityOracle.test.ts` (Section G) and `scripts/release_gate.mjs`. Stale counts (`5,921`, `5,918`, `5,877`, `5,736`, `5,694`, `5,661`, `5,653`, `5,609`, `149 suites`, `147 suites`, `146 suites`, `145 suites`, `5,571`, etc.) in current documentation cause CI test failure.
+     - *Governance Rule*: Must match current verified test counts (`5,991` tests across `157` suites) and build outputs. Enforced by `finalProductionQualityOracle.test.ts` (Section G) and `scripts/release_gate.mjs`. Stale counts (`5,941`, `5,921`, `5,918`, `5,877`, `5,736`, `5,694`, `5,661`, `5,653`, `5,609`, `149 suites`, `147 suites`, `146 suites`, `145 suites`, `5,571`, etc.) in current documentation cause CI test failure.
 
 2. **Historical Audit Records (Preserved Forensic Evidence)**:
    - Prior audit walkthrough sections (`walkthrough.md` sections 1–21)
@@ -236,4 +236,5 @@ To maintain immutable audit history while strictly enforcing present-day truthfu
 | 2026-09-24 | Principal Release-Governance Auditor | Enhancement E48: Exhaustive audit of APP_SCOPE_PATHSPECS (.npmrc, components.json, tsconfig.node.json); implemented multi-parent DAG traversal and shallow-clone diagnostics in scripts/release_lineage.mjs; verified real-Git vs simulator parity across Histories A–J on temp repositories; extended adversarial mutation matrix to M1–M22; verified fresh remote CI run 35958525400 (6/6 jobs green) and production smoke run 35958550049; synchronized test counts to 5,918 across 157 suites | 0-G |
 | 2026-09-24 | Principal Release-Governance Auditor | Enhancement E49: Resolved baseline anchor discrepancy proving 12076d44528c82fdd10aeaa5db27bf0492a41159 is authentic Git ancestor and E48 reported value was a report-only typo; eliminated releaseCommit === HEAD loophole to strictly enforce immutable anchor; verified api/ serverless pathspec in APP_SCOPE; expanded mutation matrix to M01–M25; synchronized test counts to 5,921 across 157 suites | 0-V |
 | 2026-09-24 | Principal Release-Governance & Provenance Auditor | Enhancement E50: Semantic closure of C1–C4 lineage model across real Git DAGs (G01–G16); eliminated TREESAME merge bypass via --full-history and intermediate rev-list verification in scripts/release_lineage.mjs; eliminated --allow-uncommitted bypass flag in release_gate.mjs; hardened simulator to fail closed on ambiguous incomparable runtime tips; expanded mutation matrix to M01–M45; synchronized test counts to 5,941 across 157 suites | 0-V |
+| 2026-09-24 | Principal Release-Governance & Provenance Auditor | Enhancement E51: Model consistency & real-Git ambiguity closure across Topologies R01–R20; implemented maximal runtime tip ambiguity detection (ERR_AMBIGUOUS_RUNTIME_TIPS) in getAuthoritativeRuntimeCommits via git merge-base --independent; hardened verify_artifact_integrity.mjs and deployment_smoke_gate.mjs to fail closed on empty chunk hashes; audited APP_SCOPE pathspec completeness (L08); implemented governance policy invariant oracle (G-INV-01 to G-INV-09); eliminated lower-bound assertions (exact test count equality); expanded mutation matrix to M01–M65 (65/65 killed); synchronized test counts to 5,991 across 157 suites | 0-V |
 
