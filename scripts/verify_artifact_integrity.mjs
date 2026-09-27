@@ -1,99 +1,224 @@
 #!/usr/bin/env node
 /**
- * BodyMap AI — Release Artifact Verification
- * ==========================================
- * Verifies that the current local build matches the hashes recorded in
- * release-contract.json. Fails if any critical chunk is missing or
- * has a different SHA-256 hash.
+ * BodyMap AI — Release Artifact Verification & Provenance Engine
+ * =============================================================
+ * Verifies that the local build matches the hashes recorded in
+ * release-contract.json, enforces HTML asset graph provenance,
+ * checks total chunk count against build inventory, and performs
+ * post-build secret scanning across all emitted assets.
  *
  * Usage:  node scripts/verify_artifact_integrity.mjs
  *
  * Prerequisites: run `npm run build` before executing this script.
  *
- * Exit 0 = all critical chunks verified
- * Exit 1 = one or more mismatches or missing files
+ * Exit 0 = all critical chunks and provenance invariants verified
+ * Exit 1 = one or more mismatches, missing files, or security failures
  */
 
 import { createHash } from 'node:crypto';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { resolve, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
+function getDefaultRoot() {
+  try {
+    if (typeof import.meta !== 'undefined' && import.meta.url && typeof import.meta.url === 'string' && import.meta.url.startsWith('file:')) {
+      return resolve(fileURLToPath(new URL('..', import.meta.url)));
+    }
+  } catch {}
+  return process.cwd();
+}
+
+const ROOT = getDefaultRoot();
 const CONTRACT_PATH = join(ROOT, 'release-contract.json');
-const DIST_PATH = join(ROOT, 'dist', 'assets');
 
 const PASS = '\x1b[32m✓\x1b[0m';
 const FAIL = '\x1b[31m✗\x1b[0m';
-const WARN = '\x1b[33m!\x1b[0m';
 
-let failures = 0;
+const SECRET_PATTERNS = [
+  /AIzaSy[A-Za-z0-9_-]{20,}/,
+  /\bBearer\s+[A-Za-z0-9._-]{20,}/i,
+  /-----BEGIN\s+(?:RSA\s+)?PRIVATE\s+KEY-----/,
+];
 
-console.log('\x1b[1mBodyMap AI — Release Artifact Integrity Verification\x1b[0m');
-console.log('─'.repeat(60));
-
-// Load contract
-let contract;
-try {
-  contract = JSON.parse(readFileSync(CONTRACT_PATH, 'utf8'));
-} catch (e) {
-  console.error(`  ${FAIL} Cannot parse release-contract.json: ${e.message}`);
-  process.exit(1);
+export function extractHtmlAssetReferences(html) {
+  return [...html.matchAll(/(?:src|href)=["'](\/assets\/[^"']+)["']/g)]
+    .map(match => match[1])
+    .filter((value, index, values) => values.indexOf(value) === index);
 }
 
-const expectedHashes = contract.criticalChunkHashes ?? {};
+export function verifyArtifactIntegrity({ root = ROOT, contractPath = CONTRACT_PATH } = {}) {
+  const failures = [];
+  const details = [];
 
-if (Object.keys(expectedHashes).length === 0) {
-  console.error(`  ${FAIL} No criticalChunkHashes found in release-contract.json — verification failed`);
-  process.exit(1);
-}
-
-console.log(`\nVerifying ${Object.keys(expectedHashes).length} critical chunk(s) against contract...\n`);
-
-for (const [filename, expected] of Object.entries(expectedHashes)) {
-  const chunkPath = join(DIST_PATH, filename);
-
-  if (!existsSync(chunkPath)) {
-    console.error(`  ${FAIL} MISSING: ${filename}`);
-    failures++;
-    continue;
+  // 1. Parse contract
+  let contract;
+  try {
+    contract = JSON.parse(readFileSync(contractPath, 'utf8'));
+  } catch (e) {
+    return {
+      valid: false,
+      failures: [`Cannot parse release contract: ${e.message}`],
+      details: [],
+    };
   }
 
-  const buf = readFileSync(chunkPath);
-  const actualHash = createHash('sha256').update(buf).digest('hex');
-  const actualBytes = buf.length;
+  const expectedHashes = contract.criticalChunkHashes ?? {};
+  if (Object.keys(expectedHashes).length === 0) {
+    return {
+      valid: false,
+      failures: ['No criticalChunkHashes found in release contract — verification failed'],
+      details: [],
+    };
+  }
 
-  const hashMatch = actualHash === expected.sha256;
-  const bytesMatch = actualBytes === expected.bytes;
+  const distDir = join(root, 'dist');
+  const distAssetsDir = join(distDir, 'assets');
 
-  if (hashMatch && bytesMatch) {
-    console.log(`  ${PASS} ${filename} — SHA-256 match (${actualBytes} bytes)`);
+  if (!existsSync(distDir)) {
+    return {
+      valid: false,
+      failures: ['dist/ directory does not exist — run npm run build before verification'],
+      details: [],
+    };
+  }
+
+  if (!existsSync(distAssetsDir)) {
+    return {
+      valid: false,
+      failures: ['dist/assets directory does not exist'],
+      details: [],
+    };
+  }
+
+  // 2. Critical chunk verification
+  for (const [filename, expected] of Object.entries(expectedHashes)) {
+    const chunkPath = join(distAssetsDir, filename);
+    if (!existsSync(chunkPath)) {
+      failures.push(`MISSING: ${filename}`);
+      continue;
+    }
+
+    const buf = readFileSync(chunkPath);
+    const actualHash = createHash('sha256').update(buf).digest('hex');
+    const actualBytes = buf.length;
+
+    const hashMatch = actualHash === expected.sha256;
+    const bytesMatch = actualBytes === expected.bytes;
+
+    if (hashMatch && bytesMatch) {
+      details.push(`${filename} — SHA-256 match (${actualBytes} bytes)`);
+    } else {
+      if (!hashMatch) {
+        failures.push(`${filename} — SHA-256 MISMATCH (expected ${expected.sha256}, got ${actualHash})`);
+      }
+      if (!bytesMatch) {
+        failures.push(`${filename} — BYTE SIZE MISMATCH (expected ${expected.bytes}, got ${actualBytes})`);
+      }
+    }
+  }
+
+  // 3. HTML Asset Graph Provenance
+  const indexHtmlPath = join(distDir, 'index.html');
+  if (!existsSync(indexHtmlPath)) {
+    failures.push('MISSING: dist/index.html');
   } else {
-    failures++;
-    if (!hashMatch) {
-      console.error(`  ${FAIL} ${filename} — SHA-256 MISMATCH`);
-      console.error(`       expected: ${expected.sha256}`);
-      console.error(`       actual:   ${actualHash}`);
+    const htmlContent = readFileSync(indexHtmlPath, 'utf8');
+    const referencedAssets = extractHtmlAssetReferences(htmlContent);
+    for (const assetRef of referencedAssets) {
+      const assetFilename = assetRef.replace(/^\/assets\//, '');
+      const assetPath = join(distAssetsDir, assetFilename);
+      if (!existsSync(assetPath)) {
+        failures.push(`HTML references missing asset: ${assetRef}`);
+      }
     }
-    if (!bytesMatch) {
-      console.error(`  ${FAIL} ${filename} — BYTE SIZE MISMATCH (expected ${expected.bytes}, got ${actualBytes})`);
+  }
+
+  // 4. Asset Inventory & Unexpected Executable Asset Detection
+  try {
+    const emittedAssets = readdirSync(distAssetsDir);
+    if (typeof contract.buildChunkCount === 'number') {
+      if (emittedAssets.length !== contract.buildChunkCount) {
+        failures.push(`Chunk count mismatch: expected ${contract.buildChunkCount} chunks, got ${emittedAssets.length}`);
+      }
     }
+  } catch (e) {
+    failures.push(`Could not read dist/assets: ${e.message}`);
+  }
+
+  // 5. Post-Build Secret & Sensitive Data Scan
+  function walkDir(dir, results = []) {
+    try {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) walkDir(full, results);
+        else results.push(full);
+      }
+    } catch {}
+    return results;
+  }
+
+  const allDistFiles = walkDir(distDir);
+  for (const file of allDistFiles) {
+    const rel = file.replace(root, '').replace(/\\/g, '/').replace(/^\//, '');
+    try {
+      const content = readFileSync(file, 'utf8');
+      for (const pattern of SECRET_PATTERNS) {
+        if (pattern.test(content)) {
+          failures.push(`Secret pattern detected in build output: ${rel}`);
+        }
+      }
+      if (/sourceMappingURL\s*=/i.test(content)) {
+        failures.push(`Source map directive detected in build output: ${rel}`);
+      }
+    } catch {
+      // binary files
+    }
+  }
+
+  return {
+    valid: failures.length === 0,
+    failures,
+    details,
+  };
+}
+
+function isMainModule() {
+  try {
+    if (!process.argv[1] || typeof import.meta === 'undefined' || !import.meta.url || !import.meta.url.startsWith('file:')) {
+      return false;
+    }
+    return import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
+  } catch {
+    return false;
   }
 }
 
-console.log('\n' + '─'.repeat(60));
+if (isMainModule()) {
+  console.log('\x1b[1mBodyMap AI — Release Artifact Integrity Verification\x1b[0m');
+  console.log('─'.repeat(60));
 
-if (failures === 0) {
-  console.log(`\x1b[32m\x1b[1m  ARTIFACT INTEGRITY VERIFIED — all chunks match contract\x1b[0m`);
-  console.log('─'.repeat(60) + '\n');
-  process.exit(0);
-} else {
-  console.error(`\x1b[31m\x1b[1m  ARTIFACT INTEGRITY FAILED — ${failures} chunk(s) mismatched or missing\x1b[0m`);
-  console.error('\n  This means either:');
-  console.error('    a) The build was run from a different commit than the frozen release');
-  console.error('    b) release-contract.json needs to be updated after an approved release');
-  console.error('    c) The build output was tampered with');
-  console.error('\n  Resolution: run `npm run build` from the release commit and re-verify.\n');
-  console.log('─'.repeat(60) + '\n');
-  process.exit(1);
+  const result = verifyArtifactIntegrity();
+
+  if (result.details.length > 0) {
+    console.log(`\nVerifying critical chunks against contract...\n`);
+    for (const detail of result.details) {
+      console.log(`  ${PASS} ${detail}`);
+    }
+  }
+
+  console.log('\n' + '─'.repeat(60));
+
+  if (result.valid) {
+    console.log(`\x1b[32m\x1b[1m  ARTIFACT INTEGRITY VERIFIED — all chunks and provenance invariants match\x1b[0m`);
+    console.log('─'.repeat(60) + '\n');
+    process.exit(0);
+  } else {
+    console.error(`\x1b[31m\x1b[1m  ARTIFACT INTEGRITY FAILED — ${result.failures.length} check(s) failed\x1b[0m\n`);
+    for (const failure of result.failures) {
+      console.error(`  ${FAIL} ${failure}`);
+    }
+    console.log('\n' + '─'.repeat(60) + '\n');
+    process.exit(1);
+  }
 }

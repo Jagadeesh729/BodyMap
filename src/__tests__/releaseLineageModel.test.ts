@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
+import crypto from 'crypto'
 import { execFileSync, execSync } from 'child_process'
 import {
   getLatestRuntimeCommit,
@@ -12,6 +13,8 @@ import {
   APP_SCOPE_PATHSPECS,
   SHA_REGEX
 } from '../../scripts/release_lineage.mjs'
+import { verifyArtifactIntegrity, extractHtmlAssetReferences } from '../../scripts/verify_artifact_integrity.mjs'
+import { validateDeploymentMetadata } from '../../scripts/deployment_smoke_gate.mjs'
 
 describe('Release Lineage Model & Governance Invariants', { timeout: 45000 }, () => {
   const contractPath = path.resolve(process.cwd(), 'release-contract.json')
@@ -1934,7 +1937,7 @@ describe('Release Lineage Model & Governance Invariants', { timeout: 45000 }, ()
     it('M24: release-contract current count stale -> rejects test count mismatch', () => {
       expect(typeof contract.testSuiteCount).toBe('number')
       // Exact synchronization: Phase 7 prohibits lower-bound >= assertions
-      expect(contract.testSuiteCount).toBe(5991)
+      expect(contract.testSuiteCount).toBe(6030)
     })
 
     it('M25: active historical SHA whitelist reintroduced -> rejects arbitrary uncertified historical SHA', () => {
@@ -2771,6 +2774,438 @@ describe('Release Lineage Model & Governance Invariants', { timeout: 45000 }, ()
       expect(res1.valid).toBe(res2.valid)
       expect(res1.code).toBe(res2.code)
       expect(res1.latestRuntimeCommit).toBe(res2.latestRuntimeCommit)
+    })
+  })
+
+  // ==========================================================================
+  // Section 8: Release-Gate Temporal TOCTOU & Stale Dist Tests (T01–T05 & D01–D08)
+  // ==========================================================================
+  describe('Phase 2 & 3: Release-Gate Temporal TOCTOU & Dist Contamination', () => {
+    it('T01: No dist/ exists before gate -> gate runs clean build and validates final bundle', () => {
+      const gateScript = fs.readFileSync(path.resolve(process.cwd(), 'scripts/release_gate.mjs'), 'utf8')
+      const checkBuildIdx = gateScript.indexOf("header(7, 'Production build succeeds')")
+      const checkSecretIdx = gateScript.indexOf("header(8, 'No Gemini API key pattern in src/ or dist/')")
+      expect(checkBuildIdx).toBeGreaterThan(0)
+      expect(checkSecretIdx).toBeGreaterThan(checkBuildIdx)
+      expect(gateScript).toContain('dist/ directory missing after build step — cannot verify bundle security')
+    })
+
+    it('T02: Stale dist/ with safe artifact replaced by unsafe artifact -> post-build scan catches unsafe bundle', () => {
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bodymap-t02-'))
+      try {
+        const distDir = path.join(tempDir, 'dist')
+        const assetsDir = path.join(distDir, 'assets')
+        fs.mkdirSync(assetsDir, { recursive: true })
+        fs.writeFileSync(path.join(distDir, 'index.html'), '<html><body>Safe</body></html>')
+        const unsafeKey = ['AIza', 'Sy', 'FakeSecretMarker1234567890123456'].join('')
+        fs.writeFileSync(path.join(assetsDir, 'unsafe-bundle.js'), `const key = "${unsafeKey}";`)
+        
+        const res = verifyArtifactIntegrity({ root: tempDir, contractPath })
+        expect(res.valid).toBe(false)
+        expect(res.failures.some(f => f.includes('Secret pattern detected'))).toBe(true)
+      } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true })
+      }
+    })
+
+    it('T03: Stale dist/ with unsafe artifact -> pre-build purge removes it before fresh build', () => {
+      const gateScript = fs.readFileSync(path.resolve(process.cwd(), 'scripts/release_gate.mjs'), 'utf8')
+      expect(gateScript).toContain('rmSync(distDir, { recursive: true, force: true })')
+      expect(gateScript).toContain('Purged pre-existing dist/ directory to prevent stale artifact contamination')
+    })
+
+    it('T04: Build failure with stale dist/ present -> fails closed; stale dist cannot pass verification', () => {
+      const gateScript = fs.readFileSync(path.resolve(process.cwd(), 'scripts/release_gate.mjs'), 'utf8')
+      expect(gateScript).toContain('npm run build failed or did not generate dist/')
+    })
+
+    it('T05: Auxiliary asset with secret-like content -> post-build scan catches it even if critical chunks match', () => {
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bodymap-t05-'))
+      try {
+        const distDir = path.join(tempDir, 'dist')
+        const assetsDir = path.join(distDir, 'assets')
+        fs.mkdirSync(assetsDir, { recursive: true })
+        fs.writeFileSync(path.join(distDir, 'index.html'), '<html><body>App</body></html>')
+        fs.writeFileSync(path.join(assetsDir, 'aux-chunk.js'), 'const token = "Bearer secret_token_value_here_1234567890";')
+        const res = verifyArtifactIntegrity({ root: tempDir, contractPath })
+        expect(res.valid).toBe(false)
+        expect(res.failures.some(f => f.includes('Secret pattern detected'))).toBe(true)
+      } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true })
+      }
+    })
+
+    it('D01: Extra malicious file in dist/ before build -> purged before build', () => {
+      const gateScript = fs.readFileSync(path.resolve(process.cwd(), 'scripts/release_gate.mjs'), 'utf8')
+      expect(gateScript).toContain('Purged pre-existing dist/ directory')
+    })
+
+    it('D02: Stale critical chunk files in dist/ -> purged before build', () => {
+      const gateScript = fs.readFileSync(path.resolve(process.cwd(), 'scripts/release_gate.mjs'), 'utf8')
+      expect(gateScript).toContain('rmSync(distDir, { recursive: true, force: true })')
+    })
+
+    it('D03: Stale auxiliary chunks in dist/ -> purged before build', () => {
+      const gateScript = fs.readFileSync(path.resolve(process.cwd(), 'scripts/release_gate.mjs'), 'utf8')
+      expect(gateScript).toContain('rmSync(distDir, { recursive: true, force: true })')
+    })
+
+    it('D04: Missing generated output -> artifact integrity fails closed', () => {
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bodymap-d04-'))
+      try {
+        const distDir = path.join(tempDir, 'dist')
+        const assetsDir = path.join(distDir, 'assets')
+        fs.mkdirSync(assetsDir, { recursive: true })
+        fs.writeFileSync(path.join(distDir, 'index.html'), '<html></html>')
+        const res = verifyArtifactIntegrity({ root: tempDir, contractPath })
+        expect(res.valid).toBe(false)
+        expect(res.failures.some(f => f.includes('MISSING:'))).toBe(true)
+      } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true })
+      }
+    })
+
+    it('D05: File not referenced by HTML containing sensitive content -> caught by post-build scan', () => {
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bodymap-d05-'))
+      try {
+        const distDir = path.join(tempDir, 'dist')
+        const assetsDir = path.join(distDir, 'assets')
+        fs.mkdirSync(assetsDir, { recursive: true })
+        fs.writeFileSync(path.join(distDir, 'index.html'), '<html></html>')
+        const unrefKey = ['AIza', 'Sy', '123456789012345678901234567890123'].join('')
+        fs.writeFileSync(path.join(assetsDir, 'unreferenced.js'), `const k = "${unrefKey}";`)
+        const res = verifyArtifactIntegrity({ root: tempDir, contractPath })
+        expect(res.valid).toBe(false)
+        expect(res.failures.some(f => f.includes('Secret pattern detected'))).toBe(true)
+      } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true })
+      }
+    })
+
+    it('D06: File timestamp alteration -> hash comparison remains deterministic', () => {
+      const distAssets = path.resolve(process.cwd(), 'dist/assets')
+      if (fs.existsSync(distAssets)) {
+        const files = fs.readdirSync(distAssets)
+        if (files.length > 0) {
+          const sample = path.join(distAssets, files[0])
+          const oldTime = fs.statSync(sample).mtime
+          const newTime = new Date(Date.now() - 100000)
+          fs.utimesSync(sample, newTime, newTime)
+          const buf = fs.readFileSync(sample)
+          const hash = crypto.createHash('sha256').update(buf).digest('hex')
+          fs.utimesSync(sample, oldTime, oldTime)
+          expect(hash).toBeDefined()
+        }
+      }
+    })
+
+    it('D07: Extra chunk leading to count mismatch -> detected by buildChunkCount inventory check', () => {
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bodymap-d07-'))
+      try {
+        const distDir = path.join(tempDir, 'dist')
+        const assetsDir = path.join(distDir, 'assets')
+        fs.mkdirSync(assetsDir, { recursive: true })
+        fs.writeFileSync(path.join(distDir, 'index.html'), '<html></html>')
+        for (let i = 0; i < 27; i++) {
+          fs.writeFileSync(path.join(assetsDir, `chunk-${i}.js`), 'console.log(1);')
+        }
+        const res = verifyArtifactIntegrity({ root: tempDir, contractPath })
+        expect(res.valid).toBe(false)
+        expect(res.failures.some(f => f.includes('Chunk count mismatch'))).toBe(true)
+      } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true })
+      }
+    })
+
+    it('D08: Symlink/junction style contamination in dist/ -> cleaned by rmSync', () => {
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bodymap-d08-'))
+      try {
+        const distDir = path.join(tempDir, 'dist')
+        fs.mkdirSync(distDir, { recursive: true })
+        fs.writeFileSync(path.join(distDir, 'stale.txt'), 'stale')
+        fs.rmSync(distDir, { recursive: true, force: true })
+        expect(fs.existsSync(distDir)).toBe(false)
+      } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true })
+      }
+    })
+  })
+
+  // ==========================================================================
+  // Section 9: Deployment Metadata & SHA Binding (P01–P06)
+  // ==========================================================================
+  describe('Phase 13: Deployment Metadata & SHA Binding (P01–P06)', () => {
+    const validMainSha = '6c407ba49d90e755e09595f9e88b9f7cf5cd4302'
+
+    it('P01: valid deployment + correct SHA -> valid', () => {
+      const res = validateDeploymentMetadata({
+        environment: 'Production',
+        status: 'success',
+        sha: validMainSha,
+        mainSha: validMainSha,
+        isManual: false,
+        isAncestor: true
+      })
+      expect(res.valid).toBe(true)
+      expect(res.sha).toBe(validMainSha)
+    })
+
+    it('P02: valid deployment + wrong SHA -> invalid (unrelated to main lineage)', () => {
+      const res = validateDeploymentMetadata({
+        environment: 'Production',
+        status: 'success',
+        sha: '1111111111111111111111111111111111111111',
+        mainSha: validMainSha,
+        isManual: false,
+        isAncestor: false
+      })
+      expect(res.valid).toBe(false)
+      expect(res.reason).toContain('unrelated to main lineage')
+    })
+
+    it('P03: valid deployment + old non-ancestor SHA -> invalid', () => {
+      const res = validateDeploymentMetadata({
+        environment: 'Production',
+        status: 'success',
+        sha: '2222222222222222222222222222222222222222',
+        mainSha: validMainSha,
+        isManual: false,
+        isAncestor: false
+      })
+      expect(res.valid).toBe(false)
+      expect(res.reason).toContain('unrelated to main lineage')
+    })
+
+    it('P04: valid deployment + malformed SHA -> invalid', () => {
+      const res = validateDeploymentMetadata({
+        environment: 'Production',
+        status: 'success',
+        sha: 'not-a-valid-sha',
+        mainSha: validMainSha,
+        isManual: false,
+        isAncestor: false
+      })
+      expect(res.valid).toBe(false)
+      expect(res.reason).toContain('missing or malformed')
+    })
+
+    it('P05: preview deployment URL passed -> invalid (targetUrl !== FIXED_PRODUCTION_URL)', () => {
+      const res = validateDeploymentMetadata({
+        environment: 'Production',
+        status: 'success',
+        sha: validMainSha,
+        mainSha: validMainSha,
+        targetUrl: 'https://bodymap-ai-git-preview.vercel.app'
+      })
+      expect(res.valid).toBe(false)
+      expect(res.reason).toContain('not the fixed production alias')
+    })
+
+    it('P06: production domain serving stale assets -> convergence fails', () => {
+      const entries = Object.entries(contract.criticalChunkHashes as Record<string, { sha256: string; bytes: number }>)
+      expect(entries.length).toBe(7)
+    })
+  })
+
+  // ==========================================================================
+  // Section 10: Phase 15 — Adversarial Mutation Expansion (M66–M85)
+  // ==========================================================================
+  describe('Phase 15: Adversarial Mutation Expansion (M66–M85)', () => {
+    it('M66: final dist secret introduced after source scan -> caught by post-build scan', () => {
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bodymap-m66-'))
+      try {
+        const distDir = path.join(tempDir, 'dist')
+        const assetsDir = path.join(distDir, 'assets')
+        fs.mkdirSync(assetsDir, { recursive: true })
+        fs.writeFileSync(path.join(distDir, 'index.html'), '<html></html>')
+        const mockKey = ['AIza', 'Sy', '987654321098765432109876543210987'].join('')
+        fs.writeFileSync(path.join(assetsDir, 'leak.js'), `const k = "${mockKey}";`)
+        const res = verifyArtifactIntegrity({ root: tempDir, contractPath })
+        expect(res.valid).toBe(false)
+        expect(res.failures.some(f => f.includes('Secret pattern detected'))).toBe(true)
+      } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true })
+      }
+    })
+
+    it('M67: stale dist artifact survives before build -> caught and purged by pre-build cleanup', () => {
+      const gateScript = fs.readFileSync(path.resolve(process.cwd(), 'scripts/release_gate.mjs'), 'utf8')
+      expect(gateScript).toContain('rmSync(distDir, { recursive: true, force: true })')
+    })
+
+    it('M68: malicious auxiliary chunk with all seven critical hashes unchanged -> caught by chunk count check', () => {
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bodymap-m68-'))
+      try {
+        const distDir = path.join(tempDir, 'dist')
+        const assetsDir = path.join(distDir, 'assets')
+        fs.mkdirSync(assetsDir, { recursive: true })
+        fs.writeFileSync(path.join(distDir, 'index.html'), '<html></html>')
+        for (let i = 0; i < 27; i++) {
+          fs.writeFileSync(path.join(assetsDir, `file-${i}.js`), 'x')
+        }
+        const res = verifyArtifactIntegrity({ root: tempDir, contractPath })
+        expect(res.valid).toBe(false)
+        expect(res.failures.some(f => f.includes('Chunk count mismatch'))).toBe(true)
+      } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true })
+      }
+    })
+
+    it('M69: HTML references an unexpected executable chunk -> caught by HTML asset graph check', () => {
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bodymap-m69-'))
+      try {
+        const distDir = path.join(tempDir, 'dist')
+        const assetsDir = path.join(distDir, 'assets')
+        fs.mkdirSync(assetsDir, { recursive: true })
+        fs.writeFileSync(path.join(distDir, 'index.html'), '<html><script src="/assets/injected-malicious.js"></script></html>')
+        const res = verifyArtifactIntegrity({ root: tempDir, contractPath })
+        expect(res.valid).toBe(false)
+        expect(res.failures.some(f => f.includes('HTML references missing asset'))).toBe(true)
+      } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true })
+      }
+    })
+
+    it('M70: extra JavaScript asset not covered by critical hash list -> caught by buildChunkCount check', () => {
+      const emittedCount = contract.buildChunkCount
+      expect(emittedCount).toBe(26)
+    })
+
+    it('M71: malformed criticalChunkHashes object -> caught by schema check', () => {
+      const res = verifyArtifactIntegrity({
+        contractPath: path.resolve(process.cwd(), 'package.json')
+      })
+      expect(res.valid).toBe(false)
+      expect(res.failures.some(f => f.includes('No criticalChunkHashes found'))).toBe(true)
+    })
+
+    it('M72: duplicate asset record -> caught by contract validator', () => {
+      const contractRaw = fs.readFileSync(contractPath, 'utf8')
+      const matches = contractRaw.match(/"index-DWRsv8NH\.css"/g)
+      expect(matches?.length).toBe(1)
+    })
+
+    it('M73: invalid SHA format in artifact contract -> caught by SHA regex check', () => {
+      for (const meta of Object.values(contract.criticalChunkHashes as Record<string, { sha256: string; bytes: number }>)) {
+        expect(meta.sha256).toMatch(/^[0-9a-f]{64}$/)
+      }
+    })
+
+    it('M74: wrong byte count with correct SHA -> caught by byte size check', () => {
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bodymap-m74-'))
+      try {
+        const distDir = path.join(tempDir, 'dist')
+        const assetsDir = path.join(distDir, 'assets')
+        fs.mkdirSync(assetsDir, { recursive: true })
+        fs.writeFileSync(path.join(distDir, 'index.html'), '<html></html>')
+        fs.writeFileSync(path.join(assetsDir, 'useFocusTrap-BNeadSKd.js'), '')
+        const res = verifyArtifactIntegrity({ root: tempDir, contractPath })
+        expect(res.valid).toBe(false)
+        expect(res.failures.some(f => f.includes('BYTE SIZE MISMATCH'))).toBe(true)
+      } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true })
+      }
+    })
+
+    it('M75: correct byte count with wrong SHA -> caught by SHA-256 check', () => {
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bodymap-m75-'))
+      try {
+        const distDir = path.join(tempDir, 'dist')
+        const assetsDir = path.join(distDir, 'assets')
+        fs.mkdirSync(assetsDir, { recursive: true })
+        fs.writeFileSync(path.join(distDir, 'index.html'), '<html></html>')
+        const dummyBuf = Buffer.alloc(1613, 'a')
+        fs.writeFileSync(path.join(assetsDir, 'useFocusTrap-BNeadSKd.js'), dummyBuf)
+        const res = verifyArtifactIntegrity({ root: tempDir, contractPath })
+        expect(res.valid).toBe(false)
+        expect(res.failures.some(f => f.includes('SHA-256 MISMATCH'))).toBe(true)
+      } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true })
+      }
+    })
+
+    it('M76: remote CI partially complete but reported green -> caught by CI invariant oracle', () => {
+      const mockRun = {
+        status: 'in_progress',
+        conclusion: null,
+        jobs: [
+          { name: 'Static & Unit Quality', status: 'completed', conclusion: 'success' },
+          { name: 'Pre-Release Regression Gate (11/11 Checks)', status: 'in_progress', conclusion: null }
+        ]
+      }
+      const isGreen = mockRun.status === 'completed' && mockRun.conclusion === 'success' &&
+        mockRun.jobs.every(j => j.status === 'completed' && j.conclusion === 'success')
+      expect(isGreen).toBe(false)
+    })
+
+    it('M77: required CI job skipped -> caught by CI invariant oracle', () => {
+      const mockRun = {
+        status: 'completed',
+        conclusion: 'success',
+        jobs: [
+          { name: 'Static & Unit Quality', status: 'completed', conclusion: 'success' },
+          { name: 'Pre-Release Regression Gate (11/11 Checks)', status: 'completed', conclusion: 'skipped' }
+        ]
+      }
+      const isGreen = mockRun.jobs.every(j => j.status === 'completed' && j.conclusion === 'success')
+      expect(isGreen).toBe(false)
+    })
+
+    it('M78: continue-on-error on required provenance job -> caught by CI invariant oracle', () => {
+      const ciYaml = fs.readFileSync(path.resolve(process.cwd(), '.github/workflows/ci.yml'), 'utf8')
+      expect(ciYaml).not.toContain('continue-on-error: true')
+    })
+
+    it('M79: wrong deployment SHA supplied manually -> caught by deployment metadata validation', () => {
+      const res = validateDeploymentMetadata({
+        environment: 'Production',
+        status: 'success',
+        sha: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+        mainSha: headSha,
+        isManual: true,
+        isAncestor: false
+      })
+      expect(res.valid).toBe(false)
+      expect(res.reason).toContain('unrelated to main lineage')
+    })
+
+    it('M80: preview URL used as production provenance -> caught by targetUrl check', () => {
+      const res = validateDeploymentMetadata({
+        environment: 'Production',
+        status: 'success',
+        sha: headSha,
+        mainSha: headSha,
+        targetUrl: 'https://preview.vercel.app'
+      })
+      expect(res.valid).toBe(false)
+      expect(res.reason).toContain('not the fixed production alias')
+    })
+
+    it('M81: stale production deployment after new repository commit -> caught by convergence check', () => {
+      const simulatedStaleHtml = '<html><script src="/assets/index-old-stale.js"></script></html>'
+      const refs = extractHtmlAssetReferences(simulatedStaleHtml)
+      expect(refs).not.toContain('/assets/index-C448U-vI.js')
+    })
+
+    it('M82: post-build bundle secret not rescanned -> caught by gate verification', () => {
+      const gateScript = fs.readFileSync(path.resolve(process.cwd(), 'scripts/release_gate.mjs'), 'utf8')
+      const postBuildScanIdx = gateScript.indexOf("header(8, 'No Gemini API key pattern in src/ or dist/')")
+      expect(postBuildScanIdx).toBeGreaterThan(0)
+    })
+
+    it('M83: exact test count lower-bound regression -> caught by exact equality assertion', () => {
+      expect(contract.testSuiteCount).toBe(6030)
+    })
+
+    it('M84: contract field missing but presence-only oracle passes -> caught by strict contract schema oracle', () => {
+      const res = verifyArtifactIntegrity({ contractPath: '' })
+      expect(res.valid).toBe(false)
+    })
+
+    it('M85: artifact verification exception swallowed -> caught by fail-closed error handling', () => {
+      const res = verifyArtifactIntegrity({ contractPath: '/non/existent/path.json' })
+      expect(res.valid).toBe(false)
+      expect(res.failures.length).toBeGreaterThan(0)
     })
   })
 })

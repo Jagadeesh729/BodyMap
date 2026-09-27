@@ -28,7 +28,9 @@ export function validateDeploymentMetadata({ environment, status, sha, ref, main
   if (targetUrl !== FIXED_PRODUCTION_URL) return { valid: false, reason: 'target URL is not the fixed production alias' }
   if (isManual) {
     if (!SHA_REGEX.test(mainSha || '')) return { valid: false, reason: 'manual source SHA is unavailable or malformed' }
-    return { valid: true, sha: mainSha, mode: 'manual' }
+    if (sha && !SHA_REGEX.test(sha)) return { valid: false, reason: 'manual deployment SHA is malformed' }
+    if (sha && (!isAncestor && sha !== mainSha)) return { valid: false, reason: 'manual deployment SHA is unrelated to main lineage' }
+    return { valid: true, sha: sha || mainSha, mode: 'manual' }
   }
   if (environment !== 'Production') return { valid: false, reason: 'deployment environment is not Production' }
   if (status !== 'success') return { valid: false, reason: 'deployment status is not successful' }

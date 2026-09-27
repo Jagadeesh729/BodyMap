@@ -11,7 +11,7 @@
  */
 
 import { execSync, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
@@ -191,9 +191,56 @@ if (forbiddenFound === 0) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CHECK 6 — No client-side Gemini secret in src/ or dist/
+// CHECK 6 — Required package.json scripts exist
 // ─────────────────────────────────────────────────────────────────────────────
-header(6, 'No Gemini API key pattern in src/ or dist/');
+header(6, 'Required package.json scripts exist');
+const pkgPath = join(ROOT, 'package.json');
+let pkg;
+try {
+  pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
+} catch (e) {
+  fail('Cannot parse package.json', e.message);
+  pkg = { scripts: {} };
+}
+const REQUIRED_SCRIPTS = ['test', 'typecheck', 'lint', 'build'];
+for (const script of REQUIRED_SCRIPTS) {
+  if (pkg.scripts?.[script]) {
+    pass(`scripts.${script} = "${pkg.scripts[script]}"`);
+  } else {
+    fail(`scripts.${script}`, 'MISSING from package.json');
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CHECK 7 — Production build succeeds (Clean build without stale contamination)
+// ─────────────────────────────────────────────────────────────────────────────
+header(7, 'Production build succeeds');
+const distDir = join(ROOT, 'dist');
+if (existsSync(distDir)) {
+  try {
+    rmSync(distDir, { recursive: true, force: true });
+    console.log(`  ${INFO} Purged pre-existing dist/ directory to prevent stale artifact contamination`);
+  } catch (e) {
+    console.warn(`  ${INFO} Notice: could not fully purge dist/: ${e.message}`);
+  }
+}
+console.log(`  ${INFO} Running npm run build...`);
+const buildResult = spawnSync('npm', ['run', 'build'], {
+  cwd: ROOT,
+  encoding: 'utf8',
+  stdio: ['ignore', 'pipe', 'pipe'],
+  shell: true,
+});
+if (buildResult.status === 0 && existsSync(distDir)) {
+  pass('npm run build exited 0 and generated clean dist/');
+} else {
+  fail('npm run build failed or did not generate dist/', buildResult.stderr?.slice(0, 400) || buildResult.stdout?.slice(0, 400));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CHECK 8 — No client-side Gemini secret in src/ or dist/ (Post-build verification)
+// ─────────────────────────────────────────────────────────────────────────────
+header(8, 'No Gemini API key pattern in src/ or dist/');
 // Pattern: AIzaSy... (39-char Google API key prefix)
 const SECRET_PATTERN = /AIzaSy[A-Za-z0-9_-]{33}/;
 let secretsFound = 0;
@@ -222,9 +269,10 @@ for (const file of allSrcFiles) {
   }
 }
 
-// Check dist/ if it exists
-const distDir = join(ROOT, 'dist');
-if (existsSync(distDir)) {
+// Check dist/ (must exist post-build; fail-closed if missing)
+if (!existsSync(distDir)) {
+  fail('dist/ directory missing after build step — cannot verify bundle security');
+} else {
   function walkDist(dir, results = []) {
     try {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -249,49 +297,6 @@ if (existsSync(distDir)) {
   if (secretsFound === 0) {
     pass('No API key pattern in src/ or dist/');
   }
-} else {
-  console.log(`  ${INFO} dist/ not found — skipping bundle scan (run npm run build first for full gate)`);
-  if (secretsFound === 0) {
-    pass('No API key pattern in src/');
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CHECK 7 — Required package.json scripts exist
-// ─────────────────────────────────────────────────────────────────────────────
-header(7, 'Required package.json scripts exist');
-const pkgPath = join(ROOT, 'package.json');
-let pkg;
-try {
-  pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
-} catch (e) {
-  fail('Cannot parse package.json', e.message);
-  pkg = { scripts: {} };
-}
-const REQUIRED_SCRIPTS = ['test', 'typecheck', 'lint', 'build'];
-for (const script of REQUIRED_SCRIPTS) {
-  if (pkg.scripts?.[script]) {
-    pass(`scripts.${script} = "${pkg.scripts[script]}"`);
-  } else {
-    fail(`scripts.${script}`, 'MISSING from package.json');
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CHECK 8 — Build succeeds
-// ─────────────────────────────────────────────────────────────────────────────
-header(8, 'Production build succeeds');
-console.log(`  ${INFO} Running npm run build...`);
-const buildResult = spawnSync('npm', ['run', 'build'], {
-  cwd: ROOT,
-  encoding: 'utf8',
-  stdio: ['ignore', 'pipe', 'pipe'],
-  shell: true,
-});
-if (buildResult.status === 0) {
-  pass('npm run build exited 0');
-} else {
-  fail('npm run build failed', buildResult.stderr?.slice(0, 400) || buildResult.stdout?.slice(0, 400));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
