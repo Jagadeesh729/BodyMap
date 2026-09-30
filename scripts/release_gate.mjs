@@ -16,6 +16,9 @@ import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { validateReleaseContractLineage, IMMUTABLE_RELEASE_ANCHOR } from './release_lineage.mjs';
+import { validateReleaseContractSchema } from './release_contract_schema.mjs';
+import { scanFileContent } from './security_scanner.mjs';
+import { safeWalkDir } from './verify_artifact_integrity.mjs';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const CONTRACT_PATH = join(ROOT, 'release-contract.json');
@@ -212,6 +215,7 @@ for (const script of REQUIRED_SCRIPTS) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 // CHECK 7 — Production build succeeds (Clean build without stale contamination)
 // ─────────────────────────────────────────────────────────────────────────────
 header(7, 'Production build succeeds');
@@ -219,17 +223,22 @@ const distDir = join(ROOT, 'dist');
 if (existsSync(distDir)) {
   try {
     rmSync(distDir, { recursive: true, force: true });
-    console.log(`  ${INFO} Purged pre-existing dist/ directory to prevent stale artifact contamination`);
   } catch (e) {
-    console.warn(`  ${INFO} Notice: could not fully purge dist/: ${e.message}`);
+    fail('Pre-build purge of dist/ failed', e.message);
+  }
+  if (existsSync(distDir)) {
+    fail('dist/ directory still exists after purge attempt — clean build aborted');
+  } else {
+    pass('Purged pre-existing dist/ directory to prevent stale artifact contamination — Pre-existing dist/ directory purged cleanly before build');
   }
 }
 console.log(`  ${INFO} Running npm run build...`);
-const buildResult = spawnSync('npm', ['run', 'build'], {
+const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+const buildResult = spawnSync(npmCmd, ['run', 'build'], {
   cwd: ROOT,
   encoding: 'utf8',
   stdio: ['ignore', 'pipe', 'pipe'],
-  shell: true,
+  shell: process.platform === 'win32',
 });
 if (buildResult.status === 0 && existsSync(distDir)) {
   pass('npm run build exited 0 and generated clean dist/');
@@ -238,34 +247,39 @@ if (buildResult.status === 0 && existsSync(distDir)) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CHECK 8 — No client-side Gemini secret in src/ or dist/ (Post-build verification)
+// CHECK 8 — No sensitive credentials or API keys in src/ or dist/ (Post-build verification)
 // ─────────────────────────────────────────────────────────────────────────────
 header(8, 'No Gemini API key pattern in src/ or dist/');
-// Pattern: AIzaSy... (39-char Google API key prefix)
 const SECRET_PATTERN = /AIzaSy[A-Za-z0-9_-]{33}/;
 let secretsFound = 0;
 
-function walkAllSrc(dir, results = []) {
-  try {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      const full = join(dir, entry.name);
-      if (entry.isDirectory()) walkAllSrc(full, results);
-      else if (entry.name.endsWith('.ts') || entry.name.endsWith('.tsx')) results.push(full);
+// Walk src/ fail-closed
+const srcWalk = safeWalkDir(join(ROOT, 'src'));
+if (!srcWalk.success) {
+  fail('Failed to enumerate src/ for secret scanning', srcWalk.errors.map(e => e.message).join('; '));
+} else {
+  for (const file of srcWalk.files) {
+    if (file.endsWith('.ts') || file.endsWith('.tsx')) {
+      const rel = file.replace(ROOT, '').replace(/\\/g, '/').replace(/^\//, '');
+      try {
+        const content = readFileSync(file, 'utf8');
+        if (SECRET_PATTERN.test(content)) {
+          fail(`API key pattern detected in source: ${rel}`);
+          secretsFound++;
+        }
+        if (!file.includes('__tests__')) {
+          const scan = scanFileContent(content, rel);
+          if (!scan.valid) {
+            for (const finding of scan.findings) {
+              fail(`Sensitive pattern [${finding.name}] detected in source: ${rel}`);
+              secretsFound++;
+            }
+          }
+        }
+      } catch (readErr) {
+        fail(`Fail-closed read error on ${rel}`, readErr.message);
+      }
     }
-  } catch {}
-  return results;
-}
-
-const allSrcFiles = walkAllSrc(join(ROOT, 'src'));
-if (allSrcFiles.length === 0) {
-  fail('No source files found in src/ for secret scanning');
-}
-for (const file of allSrcFiles) {
-  const rel = file.replace(ROOT, '').replace(/\\/g, '/').replace(/^\//, '');
-  const content = readFileSync(file, 'utf8');
-  if (SECRET_PATTERN.test(content)) {
-    fail(`API key pattern detected in source: ${rel}`);
-    secretsFound++;
   }
 }
 
@@ -273,26 +287,25 @@ for (const file of allSrcFiles) {
 if (!existsSync(distDir)) {
   fail('dist/ directory missing after build step — cannot verify bundle security');
 } else {
-  function walkDist(dir, results = []) {
-    try {
-      for (const entry of readdirSync(dir, { withFileTypes: true })) {
-        const full = join(dir, entry.name);
-        if (entry.isDirectory()) walkDist(full, results);
-        else results.push(full);
+  const distWalk = safeWalkDir(distDir);
+  if (!distWalk.success) {
+    fail('Failed to enumerate dist/ for secret scanning', distWalk.errors.map(e => e.message).join('; '));
+  } else {
+    for (const file of distWalk.files) {
+      const rel = file.replace(ROOT, '').replace(/\\/g, '/').replace(/^\//, '');
+      try {
+        const buf = readFileSync(file);
+        const scan = scanFileContent(buf, rel);
+        if (!scan.valid) {
+          for (const finding of scan.findings) {
+            fail(`Sensitive pattern [${finding.name}] detected in bundle: ${rel}`);
+            secretsFound++;
+          }
+        }
+      } catch (readErr) {
+        fail(`Fail-closed read error on ${rel}`, readErr.message);
       }
-    } catch {}
-    return results;
-  }
-  const distFiles = walkDist(distDir);
-  for (const file of distFiles) {
-    const rel = file.replace(ROOT, '').replace(/\\/g, '/').replace(/^\//, '');
-    try {
-      const content = readFileSync(file, 'utf8');
-      if (SECRET_PATTERN.test(content)) {
-        fail(`API key pattern detected in bundle: ${rel}`);
-        secretsFound++;
-      }
-    } catch { /* binary files */ }
+    }
   }
   if (secretsFound === 0) {
     pass('No API key pattern in src/ or dist/');
@@ -304,13 +317,14 @@ if (!existsSync(distDir)) {
 // ─────────────────────────────────────────────────────────────────────────────
 header(9, 'Critical safety test suites pass');
 console.log(`  ${INFO} Running planLifecycleSafetyBoundaryOracle tests...`);
+const npxCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 const testResult = spawnSync(
-  'npx', ['vitest', 'run', 'src/__tests__/planLifecycleSafetyBoundaryOracle.test.ts', '--reporter=verbose'],
+  npxCmd, ['vitest', 'run', 'src/__tests__/planLifecycleSafetyBoundaryOracle.test.ts', '--reporter=verbose'],
   {
     cwd: ROOT,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
-    shell: true,
+    shell: process.platform === 'win32',
   }
 );
 if (testResult.status === 0) {
@@ -326,16 +340,11 @@ header(10, 'Release contract JSON is valid and matches HEAD commit');
 let contractOk = false;
 try {
   const contract = JSON.parse(readFileSync(CONTRACT_PATH, 'utf8'));
-  // Validate required top-level keys
-  const REQUIRED_KEYS = [
-    'releaseCommit', 'currentHeadCommit', 'releaseBranch', 'productionUrl', 'testSuiteCount',
-    'testFileCount', 'offlineCapability', 'safetyInvariants', 'consumerSinks',
-    'prohibitedPhrases', 'qualityGates',
-  ];
-  const missing = REQUIRED_KEYS.filter(k => !(k in contract));
-  if (missing.length > 0) {
-    fail('release-contract.json missing required keys', missing.join(', '));
+  const schemaResult = validateReleaseContractSchema(contract);
+  if (!schemaResult.valid) {
+    fail('release-contract.json schema invalid', schemaResult.errors.join('; '));
   } else {
+    pass('release-contract.json conforms to strict typed schema');
     const head = execSync('git rev-parse HEAD', { cwd: ROOT, encoding: 'utf8' }).trim();
     const lineageResult = validateReleaseContractLineage(contract, head, ROOT);
 

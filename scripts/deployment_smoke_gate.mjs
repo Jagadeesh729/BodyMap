@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { scanTextContent } from './security_scanner.mjs'
 
 export const FIXED_PRODUCTION_URL = 'https://bodymap-ai.vercel.app'
 export const REQUIRED_HEADERS = {
@@ -24,24 +25,29 @@ const SECRET_PATTERNS = [
   /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9._-]{10,}\.[A-Za-z0-9._-]{10,}\b/,
 ]
 
-export function validateDeploymentMetadata({ environment, status, sha, ref, mainSha, isManual = false, isAncestor = false, targetUrl = FIXED_PRODUCTION_URL }) {
+export function validateDeploymentMetadata({ environment, status, sha, ref, mainSha, isManual = false, isAncestor = false, targetUrl = FIXED_PRODUCTION_URL, requireFullProvenance = false }) {
   if (targetUrl !== FIXED_PRODUCTION_URL) return { valid: false, reason: 'target URL is not the fixed production alias' }
   if (isManual) {
     if (!SHA_REGEX.test(mainSha || '')) return { valid: false, reason: 'manual source SHA is unavailable or malformed' }
     if (sha && !SHA_REGEX.test(sha)) return { valid: false, reason: 'manual deployment SHA is malformed' }
     if (sha && (!isAncestor && sha !== mainSha)) return { valid: false, reason: 'manual deployment SHA is unrelated to main lineage' }
-    return { valid: true, sha: sha || mainSha, mode: 'manual' }
+    if (requireFullProvenance) return { valid: false, reason: 'manual mode cannot certify full independent provenance without provider metadata' }
+    return { valid: true, sha: sha || mainSha, mode: 'manual', classification: 'LIVE-SMOKE-VERIFIED BUT PROVENANCE-LIMITED' }
   }
   if (environment !== 'Production') return { valid: false, reason: 'deployment environment is not Production' }
   if (status !== 'success') return { valid: false, reason: 'deployment status is not successful' }
   if (!SHA_REGEX.test(sha || '')) return { valid: false, reason: 'deployment SHA is missing or malformed' }
   if (!SHA_REGEX.test(mainSha || '') || (!isAncestor && sha !== mainSha)) return { valid: false, reason: 'deployment SHA is unrelated to main lineage' }
   if (ref && !SHA_REGEX.test(ref) && ref !== 'main') return { valid: false, reason: 'deployment ref is not a repository ref' }
-  return { valid: true, sha, mode: 'deployment_status' }
+  return { valid: true, sha, mode: 'deployment_status', classification: 'PROVENANCE-VERIFIED PRODUCTION' }
 }
 
 export function extractAssetReferences(html) {
-  return [...html.matchAll(/(?:src|href)=["'](\/assets\/[^"']+)["']/g)].map(match => match[1]).filter((value, index, values) => values.indexOf(value) === index)
+  const matches = [...html.matchAll(/(?:src|href)=["']([^"']+)["']/g)].map(match => match[1])
+  return matches
+    .filter(url => url.startsWith('/assets/'))
+    .filter(url => !url.includes('..') && !url.includes('\\') && !/%2e/i.test(url) && !/\/\//.test(url.replace('/assets/', '')))
+    .filter((value, index, values) => values.indexOf(value) === index)
 }
 
 export function loadContract(contractPath = resolve(process.cwd(), 'release-contract.json')) {
@@ -138,8 +144,13 @@ function git(command, args) {
   return execFileSync(command, args, { encoding: 'utf8' }).trim()
 }
 
-async function verifyDeploymentApi({ deploymentId, deploymentSha, token, repository }) {
-  if (!deploymentId) return { valid: true, skipped: true }
+export async function verifyDeploymentApi({ deploymentId, deploymentSha, token, repository, requireFullProvenance = false }) {
+  if (!deploymentId) {
+    if (requireFullProvenance) {
+      return { valid: false, failures: ['independent deployment ID is required for full provenance'] }
+    }
+    return { valid: true, skipped: true, classification: 'PROVENANCE-LIMITED' }
+  }
   const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'BodyMap-production-smoke' }
   if (token) headers.Authorization = `Bearer ${token}`
   const deploymentResponse = await fetch(`https://api.github.com/repos/${repository}/deployments/${deploymentId}`, { headers })
@@ -153,7 +164,7 @@ async function verifyDeploymentApi({ deploymentId, deploymentSha, token, reposit
   if (deployment.environment !== 'Production') failures.push('GitHub deployment environment is not Production')
   if (deployment.creator?.login !== 'vercel[bot]') failures.push('GitHub deployment provider is not Vercel')
   if (!statuses.some(status => status.state === 'success' && status.environment === 'Production')) failures.push('successful Production deployment status not found')
-  return { valid: failures.length === 0, failures }
+  return { valid: failures.length === 0, failures, verified: failures.length === 0, classification: 'PROVENANCE-VERIFIED PRODUCTION' }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
@@ -202,11 +213,23 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
           bundleFailures.push(...scan.failures.map(failure => `${asset}: ${failure}`))
         }
       }
+      const isProvenanceVerified = Boolean(!isManual && apiMetadata.verified && !apiMetadata.skipped)
+      const classification = isProvenanceVerified ? 'PROVENANCE-VERIFIED PRODUCTION' : 'LIVE-SMOKE-VERIFIED BUT PROVENANCE-LIMITED'
       if (!headerResult.valid || !result.valid || bundleFailures.length > 0) {
         console.error(JSON.stringify({ headers: headerResult.failures, convergence: result.failures, bundles: bundleFailures }))
         process.exitCode = 1
       } else {
-        console.log(JSON.stringify({ mode: isManual ? 'manual' : 'deployment_status', deploymentSha, target: FIXED_PRODUCTION_URL, convergedAttempt: result.attempt, artifact: 'verified', headers: 'verified', bundles: 'verified' }))
+        console.log(JSON.stringify({
+          mode: isManual ? 'manual' : 'deployment_status',
+          classification,
+          deploymentSha: isManual ? (deploymentSha || mainSha) : deploymentSha,
+          providerIdentityVerified: isProvenanceVerified,
+          target: FIXED_PRODUCTION_URL,
+          convergedAttempt: result.attempt,
+          artifact: 'verified',
+          headers: 'verified',
+          bundles: 'verified'
+        }))
       }
     }
   }

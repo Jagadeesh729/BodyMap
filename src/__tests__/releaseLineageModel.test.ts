@@ -1937,7 +1937,7 @@ describe('Release Lineage Model & Governance Invariants', { timeout: 45000 }, ()
     it('M24: release-contract current count stale -> rejects test count mismatch', () => {
       expect(typeof contract.testSuiteCount).toBe('number')
       // Exact synchronization: Phase 7 prohibits lower-bound >= assertions
-      expect(contract.testSuiteCount).toBe(6030)
+      expect(contract.testSuiteCount).toBe(6145)
     })
 
     it('M25: active historical SHA whitelist reintroduced -> rejects arbitrary uncertified historical SHA', () => {
@@ -2735,7 +2735,7 @@ describe('Release Lineage Model & Governance Invariants', { timeout: 45000 }, ()
 
     it('G-INV-09: mandates exact test count synchronization over minimum-count semantics', () => {
       const cc = getCC()
-      expect(cc).toMatch(/157 automated test suites.*tests/)
+      expect(cc).toMatch(/158 automated test suites.*tests/)
     })
   })
 
@@ -3194,7 +3194,7 @@ describe('Release Lineage Model & Governance Invariants', { timeout: 45000 }, ()
     })
 
     it('M83: exact test count lower-bound regression -> caught by exact equality assertion', () => {
-      expect(contract.testSuiteCount).toBe(6030)
+      expect(contract.testSuiteCount).toBe(6145)
     })
 
     it('M84: contract field missing but presence-only oracle passes -> caught by strict contract schema oracle', () => {
