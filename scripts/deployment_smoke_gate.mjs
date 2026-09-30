@@ -32,14 +32,14 @@ export function validateDeploymentMetadata({ environment, status, sha, ref, main
     if (sha && !SHA_REGEX.test(sha)) return { valid: false, reason: 'manual deployment SHA is malformed' }
     if (sha && (!isAncestor && sha !== mainSha)) return { valid: false, reason: 'manual deployment SHA is unrelated to main lineage' }
     if (requireFullProvenance) return { valid: false, reason: 'manual mode cannot certify full independent provenance without provider metadata' }
-    return { valid: true, sha: sha || mainSha, mode: 'manual', classification: 'LIVE-SMOKE-VERIFIED BUT PROVENANCE-LIMITED' }
+    return { valid: true, sha: sha || mainSha, mode: 'manual', classification: 'LIVE-SMOKE-VERIFIED BUT PROVENANCE-LIMITED', exactProvenance: false, providerIdentityVerified: false }
   }
   if (environment !== 'Production') return { valid: false, reason: 'deployment environment is not Production' }
   if (status !== 'success') return { valid: false, reason: 'deployment status is not successful' }
   if (!SHA_REGEX.test(sha || '')) return { valid: false, reason: 'deployment SHA is missing or malformed' }
   if (!SHA_REGEX.test(mainSha || '') || (!isAncestor && sha !== mainSha)) return { valid: false, reason: 'deployment SHA is unrelated to main lineage' }
   if (ref && !SHA_REGEX.test(ref) && ref !== 'main') return { valid: false, reason: 'deployment ref is not a repository ref' }
-  return { valid: true, sha, mode: 'deployment_status', classification: 'PROVENANCE-VERIFIED PRODUCTION' }
+  return { valid: true, sha, mode: 'deployment_status', classification: 'PROVENANCE-VERIFIED PRODUCTION', exactProvenance: true, providerIdentityVerified: true }
 }
 
 export function extractAssetReferences(html) {
@@ -147,24 +147,42 @@ function git(command, args) {
 export async function verifyDeploymentApi({ deploymentId, deploymentSha, token, repository, requireFullProvenance = false }) {
   if (!deploymentId) {
     if (requireFullProvenance) {
-      return { valid: false, failures: ['independent deployment ID is required for full provenance'] }
+      return { valid: false, failures: ['independent deployment ID is required for full provenance'], exactProvenance: false, providerIdentityVerified: false }
     }
-    return { valid: true, skipped: true, classification: 'PROVENANCE-LIMITED' }
+    return { valid: true, skipped: true, classification: 'PROVENANCE-LIMITED', exactProvenance: false, providerIdentityVerified: false }
   }
   const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'BodyMap-production-smoke' }
   if (token) headers.Authorization = `Bearer ${token}`
   const deploymentResponse = await fetch(`https://api.github.com/repos/${repository}/deployments/${deploymentId}`, { headers })
-  if (!deploymentResponse.ok) return { valid: false, failures: [`GitHub deployment metadata HTTP ${deploymentResponse.status}`] }
+  if (!deploymentResponse.ok) return { valid: false, failures: [`GitHub deployment metadata HTTP ${deploymentResponse.status}`], exactProvenance: false, providerIdentityVerified: false }
   const deployment = await deploymentResponse.json()
   const statusesResponse = await fetch(`https://api.github.com/repos/${repository}/deployments/${deploymentId}/statuses`, { headers })
-  if (!statusesResponse.ok) return { valid: false, failures: [`GitHub deployment status HTTP ${statusesResponse.status}`] }
-  const statuses = await statusesResponse.json()
+  if (!statusesResponse.ok) return { valid: false, failures: [`GitHub deployment status HTTP ${statusesResponse.status}`], exactProvenance: false, providerIdentityVerified: false }
+  let statuses = []
+  try {
+    const rawStatuses = await statusesResponse.json()
+    if (Array.isArray(rawStatuses)) {
+      statuses = rawStatuses
+    } else {
+      return { valid: false, failures: ['GitHub deployment statuses payload is not an array'], exactProvenance: false, providerIdentityVerified: false }
+    }
+  } catch (err) {
+    return { valid: false, failures: [`failed to parse deployment statuses JSON: ${err.message}`], exactProvenance: false, providerIdentityVerified: false }
+  }
   const failures = []
   if (deployment.sha !== deploymentSha) failures.push('GitHub deployment SHA mismatch')
   if (deployment.environment !== 'Production') failures.push('GitHub deployment environment is not Production')
   if (deployment.creator?.login !== 'vercel[bot]') failures.push('GitHub deployment provider is not Vercel')
   if (!statuses.some(status => status.state === 'success' && status.environment === 'Production')) failures.push('successful Production deployment status not found')
-  return { valid: failures.length === 0, failures, verified: failures.length === 0, classification: 'PROVENANCE-VERIFIED PRODUCTION' }
+  const passed = failures.length === 0
+  return {
+    valid: passed,
+    failures,
+    verified: passed,
+    exactProvenance: passed,
+    providerIdentityVerified: passed,
+    classification: passed ? 'PROVENANCE-VERIFIED PRODUCTION' : 'PROVENANCE-LIMITED'
+  }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

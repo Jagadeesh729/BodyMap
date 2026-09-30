@@ -9,8 +9,8 @@
   "productionUrl": "https://bodymap-ai.vercel.app",
   "overallMaturityScore": "9.93/10.0",
   "releaseStatus": "RELEASE FROZEN — MAINTENANCE MODE",
-  "testSuiteCount": 6145,
-  "testFileCount": 158,
+  "testSuiteCount": 6160,
+  "testFileCount": 159,
   "buildChunkCount": 26,
   "criticalChunkHashes": {
     "index-DWRsv8NH.css": {
@@ -41,6 +41,15 @@
       "sha256": "8bf89dc0f8563ca27933c7d68fb314552c751b67ce655f7f9c04e653f989e3a9",
       "bytes": 2094
     }
+  },
+  "artifactManifest": {
+    "schema": "bodymap-artifact-manifest/v1",
+    "totalFileCount": 44,
+    "buildChunkCount": 26,
+    "criticalChunkCount": 7,
+    "canonicalOrderingRule": "lexicographical-relative-path",
+    "hashAlgorithm": "sha256",
+    "manifestDigest": "6814e91fc97b64371fc63da63d4e4e3574575f371cfca17fa3f2aa35e0364b6d"
   },
   "e2eVerification": {
     "framework": "playwright",
@@ -105,8 +114,63 @@
   "consumerSinks": [
     {
       "id": "S01",
-      "location": "WeeklyPlanPage.tsx:282",
+      "location": "WeeklyPlanPage.tsx:356",
       "type": "navigator.clipboard.writeText"
+    },
+    {
+      "id": "S02",
+      "location": "WeeklyPlanPage.tsx:381",
+      "type": "navigator.clipboard.writeText"
+    },
+    {
+      "id": "S03",
+      "location": "DownloadPlanPage.tsx:223",
+      "type": "navigator.clipboard.writeText"
+    },
+    {
+      "id": "S04",
+      "location": "DownloadPlanPage.tsx:232",
+      "type": "navigator.clipboard.writeText"
+    },
+    {
+      "id": "S05",
+      "location": "DashboardPage.tsx:664",
+      "type": "navigator.clipboard.writeText"
+    },
+    {
+      "id": "S06",
+      "location": "ContactForm.tsx:60",
+      "type": "window.open"
+    },
+    {
+      "id": "S07",
+      "location": "DownloadPlanPage.tsx:201",
+      "type": "window.open"
+    },
+    {
+      "id": "S08",
+      "location": "DownloadPlanPage.tsx:213",
+      "type": "navigator.share"
+    },
+    {
+      "id": "S09",
+      "location": "DashboardPage.tsx:652",
+      "type": "navigator.share"
+    },
+    {
+      "id": "S10",
+      "location": "DownloadPlanPage.tsx:179",
+      "type": "window.print"
+    },
+    {
+      "id": "S11",
+      "location": "backupStorage.ts:262",
+      "type": "URL.createObjectURL"
+    },
+    {
+      "id": "S12",
+      "location": "gemini.ts:205",
+      "type": "fetch"
     }
   ]
 }

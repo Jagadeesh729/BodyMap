@@ -18,7 +18,7 @@ import { createHash } from 'node:crypto';
 import { validateReleaseContractLineage, IMMUTABLE_RELEASE_ANCHOR } from './release_lineage.mjs';
 import { validateReleaseContractSchema } from './release_contract_schema.mjs';
 import { scanFileContent } from './security_scanner.mjs';
-import { safeWalkDir } from './verify_artifact_integrity.mjs';
+import { safeWalkDir, verifyArtifactIntegrity } from './verify_artifact_integrity.mjs';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const CONTRACT_PATH = join(ROOT, 'release-contract.json');
@@ -127,20 +127,13 @@ const KNOWN_SINK_PATTERNS = [
   ]},
 ];
 
-function walkSrc(dir, results = []) {
-  try {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      const full = join(dir, entry.name);
-      // Exclude __tests__ directory from sink / language checks (test assertions
-      // legitimately reference sink APIs and test phrases)
-      if (entry.isDirectory() && entry.name !== '__tests__') walkSrc(full, results);
-      else if (entry.name.endsWith('.ts') || entry.name.endsWith('.tsx')) results.push(full);
-    }
-  } catch {}
-  return results;
+const srcWalkResult = safeWalkDir(join(ROOT, 'src'));
+if (!srcWalkResult.success) {
+  fail('Failed to enumerate src/ for consumer sink scan', srcWalkResult.errors.map(e => e.message).join('; '));
 }
-
-const srcFiles = walkSrc(join(ROOT, 'src'));
+const srcFiles = (srcWalkResult.files || []).filter(
+  f => !f.includes('__tests__') && (f.endsWith('.ts') || f.endsWith('.tsx'))
+);
 if (srcFiles.length === 0) {
   fail('No source files found in src/ for consumer sink scan');
 }
@@ -242,6 +235,12 @@ const buildResult = spawnSync(npmCmd, ['run', 'build'], {
 });
 if (buildResult.status === 0 && existsSync(distDir)) {
   pass('npm run build exited 0 and generated clean dist/');
+  const integrityResult = verifyArtifactIntegrity({ root: ROOT, contractPath: CONTRACT_PATH });
+  if (integrityResult.valid) {
+    pass(`Artifact integrity and manifest verified (${integrityResult.manifest.length} emitted files, digest: ${integrityResult.manifestDigest.slice(0, 16)})`);
+  } else {
+    fail('Artifact integrity verification failed on emitted build', integrityResult.failures.join('; '));
+  }
 } else {
   fail('npm run build failed or did not generate dist/', buildResult.stderr?.slice(0, 400) || buildResult.stdout?.slice(0, 400));
 }

@@ -29,6 +29,7 @@ export const ALLOWED_TOP_LEVEL_KEYS = new Set([
   'testFileCount',
   'buildChunkCount',
   'criticalChunkHashes',
+  'artifactManifest',
   'e2eVerification',
   'offlineCapability',
   'prohibitedPhrases',
@@ -48,7 +49,7 @@ export function validateReleaseContractSchema(contract, options = {}) {
     return { valid: false, errors: ['Contract root must be a non-null JSON object'] };
   }
 
-  // 1. Closed schema check
+  // 1. Closed schema check (top-level)
   for (const key of Object.keys(contract)) {
     if (!ALLOWED_TOP_LEVEL_KEYS.has(key)) {
       errors.push(`Unexpected top-level property: "${key}" is not part of the release contract schema`);
@@ -105,12 +106,12 @@ export function validateReleaseContractSchema(contract, options = {}) {
     errors.push(`testFileCount must be a positive integer, got ${contract.testFileCount}`);
   }
 
-  // 11. buildChunkCount
+  // 11. buildChunkCount (dist/assets regular files count)
   if (typeof contract.buildChunkCount !== 'number' || !Number.isInteger(contract.buildChunkCount) || contract.buildChunkCount <= 0) {
     errors.push(`buildChunkCount must be a positive integer, got ${contract.buildChunkCount}`);
   }
 
-  // 12. criticalChunkHashes
+  // 12. criticalChunkHashes (deep closed)
   if (!contract.criticalChunkHashes || typeof contract.criticalChunkHashes !== 'object' || Array.isArray(contract.criticalChunkHashes)) {
     errors.push(`criticalChunkHashes must be a non-empty object map`);
   } else {
@@ -130,6 +131,11 @@ export function validateReleaseContractSchema(contract, options = {}) {
         errors.push(`criticalChunkHashes entry for "${filename}" must be an object with sha256 and bytes`);
         continue;
       }
+      for (const key of Object.keys(meta)) {
+        if (!['sha256', 'bytes'].includes(key)) {
+          errors.push(`Unexpected property in criticalChunkHashes["${filename}"]: "${key}"`);
+        }
+      }
       if (typeof meta.sha256 !== 'string' || !HASH256_REGEX.test(meta.sha256)) {
         errors.push(`criticalChunkHashes["${filename}"].sha256 must be a 64-char lowercase hex SHA-256`);
       }
@@ -139,11 +145,74 @@ export function validateReleaseContractSchema(contract, options = {}) {
     }
   }
 
-  // 13. e2eVerification
+  // 13. artifactManifest (cryptographic binding of complete 44-file manifest)
+  if (contract.artifactManifest) {
+    if (typeof contract.artifactManifest !== 'object' || Array.isArray(contract.artifactManifest)) {
+      errors.push(`artifactManifest must be an object`);
+    } else {
+      const am = contract.artifactManifest;
+      const ALLOWED_MANIFEST_KEYS = new Set([
+        'schema',
+        'totalFileCount',
+        'buildChunkCount',
+        'criticalChunkCount',
+        'canonicalOrderingRule',
+        'hashAlgorithm',
+        'manifestDigest',
+      ]);
+      for (const key of Object.keys(am)) {
+        if (!ALLOWED_MANIFEST_KEYS.has(key)) {
+          errors.push(`Unexpected property in artifactManifest: "${key}"`);
+        }
+      }
+      if (typeof am.schema !== 'string' || am.schema !== 'bodymap-artifact-manifest/v1') {
+        errors.push(`artifactManifest.schema must be "bodymap-artifact-manifest/v1"`);
+      }
+      if (typeof am.totalFileCount !== 'number' || !Number.isInteger(am.totalFileCount) || am.totalFileCount <= 0) {
+        errors.push(`artifactManifest.totalFileCount must be a positive integer`);
+      }
+      if (typeof am.buildChunkCount !== 'number' || am.buildChunkCount !== contract.buildChunkCount) {
+        errors.push(`artifactManifest.buildChunkCount (${am.buildChunkCount}) must match contract buildChunkCount (${contract.buildChunkCount})`);
+      }
+      const expectedCriticalCount = contract.criticalChunkHashes ? Object.keys(contract.criticalChunkHashes).length : 0;
+      if (typeof am.criticalChunkCount !== 'number' || am.criticalChunkCount !== expectedCriticalCount) {
+        errors.push(`artifactManifest.criticalChunkCount (${am.criticalChunkCount}) must match criticalChunkHashes count (${expectedCriticalCount})`);
+      }
+      if (typeof am.canonicalOrderingRule !== 'string' || am.canonicalOrderingRule !== 'lexicographical-relative-path') {
+        errors.push(`artifactManifest.canonicalOrderingRule must be "lexicographical-relative-path"`);
+      }
+      if (typeof am.hashAlgorithm !== 'string' || am.hashAlgorithm !== 'sha256') {
+        errors.push(`artifactManifest.hashAlgorithm must be "sha256"`);
+      }
+      if (typeof am.manifestDigest !== 'string' || !HASH256_REGEX.test(am.manifestDigest)) {
+        errors.push(`artifactManifest.manifestDigest must be a 64-char lowercase hex SHA-256`);
+      }
+    }
+  }
+
+  // 14. e2eVerification (deep closed)
   if (!contract.e2eVerification || typeof contract.e2eVerification !== 'object' || Array.isArray(contract.e2eVerification)) {
     errors.push(`e2eVerification must be an object`);
   } else {
     const e2e = contract.e2eVerification;
+    const ALLOWED_E2E_KEYS = new Set([
+      'framework',
+      'version',
+      'suites',
+      'testsTotal',
+      'passed',
+      'failed',
+      'skipped',
+      'browsers',
+      'mutationCampaign',
+      'determinismCampaign',
+      'productionSmoke',
+    ]);
+    for (const key of Object.keys(e2e)) {
+      if (!ALLOWED_E2E_KEYS.has(key)) {
+        errors.push(`Unexpected property in e2eVerification: "${key}"`);
+      }
+    }
     if (typeof e2e.framework !== 'string' || e2e.framework !== 'playwright') {
       errors.push(`e2eVerification.framework must be "playwright"`);
     }
@@ -164,10 +233,15 @@ export function validateReleaseContractSchema(contract, options = {}) {
     }
   }
 
-  // 14. offlineCapability
+  // 15. offlineCapability (deep closed)
   if (!contract.offlineCapability || typeof contract.offlineCapability !== 'object' || Array.isArray(contract.offlineCapability)) {
     errors.push(`offlineCapability must be an object with safe and unavailable arrays`);
   } else {
+    for (const key of Object.keys(contract.offlineCapability)) {
+      if (!['safe', 'unavailable'].includes(key)) {
+        errors.push(`Unexpected property in offlineCapability: "${key}"`);
+      }
+    }
     if (!Array.isArray(contract.offlineCapability.safe) || contract.offlineCapability.safe.length === 0 || !contract.offlineCapability.safe.every(s => typeof s === 'string' && s.trim() !== '')) {
       errors.push(`offlineCapability.safe must be a non-empty array of non-empty strings`);
     }
@@ -176,16 +250,21 @@ export function validateReleaseContractSchema(contract, options = {}) {
     }
   }
 
-  // 15. prohibitedPhrases
+  // 16. prohibitedPhrases
   if (!Array.isArray(contract.prohibitedPhrases) || contract.prohibitedPhrases.length === 0 || !contract.prohibitedPhrases.every(p => typeof p === 'string' && p.trim() !== '')) {
     errors.push(`prohibitedPhrases must be a non-empty array of non-empty strings`);
   }
 
-  // 16. qualityGates
+  // 17. qualityGates (deep closed)
   if (!contract.qualityGates || typeof contract.qualityGates !== 'object' || Array.isArray(contract.qualityGates)) {
     errors.push(`qualityGates must be an object`);
   } else {
     const qg = contract.qualityGates;
+    for (const key of Object.keys(qg)) {
+      if (!['coverageThreshold', 'mutationScoreRequired', 'sentinelIntegrityChecked'].includes(key)) {
+        errors.push(`Unexpected property in qualityGates: "${key}"`);
+      }
+    }
     if (typeof qg.coverageThreshold !== 'number' || qg.coverageThreshold < 0 || qg.coverageThreshold > 100) {
       errors.push(`qualityGates.coverageThreshold must be a number between 0 and 100`);
     }
@@ -197,12 +276,12 @@ export function validateReleaseContractSchema(contract, options = {}) {
     }
   }
 
-  // 17. safetyInvariants
+  // 18. safetyInvariants
   if (!Array.isArray(contract.safetyInvariants) || contract.safetyInvariants.length === 0 || !contract.safetyInvariants.every(i => typeof i === 'string' && i.trim() !== '')) {
     errors.push(`safetyInvariants must be a non-empty array of non-empty strings`);
   }
 
-  // 18. consumerSinks
+  // 19. consumerSinks (deep closed)
   if (!Array.isArray(contract.consumerSinks) || contract.consumerSinks.length === 0) {
     errors.push(`consumerSinks must be a non-empty array of sink records`);
   } else {
@@ -211,6 +290,11 @@ export function validateReleaseContractSchema(contract, options = {}) {
       if (!sink || typeof sink !== 'object' || Array.isArray(sink)) {
         errors.push(`Each consumerSink must be an object`);
         continue;
+      }
+      for (const key of Object.keys(sink)) {
+        if (!['id', 'location', 'type'].includes(key)) {
+          errors.push(`Unexpected property in consumerSink "${sink.id}": "${key}"`);
+        }
       }
       if (typeof sink.id !== 'string' || sink.id.trim() === '') {
         errors.push(`consumerSink.id must be a non-empty string`);

@@ -8,7 +8,7 @@ This document defines the **impact classification** and **approval requirements*
 **Baseline Score**: 9.93 / 10.0 | **Status**: RELEASE FROZEN — MAINTENANCE MODE
 
 > [!NOTE]
-> **Historical Baseline Classification**: The baseline score of 9.93 / 10.0 reflects the certified audit ceiling established at frozen baseline milestone commit `12076d44528c82fdd10aeaa5db27bf0492a41159`. It serves as permanent historical forensic reference; current repository health is continuously verified against 158 automated test suites, 6,145 tests, and 11/11 release gates.
+> **Historical Baseline Classification**: The baseline score of 9.93 / 10.0 reflects the certified audit ceiling established at frozen baseline milestone commit `12076d44528c82fdd10aeaa5db27bf0492a41159`. It serves as permanent historical forensic reference; current repository health is continuously verified against 159 automated test suites, 6,160 tests, and 11/11 release gates.
 
 ---
 
@@ -42,7 +42,7 @@ This document defines the **impact classification** and **approval requirements*
 **Required before merging**:
 - [ ] `npm run lint` passes
 - [ ] `npm run typecheck` passes
-- [ ] `npm test -- --run` passes all suites (6,145 tests across 158 suites)
+- [ ] `npm test -- --run` passes all suites (6,160 tests across 159 suites)
 - [ ] Lineage invariant verified (C1–C4) via `scripts/release_lineage.mjs`
 - [ ] `node scripts/release_gate.mjs` passes 11/11
 - [ ] Working tree is clean and synchronized with remote
@@ -54,7 +54,7 @@ This document defines the **impact classification** and **approval requirements*
 
 **Required before merging**:
 - [ ] Full 11/11 release gate passes without bypass flags
-- [ ] Full regression suite passes (6,145 tests across 158 suites)
+- [ ] Full regression suite passes (6,160 tests across 159 suites)
 - [ ] Mutation harness verification (`releaseLineageModel.test.ts`) passes 100% of adversarial mutations (M01–M85)
 - [ ] Parity across all DAG histories verified between simulator and real Git
 - [ ] Remote CI run completed with unconditional success across all required jobs
@@ -73,7 +73,7 @@ This document defines the **impact classification** and **approval requirements*
 **Required before merging**:
 - [ ] `npm run lint` passes
 - [ ] `npm run typecheck` passes
-- [ ] `npm test` — full test suite passes (6,145+/6,145+ tests)
+- [ ] `npm test` — full test suite passes (6,160+/6,160+ tests)
 - [ ] README test badge updated if test count changed
 - [ ] `finalProductionQualityOracle.test.ts` assertion updated if README count changed
 
@@ -191,7 +191,7 @@ To maintain immutable audit history while strictly enforcing present-day truthfu
    - `README.md` (badges, tech stack, project structure, scripts table)
    - `release-contract.json` (authoritative release metadata and test totals)
    - Current release status, artifact chunk hashes, and consumer sink registers
-     - *Governance Rule*: Must match current verified test counts (`6,145` tests across `158` suites) and build outputs. Enforced by `finalProductionQualityOracle.test.ts` (Section G) and `scripts/release_gate.mjs`. Stale counts (`6,030`, `157 suites`, `5,991`, `5,941`, `5,921`, `5,918`, `5,877`, `5,736`, `5,694`, `5,661`, `5,653`, `5,609`, `149 suites`, `147 suites`, `146 suites`, `145 suites`, `5,571`, etc.) in current documentation cause CI test failure.
+     - *Governance Rule*: Must match current verified test counts (`6,160` tests across `159` suites) and build outputs. Enforced by `finalProductionQualityOracle.test.ts` (Section G) and `scripts/release_gate.mjs`. Stale counts (`6,145`, `158 suites`, `6,030`, `157 suites`, `5,991`, `5,941`, `5,921`, `5,918`, `5,877`, `5,736`, `5,694`, `5,661`, `5,653`, `5,609`, `149 suites`, `147 suites`, `146 suites`, `145 suites`, `5,571`, etc.) in current documentation cause CI test failure.
 
 2. **Historical Audit Records (Preserved Forensic Evidence)**:
    - Prior audit walkthrough sections (`walkthrough.md` sections 1–21)
@@ -239,4 +239,6 @@ To maintain immutable audit history while strictly enforcing present-day truthfu
 | 2026-09-24 | Principal Release-Governance & Provenance Auditor | Enhancement E51: Model consistency & real-Git ambiguity closure across Topologies R01–R20; implemented maximal runtime tip ambiguity detection (ERR_AMBIGUOUS_RUNTIME_TIPS) in getAuthoritativeRuntimeCommits via git merge-base --independent; hardened verify_artifact_integrity.mjs and deployment_smoke_gate.mjs to fail closed on empty chunk hashes; audited APP_SCOPE pathspec completeness (L08); implemented governance policy invariant oracle (G-INV-01 to G-INV-09); eliminated lower-bound assertions (exact test count equality); expanded mutation matrix to M01–M65 (65/65 killed); synchronized test counts to 5,991 across 157 suites | 0-V |
 | 2026-09-27 | Principal Release-Governance & Provenance Auditor | Enhancement E52: Release-gate temporal integrity, TOCTOU closure, clean dist/ pre-purge, post-build bundle security scan, HTML asset graph provenance oracle, deployment SHA binding verification, and expanded adversarial mutation matrix M01–M85 (85/85 killed); synchronized test counts to 6,030 across 157 suites | 0-V |
 | 2026-09-30 | Principal Supply-Chain & Security Auditor | Enhancement E53: Cross-layer release provenance, deterministic build manifest generation, fail-closed directory walkers, strict typed release-contract schema validation, post-build fail-closed security scanning, deployment smoke classification hardening, and adversarial mutation suite C01–C15, A01–A15, T01–T15, P01–P15, F01–F15, H01–H10, S01–S15, G01–G15 (115/115 killed); synchronized test counts to 6,145 across 158 suites | 0-V |
+| 2026-09-30 | Principal Release Certification Auditor | Enhancement E54: Anti-false-pass release certification engine (scripts/release_certification.mjs), deep-closure release-contract schema validation with 44-file artifactManifest and 64-char hex digest, post-build manifest verification in release_gate Check 7, fail-closed manual deployment smoke provenance classification, and adversarial certification test suite E54-P01..P06, C01..C04, G01..G03, A01..A02; synchronized test counts to 6,160 across 159 suites | 0-V |
+
 

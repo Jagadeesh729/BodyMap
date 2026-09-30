@@ -415,6 +415,22 @@ export function verifyArtifactIntegrity({ root = ROOT, contractPath = CONTRACT_P
     }
   } else {
     details.push(`Complete build manifest generated: ${manifestResult.manifest.length} files (digest: ${manifestResult.manifestDigest.slice(0, 16)})`);
+
+    // Verify contract manifest cryptographic binding
+    if (contract.artifactManifest) {
+      if (typeof contract.artifactManifest.totalFileCount === 'number') {
+        if (manifestResult.manifest.length !== contract.artifactManifest.totalFileCount) {
+          failures.push(`Manifest total file count mismatch: expected ${contract.artifactManifest.totalFileCount}, got ${manifestResult.manifest.length}`);
+        }
+      }
+      if (contract.artifactManifest.manifestDigest) {
+        if (manifestResult.manifestDigest !== contract.artifactManifest.manifestDigest) {
+          failures.push(`Manifest digest mismatch: expected ${contract.artifactManifest.manifestDigest}, got ${manifestResult.manifestDigest}`);
+        } else {
+          details.push(`Manifest digest verified against release contract (${manifestResult.manifestDigest.slice(0, 16)})`);
+        }
+      }
+    }
   }
 
   // 6. Post-Build Secret & Sensitive Data Scan
