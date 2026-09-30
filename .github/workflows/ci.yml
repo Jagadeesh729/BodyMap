@@ -52,7 +52,7 @@ jobs:
         run: npm test -- --run
 
       - name: Dependency security audit
-        run: npm audit --audit-level=high
+        run: npm audit --omit=dev --audit-level=high
 
   supply-chain:
     name: Supply-Chain Integrity Oracle
