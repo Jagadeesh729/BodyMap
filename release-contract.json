@@ -49,7 +49,7 @@
     "criticalChunkCount": 7,
     "canonicalOrderingRule": "lexicographical-relative-path",
     "hashAlgorithm": "sha256",
-    "manifestDigest": "6814e91fc97b64371fc63da63d4e4e3574575f371cfca17fa3f2aa35e0364b6d"
+    "manifestDigest": "7e8ce692980752780cb013115bce0097c20721cd7c0e47c156f4f90c724499c0"
   },
   "e2eVerification": {
     "framework": "playwright",

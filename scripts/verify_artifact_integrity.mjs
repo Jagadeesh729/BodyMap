@@ -17,7 +17,7 @@
 
 import { createHash } from 'node:crypto';
 import { readFileSync, existsSync, readdirSync, statSync, lstatSync } from 'node:fs';
-import { resolve, join } from 'node:path';
+import { resolve, join, relative, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { validateReleaseContractSchema } from './release_contract_schema.mjs';
 import { scanFileContent, isBinaryAsset } from './security_scanner.mjs';
@@ -238,9 +238,14 @@ export function generateArtifactManifest(distDir, referencedAssetRelPaths = new 
   const normalizedDist = resolve(distDir);
 
   for (const absPath of walkResult.files) {
-    const rel = absPath.replace(normalizedDist, '').replace(/\\/g, '/').replace(/^\//, '');
+    const rel = relative(normalizedDist, absPath).split(sep).join('/');
     try {
-      const buf = readFileSync(absPath);
+      let buf = readFileSync(absPath);
+      // Cross-platform determinism: normalize CRLF to LF for text/markup files
+      // to ensure bit-for-bit parity with Linux CI and production container builds.
+      if (rel.endsWith('.html') || rel.endsWith('.txt') || rel.endsWith('.svg')) {
+        buf = Buffer.from(buf.toString('utf8').replace(/\r/g, ''), 'utf8');
+      }
       const sha256 = createHash('sha256').update(buf).digest('hex');
       const bytes = buf.length;
       const category = classifyFileType(rel);
